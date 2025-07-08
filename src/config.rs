@@ -27,12 +27,26 @@ pub struct NetworkConfig {
     pub bootstrap_nodes: Vec<BootstrapNode>,
     /// DHT replication factor
     pub replication_factor: usize,
+    /// DHT storage configuration
+    pub dht_storage: DHTStorageConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BootstrapNode {
     pub peer_id: String,
     pub address: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DHTStorageConfig {
+    /// Database storage path
+    pub db_path: Option<PathBuf>,
+    /// Memory cache size
+    pub cache_size: usize,
+    /// Cleanup interval in seconds
+    pub cleanup_interval_secs: u64,
+    /// Default TTL for chunks in seconds
+    pub default_ttl_secs: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,6 +92,12 @@ impl Default for Config {
                 max_connections: 100,
                 bootstrap_nodes: vec![],
                 replication_factor: 3,
+                dht_storage: DHTStorageConfig {
+                    db_path: None,
+                    cache_size: 1000,
+                    cleanup_interval_secs: 24 * 60 * 60, // 24 hours
+                    default_ttl_secs: 24 * 60 * 60, // 24 hours
+                },
             },
             storage: StorageConfig {
                 keys_dir: None,

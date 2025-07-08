@@ -99,7 +99,7 @@ pub struct Transaction {
     pub description: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum TransactionType {
     Transfer,
     Stake,

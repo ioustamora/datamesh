@@ -36,6 +36,7 @@ mod quota_service;
 mod bootstrap_admin;
 mod governance_service;
 mod economics;
+mod persistent_dht;
 
 use std::error::Error;
 use std::path::PathBuf;
@@ -176,7 +177,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .map_err(|e| Box::new(e) as Box<dyn Error>)
         }
         cli::Commands::Bootstrap { port } => {
-            network::start_bootstrap_node(*port).await
+            let config = config::Config::load_or_default(None)?;
+            network::start_bootstrap_node(*port, &config).await
         }
         cli::Commands::Interactive { bootstrap_peer, bootstrap_addr, port } => {
             interactive::run_interactive_mode(&cli, key_manager, *bootstrap_peer, bootstrap_addr.clone(), *port).await

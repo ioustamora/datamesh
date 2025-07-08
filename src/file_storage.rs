@@ -20,6 +20,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::cli::Cli;
+use crate::config::Config;
 use crate::error::{DfsError, DfsResult};
 use crate::key_manager::{get_encryption_key, KeyManager};
 use crate::network::create_swarm_and_connect;
@@ -84,7 +85,8 @@ pub async fn handle_put_command(
     // Create progress bar
     let progress = ui::ProgressManager::new_upload(file_size);
     
-    let mut swarm = create_swarm_and_connect(cli).await?;
+    let config = Config::load_or_default(None)?;
+    let mut swarm = create_swarm_and_connect(cli, &config).await?;
     let file_key = RecordKey::new(&blake3::hash(&file_data).as_bytes());
 
     // Get the encryption key (either specified public key or default)
@@ -253,7 +255,8 @@ async fn attempt_file_retrieval(
     output_path: &PathBuf,
     private_key: &Option<String>,
 ) -> DfsResult<()> {
-    let mut swarm = create_swarm_and_connect(cli).await?;
+    let config = Config::load_or_default(None)?;
+    let mut swarm = create_swarm_and_connect(cli, &config).await?;
     
     // Enhanced DHT bootstrapping and peer discovery
     println!("Bootstrapping into DHT network...");

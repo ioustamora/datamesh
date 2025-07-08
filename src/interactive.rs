@@ -24,6 +24,7 @@ use std::path::PathBuf;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 use crate::cli::Cli;
+use crate::config::Config;
 use crate::file_storage::{FileRetrieval, StoredFile, PUB_DATA_SHARDS, PUB_PARITY_SHARDS};
 use crate::key_manager::{get_default_keys_dir, KeyManager};
 use crate::network::{create_swarm_and_connect, MyBehaviourEvent};
@@ -59,7 +60,8 @@ pub async fn run_interactive_mode(
         network_cli.port = port;
     }
     
-    let mut swarm = create_swarm_and_connect(&network_cli).await?;
+    let config = Config::load_or_default(None)?;
+    let mut swarm = create_swarm_and_connect(&network_cli, &config).await?;
     
     if port > 0 {
         let listen_addr = format!("/ip4/0.0.0.0/tcp/{}", port);
@@ -743,7 +745,8 @@ pub async fn run_service_mode(
         network_cli.port = port;
     }
     
-    let mut swarm = create_swarm_and_connect(&network_cli).await?;
+    let config = Config::load_or_default(None)?;
+    let mut swarm = create_swarm_and_connect(&network_cli, &config).await?;
     
     if port > 0 {
         let listen_addr = format!("/ip4/0.0.0.0/tcp/{}", port);
