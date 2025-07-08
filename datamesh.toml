@@ -1,0 +1,21 @@
+[network]
+default_port = 40871
+connection_timeout_secs = 30
+max_connections = 100
+bootstrap_nodes = []
+replication_factor = 3
+
+[storage]
+data_shards = 4
+parity_shards = 2
+max_file_size = 104857600
+chunk_size = 1048576
+
+[security]
+key_algorithm = "secp256k1"
+verify_integrity = true
+encryption_strength = "aes256"
+
+[logging]
+level = "info"
+structured = true
