@@ -46,7 +46,7 @@ cargo build --release
 ### Building from Source
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/datamesh.git
+git clone https://github.com/ioustamora/datamesh.git
 cd datamesh
 
 # Build in release mode
