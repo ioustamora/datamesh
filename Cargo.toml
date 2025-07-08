@@ -39,7 +39,8 @@ glob = "0.3.1"
 regex = "1.10.2"
 notify = "6.1.1"
 tar = "0.4"
-uuid = { version = "1.0", features = ["v4"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+thiserror = "1.0"
 
 # Security enhancements
 argon2 = "0.5"

@@ -26,6 +26,8 @@ pub enum DfsError {
     Export(String),
     /// Import operation errors
     Import(String),
+    /// Authentication and authorization errors
+    Authentication(String),
     /// Generic errors
     Generic(String),
 }
@@ -77,6 +79,7 @@ impl fmt::Display for DfsError {
             DfsError::Share(e) => write!(f, "Share error: {}", e),
             DfsError::Export(e) => write!(f, "Export error: {}", e),
             DfsError::Import(e) => write!(f, "Import error: {}", e),
+            DfsError::Authentication(e) => write!(f, "Authentication error: {}", e),
             DfsError::Generic(e) => write!(f, "Error: {}", e),
         }
     }

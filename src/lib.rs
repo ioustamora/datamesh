@@ -24,6 +24,11 @@ pub mod network_diagnostics;
 pub mod file_manager;
 pub mod batch_operations;
 pub mod health_manager;
+pub mod governance;
+pub mod quota_service;
+pub mod bootstrap_admin;
+pub mod governance_service;
+pub mod economics;
 
 pub use key_manager::KeyManager;
 pub use database::DatabaseManager;

@@ -31,6 +31,11 @@ mod network_diagnostics;
 mod file_manager;
 mod batch_operations;
 mod health_manager;
+mod governance;
+mod quota_service;
+mod bootstrap_admin;
+mod governance_service;
+mod economics;
 
 use std::error::Error;
 use std::path::PathBuf;
