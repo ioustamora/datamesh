@@ -1,4 +1,4 @@
-# DataMesh - Distributed Data Storage Network
+# DataMesh - Distributed Data Storage Network (in active development - dont use in production !!!)
 
 A secure, fault-tolerant distributed data storage system built with Rust, libp2p, and cryptographic best practices. 
 
