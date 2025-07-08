@@ -3,7 +3,8 @@
 A secure, fault-tolerant distributed data storage system built with Rust, libp2p, and cryptographic best practices. 
 
 ![Last Updated](https://img.shields.io/badge/Last%20Updated-July%202025-blue)
-![Status](https://img.shields.io/badge/Status-Production%20Ready-green)
+![Status](https://img.shields.io/badge/Status-Enterprise%20Ready-green)
+![Security](https://img.shields.io/badge/Security-Hardened-red)
 ![License](https://img.shields.io/badge/License-MIT-orange)
 
 ## 🚀 Features

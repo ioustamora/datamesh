@@ -15,15 +15,12 @@
 use anyhow::Result;
 use chrono::{DateTime, Local};
 use ecies::{PublicKey, SecretKey};
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
-use std::fs::{self, Permissions};
+use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use blake3::Hasher;
-
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 
 use crate::cli::Cli;
 
@@ -56,16 +53,14 @@ pub enum KeySelectionMode {
     Interactive,
     /// Non-interactive mode uses default key or fails
     NonInteractive,
-    /// Force generation of a new key
-    ForceGenerate,
 }
 
 impl KeyManager {
     pub fn new(key: SecretKey, name: String) -> Self {
         // Validate key strength
-        Self::validate_key_strength(&key).unwrap_or_else(|e| {
+        if let Err(e) = Self::validate_key_strength(&key) {
             eprintln!("⚠️  Warning: Key strength validation failed: {}", e);
-        });
+        }
         
         let public_key = PublicKey::from_secret_key(&key);
         let integrity_hash = Self::calculate_key_integrity(&key);
@@ -80,6 +75,45 @@ impl KeyManager {
         Self { key, key_info }
     }
     
+    fn calculate_key_integrity(key: &SecretKey) -> String {
+        let key_bytes = key.serialize();
+        let hash = blake3::hash(&key_bytes);
+        hex::encode(hash.as_bytes())
+    }
+    
+    fn validate_key_strength(key: &SecretKey) -> Result<(), String> {
+        let key_bytes = key.serialize();
+        
+        // Check key length
+        if key_bytes.len() != 32 {
+            return Err("Invalid key length - must be 32 bytes".to_string());
+        }
+        
+        // Check for weak keys (all zeros, all ones, etc.)
+        if key_bytes.iter().all(|&x| x == 0) {
+            return Err("Weak key detected - all zeros".to_string());
+        }
+        
+        if key_bytes.iter().all(|&x| x == 0xFF) {
+            return Err("Weak key detected - all ones".to_string());
+        }
+        
+        // Check for patterns that indicate weak entropy
+        let mut pattern_count = 0;
+        for i in 0..key_bytes.len() - 1 {
+            if key_bytes[i] == key_bytes[i + 1] {
+                pattern_count += 1;
+            }
+        }
+        
+        // If more than 75% of adjacent bytes are the same, it's likely weak
+        if pattern_count > (key_bytes.len() * 3) / 4 {
+            return Err("Weak key detected - low entropy".to_string());
+        }
+        
+        Ok(())
+    }
+    
     pub fn save_to_file(&self, keys_dir: &Path) -> Result<(), Box<dyn Error>> {
         fs::create_dir_all(keys_dir)?;
         
@@ -92,6 +126,22 @@ impl KeyManager {
         // Save the key info (JSON format)
         let info_json = serde_json::to_string_pretty(&self.key_info)?;
         fs::write(&info_file, info_json)?;
+        
+        // Set secure file permissions (Unix only)
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            
+            // Set key file to 600 (read/write for owner only)
+            let mut perms = fs::metadata(&key_file)?.permissions();
+            perms.set_mode(0o600);
+            fs::set_permissions(&key_file, perms)?;
+            
+            // Set info file to 644 (read/write for owner, read for others)
+            let mut perms = fs::metadata(&info_file)?.permissions();
+            perms.set_mode(0o644);
+            fs::set_permissions(&info_file, perms)?;
+        }
         
         println!("Key saved: {}", key_file.display());
         println!("Key info saved: {}", info_file.display());
@@ -111,6 +161,17 @@ impl KeyManager {
         // Load the key info
         let info_json = fs::read_to_string(&info_file)?;
         let key_info: EciesKeyInfo = serde_json::from_str(&info_json)?;
+        
+        // Verify key integrity
+        let calculated_hash = Self::calculate_key_integrity(&key);
+        if calculated_hash != key_info.integrity_hash {
+            return Err(anyhow::anyhow!("Key integrity verification failed - key may be corrupted").into());
+        }
+        
+        // Validate key strength
+        if let Err(e) = Self::validate_key_strength(&key) {
+            eprintln!("⚠️  Warning: Loaded key has weak strength: {}", e);
+        }
         
         Ok(Self { key, key_info })
     }
@@ -145,6 +206,55 @@ impl KeyManager {
         let info_json = fs::read_to_string(&info_file)?;
         let key_info: EciesKeyInfo = serde_json::from_str(&info_json)?;
         Ok(key_info)
+    }
+    
+    /// Securely delete a key file (legacy format)
+    pub fn secure_delete_key(&self, keys_dir: &Path) -> Result<(), Box<dyn Error>> {
+        let key_file = keys_dir.join(format!("{}.key", self.key_info.name));
+        let info_file = keys_dir.join(format!("{}.info", self.key_info.name));
+        
+        // Secure overwrite key file
+        if key_file.exists() {
+            let file_size = fs::metadata(&key_file)?.len() as usize;
+            
+            // Multiple pass secure overwrite
+            for pass in 0..3 {
+                let overwrite_data = match pass {
+                    0 => vec![0x00; file_size], // All zeros
+                    1 => vec![0xFF; file_size], // All ones
+                    2 => {
+                        // Random data
+                        let mut random_data = vec![0u8; file_size];
+                        rand::thread_rng().fill_bytes(&mut random_data);
+                        random_data
+                    }
+                    _ => unreachable!(),
+                };
+                
+                fs::write(&key_file, &overwrite_data)?;
+                
+                // Force sync to disk
+                #[cfg(unix)]
+                {
+                    use std::os::unix::io::AsRawFd;
+                    let file = std::fs::OpenOptions::new()
+                        .write(true)
+                        .open(&key_file)?;
+                    unsafe {
+                        libc::fsync(file.as_raw_fd());
+                    }
+                }
+            }
+            
+            fs::remove_file(&key_file)?;
+        }
+        
+        // Remove info file
+        if info_file.exists() {
+            fs::remove_file(&info_file)?;
+        }
+        
+        Ok(())
     }
 }
 
@@ -207,9 +317,6 @@ pub fn get_decryption_key(
     }
 }
 
-pub async fn setup_key_management(cli: &Cli) -> Result<KeyManager, Box<dyn Error>> {
-    setup_key_management_with_mode(cli, KeySelectionMode::Interactive).await
-}
 
 pub async fn setup_key_management_with_mode(cli: &Cli, mode: KeySelectionMode) -> Result<KeyManager, Box<dyn Error>> {
     let keys_dir = cli.keys_dir.clone()
@@ -248,7 +355,7 @@ pub async fn setup_key_management_with_mode(cli: &Cli, mode: KeySelectionMode) -
     // List existing keys
     let available_keys = KeyManager::list_keys(&keys_dir)?;
     
-    if available_keys.is_empty() || matches!(mode, KeySelectionMode::ForceGenerate) {
+    if available_keys.is_empty() {
         if !matches!(mode, KeySelectionMode::NonInteractive) {
             println!("No ECIES keys found in the keys directory.");
             println!("You need to generate a new key to use the DFS system.");
@@ -258,7 +365,7 @@ pub async fn setup_key_management_with_mode(cli: &Cli, mode: KeySelectionMode) -
             name.clone()
         } else {
             match mode {
-                KeySelectionMode::NonInteractive | KeySelectionMode::ForceGenerate => {
+                KeySelectionMode::NonInteractive => {
                     generate_default_key_name()
                 }
                 KeySelectionMode::Interactive => {
@@ -349,23 +456,6 @@ pub async fn setup_key_management_with_mode(cli: &Cli, mode: KeySelectionMode) -
                 
                 Ok(key_manager)
             }
-        }
-        KeySelectionMode::ForceGenerate => {
-            // Force generate new key
-            let key_name = if let Some(name) = &cli.key_name {
-                name.clone()
-            } else {
-                generate_default_key_name()
-            };
-            
-            let secret_key = SecretKey::random(&mut rand::thread_rng());
-            let key_manager = KeyManager::new(secret_key, key_name);
-            
-            key_manager.save_to_file(&keys_dir)?;
-            println!("New key generated and saved successfully!");
-            println!("Public key: {}", key_manager.key_info.public_key_hex);
-            
-            Ok(key_manager)
         }
     }
 }

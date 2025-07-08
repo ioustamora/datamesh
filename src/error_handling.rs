@@ -91,6 +91,9 @@ pub fn get_error_severity(error: &DfsError) -> ErrorSeverity {
         DfsError::Generic(_) => ErrorSeverity::Info,
         DfsError::Serialization(_) => ErrorSeverity::Warning,
         DfsError::KeyManagement(_) => ErrorSeverity::Critical,
+        DfsError::Share(_) => ErrorSeverity::Warning,
+        DfsError::Export(_) => ErrorSeverity::Warning,
+        DfsError::Import(_) => ErrorSeverity::Warning,
     }
 }
 
@@ -158,6 +161,9 @@ pub fn handle_error(error: &(dyn std::error::Error + 'static)) -> EnhancedError 
             DfsError::Storage(msg) => DfsError::Storage(msg.clone()),
             DfsError::FileNotFound(msg) => DfsError::FileNotFound(msg.clone()),
             DfsError::Database(msg) => DfsError::Database(msg.clone()),
+            DfsError::Share(msg) => DfsError::Share(msg.clone()),
+            DfsError::Export(msg) => DfsError::Export(msg.clone()),
+            DfsError::Import(msg) => DfsError::Import(msg.clone()),
             DfsError::Generic(msg) => DfsError::Generic(msg.clone()),
         }
     } else {
@@ -381,6 +387,34 @@ pub fn file_not_found_error_with_suggestions(message: &str) -> EnhancedError {
 pub fn storage_error_with_suggestions(message: &str) -> EnhancedError {
     add_context_and_suggestions(
         EnhancedError::new(DfsError::Storage(message.to_string()))
+    )
+}
+
+/// Helper function to create share error with suggestions
+pub fn share_error_with_suggestions(message: &str) -> EnhancedError {
+    add_context_and_suggestions(
+        EnhancedError::new(DfsError::Share(message.to_string()))
+    )
+}
+
+/// Helper function to create export error with suggestions
+pub fn export_error_with_suggestions(message: &str) -> EnhancedError {
+    add_context_and_suggestions(
+        EnhancedError::new(DfsError::Export(message.to_string()))
+    )
+}
+
+/// Helper function to create import error with suggestions
+pub fn import_error_with_suggestions(message: &str) -> EnhancedError {
+    add_context_and_suggestions(
+        EnhancedError::new(DfsError::Import(message.to_string()))
+    )
+}
+
+/// Helper function to create database error with suggestions
+pub fn database_error_with_suggestions(message: &str) -> EnhancedError {
+    add_context_and_suggestions(
+        EnhancedError::new(DfsError::Database(message.to_string()))
     )
 }
 

@@ -20,6 +20,12 @@ pub enum DfsError {
     FileNotFound(String),
     /// Database errors
     Database(String),
+    /// Share operation errors
+    Share(String),
+    /// Export operation errors
+    Export(String),
+    /// Import operation errors
+    Import(String),
     /// Generic errors
     Generic(String),
 }
@@ -68,6 +74,9 @@ impl fmt::Display for DfsError {
             DfsError::Storage(e) => write!(f, "Storage error: {}", e),
             DfsError::FileNotFound(e) => write!(f, "File not found: {}", e),
             DfsError::Database(e) => write!(f, "Database error: {}", e),
+            DfsError::Share(e) => write!(f, "Share error: {}", e),
+            DfsError::Export(e) => write!(f, "Export error: {}", e),
+            DfsError::Import(e) => write!(f, "Import error: {}", e),
             DfsError::Generic(e) => write!(f, "Error: {}", e),
         }
     }

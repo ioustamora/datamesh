@@ -9,10 +9,10 @@ use std::path::PathBuf;
 use chrono::Local;
 
 // Import the DFS modules we want to test
-use dfs::database::{DatabaseManager, get_default_db_path};
-use dfs::file_manager::{SearchCriteria, SizeRange};
-use dfs::batch_operations::{BatchPutConfig, BatchTagConfig};
-use dfs::health_manager::{RepairConfig, CleanupConfig, QuotaInfo};
+use datamesh::database::{DatabaseManager, get_default_db_path};
+use datamesh::file_manager::{SearchCriteria, SizeRange};
+use datamesh::batch_operations::{BatchPutConfig, BatchTagConfig};
+use datamesh::health_manager::{RepairConfig, CleanupConfig};
 
 #[tokio::test]
 async fn test_database_operations() {
@@ -97,7 +97,7 @@ async fn test_file_search() {
         limit: 10,
     };
     
-    let results = dfs::file_manager::search_files(criteria).await.unwrap();
+    let results = datamesh::file_manager::search_files(criteria).await.unwrap();
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].name, "document1");
     
@@ -111,7 +111,7 @@ async fn test_file_search() {
         limit: 10,
     };
     
-    let size_results = dfs::file_manager::search_files(size_criteria).await.unwrap();
+    let size_results = datamesh::file_manager::search_files(size_criteria).await.unwrap();
     assert_eq!(size_results.len(), 1);
     assert_eq!(size_results[0].name, "image1");
 }
@@ -126,14 +126,14 @@ async fn test_batch_operations() {
         dry_run: true,
     };
     
-    let result = dfs::batch_operations::batch_tag(config).await.unwrap();
+    let result = datamesh::batch_operations::batch_tag(config).await.unwrap();
     assert_eq!(result.failed, 0); // Should succeed even with no matching files in dry run
 }
 
 #[tokio::test]
 async fn test_health_manager() {
     // Test quota management
-    let quota_result = dfs::health_manager::manage_quota(
+    let quota_result = datamesh::health_manager::manage_quota(
         true, // show usage
         Some("1GB".to_string()), // set limit
         Some(80), // warning threshold
@@ -150,11 +150,11 @@ async fn test_health_manager() {
         force: false,
     };
     
-    let cleanup_result = dfs::health_manager::cleanup_storage(cleanup_config).await;
+    let cleanup_result = datamesh::health_manager::cleanup_storage(cleanup_config).await;
     assert!(cleanup_result.is_ok());
     
     // Test health report generation
-    let health_report = dfs::health_manager::generate_health_report().await;
+    let health_report = datamesh::health_manager::generate_health_report().await;
     assert!(health_report.is_ok());
 }
 
@@ -214,7 +214,7 @@ fn test_database_error_handling() {
 
 #[test]
 fn test_presets_functionality() {
-    use dfs::presets::{NetworkPresets, parse_network_spec};
+    use datamesh::presets::{NetworkPresets, parse_network_spec};
     
     let presets = NetworkPresets::new();
     
@@ -237,7 +237,7 @@ fn test_presets_functionality() {
 
 #[test]
 fn test_error_handling_integration() {
-    use dfs::error_handling::{
+    use datamesh::error_handling::{
         handle_error, file_not_found_error_with_suggestions,
         operation_error_with_context, ErrorBatch
     };
@@ -292,7 +292,7 @@ async fn test_module_integration() {
         limit: 5,
     };
     
-    let search_results = dfs::file_manager::search_files(search_criteria).await.unwrap();
+    let search_results = datamesh::file_manager::search_files(search_criteria).await.unwrap();
     assert_eq!(search_results.len(), 1);
     assert_eq!(search_results[0].name, "integration-test");
     
