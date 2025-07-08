@@ -17,9 +17,13 @@ use chrono::{DateTime, Local};
 use ecies::{PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
-use std::fs;
+use std::fs::{self, Permissions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use blake3::Hasher;
+
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 use crate::cli::Cli;
 
@@ -32,6 +36,8 @@ pub struct EciesKeyInfo {
     pub created: DateTime<Local>,
     /// Hex-encoded public key
     pub public_key_hex: String,
+    /// BLAKE3 integrity hash of the private key
+    pub integrity_hash: String,
 }
 
 /// Key manager that holds a secret key and its metadata
@@ -56,11 +62,19 @@ pub enum KeySelectionMode {
 
 impl KeyManager {
     pub fn new(key: SecretKey, name: String) -> Self {
+        // Validate key strength
+        Self::validate_key_strength(&key).unwrap_or_else(|e| {
+            eprintln!("⚠️  Warning: Key strength validation failed: {}", e);
+        });
+        
         let public_key = PublicKey::from_secret_key(&key);
+        let integrity_hash = Self::calculate_key_integrity(&key);
+        
         let key_info = EciesKeyInfo {
             name,
             created: Local::now(),
             public_key_hex: hex::encode(public_key.serialize()),
+            integrity_hash,
         };
         
         Self { key, key_info }
