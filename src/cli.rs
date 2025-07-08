@@ -37,6 +37,9 @@ pub struct Cli {
     /// Optional multiaddress of the bootstrap node
     #[arg(long)]
     pub bootstrap_addr: Option<Multiaddr>,
+    /// Multiple bootstrap peers (format: peer_id@address)
+    #[arg(long, help = "Multiple bootstrap peers (format: peer_id@address)")]
+    pub bootstrap_peers: Option<Vec<String>>,
     /// Port to listen on (0 for random port)
     #[arg(long, default_value = "0")]
     pub port: u16,
@@ -564,5 +567,48 @@ impl Cli {
     /// Parse command-line arguments and return a Cli instance
     pub fn parse() -> Self {
         Parser::parse()
+    }
+
+    /// Parse bootstrap peers from CLI format (peer_id@address)
+    pub fn parse_bootstrap_peers(&self) -> Result<Vec<crate::bootstrap_manager::BootstrapPeer>, Box<dyn std::error::Error>> {
+        use crate::bootstrap_manager::BootstrapPeer;
+        use std::str::FromStr;
+        
+        let mut peers = Vec::new();
+        
+        if let Some(ref bootstrap_peers) = self.bootstrap_peers {
+            for peer_str in bootstrap_peers {
+                let parts: Vec<&str> = peer_str.split('@').collect();
+                if parts.len() != 2 {
+                    return Err(format!("Invalid bootstrap peer format '{}'. Expected format: peer_id@address", peer_str).into());
+                }
+                
+                let peer_id = PeerId::from_str(parts[0])?;
+                let address = Multiaddr::from_str(parts[1])?;
+                
+                let peer = BootstrapPeer::new(peer_id, vec![address])
+                    .with_priority(1); // CLI peers get high priority
+                
+                peers.push(peer);
+            }
+        }
+        
+        Ok(peers)
+    }
+
+    /// Get all bootstrap peers (CLI format + individual peer/addr)
+    pub fn get_all_bootstrap_peers(&self) -> Result<Vec<crate::bootstrap_manager::BootstrapPeer>, Box<dyn std::error::Error>> {
+        use crate::bootstrap_manager::BootstrapPeer;
+        
+        let mut peers = self.parse_bootstrap_peers()?;
+        
+        // Add individual peer/addr if specified
+        if let (Some(peer_id), Some(addr)) = (self.bootstrap_peer, self.bootstrap_addr.clone()) {
+            let peer = BootstrapPeer::new(peer_id, vec![addr])
+                .with_priority(1); // CLI peers get high priority
+            peers.push(peer);
+        }
+        
+        Ok(peers)
     }
 }

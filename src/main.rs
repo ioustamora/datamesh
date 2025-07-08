@@ -37,6 +37,7 @@ mod bootstrap_admin;
 mod governance_service;
 mod economics;
 mod persistent_dht;
+mod bootstrap_manager;
 
 use std::error::Error;
 use std::path::PathBuf;

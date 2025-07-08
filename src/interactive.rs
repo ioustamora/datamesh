@@ -27,7 +27,7 @@ use crate::cli::Cli;
 use crate::config::Config;
 use crate::file_storage::{FileRetrieval, StoredFile, PUB_DATA_SHARDS, PUB_PARITY_SHARDS};
 use crate::key_manager::{get_default_keys_dir, KeyManager};
-use crate::network::{create_swarm_and_connect, MyBehaviourEvent};
+use crate::network::{create_swarm_and_connect_multi_bootstrap, MyBehaviourEvent};
 use crate::database::{self, DatabaseManager};
 use crate::ui;
 use crate::error_handling;
@@ -61,7 +61,7 @@ pub async fn run_interactive_mode(
     }
     
     let config = Config::load_or_default(None)?;
-    let mut swarm = create_swarm_and_connect(&network_cli, &config).await?;
+    let mut swarm = create_swarm_and_connect_multi_bootstrap(&network_cli, &config).await?;
     
     if port > 0 {
         let listen_addr = format!("/ip4/0.0.0.0/tcp/{}", port);
@@ -746,7 +746,7 @@ pub async fn run_service_mode(
     }
     
     let config = Config::load_or_default(None)?;
-    let mut swarm = create_swarm_and_connect(&network_cli, &config).await?;
+    let mut swarm = create_swarm_and_connect_multi_bootstrap(&network_cli, &config).await?;
     
     if port > 0 {
         let listen_addr = format!("/ip4/0.0.0.0/tcp/{}", port);

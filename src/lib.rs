@@ -30,6 +30,7 @@ pub mod bootstrap_admin;
 pub mod governance_service;
 pub mod economics;
 pub mod persistent_dht;
+pub mod bootstrap_manager;
 
 pub use key_manager::KeyManager;
 pub use database::DatabaseManager;

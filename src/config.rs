@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::Duration;
+use libp2p::{PeerId, Multiaddr};
 
 /// Configuration for the DFS system
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,12 +30,58 @@ pub struct NetworkConfig {
     pub replication_factor: usize,
     /// DHT storage configuration
     pub dht_storage: DHTStorageConfig,
+    /// Multi-bootstrap peer configuration
+    pub bootstrap: BootstrapConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BootstrapNode {
     pub peer_id: String,
     pub address: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BootstrapConfig {
+    /// List of bootstrap peers
+    pub peers: Vec<BootstrapPeerConfig>,
+    /// Maximum number of bootstrap connection attempts
+    pub max_attempts: u32,
+    /// Retry interval in seconds
+    pub retry_interval_secs: u64,
+    /// Health check interval in seconds
+    pub health_check_interval_secs: u64,
+    /// Minimum number of connections to maintain
+    pub min_connections: usize,
+    /// Maximum number of connections to maintain
+    pub max_connections: usize,
+    /// Preferred region for bootstrap connections
+    pub preferred_region: Option<String>,
+    /// Exponential backoff configuration
+    pub backoff: BackoffConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BootstrapPeerConfig {
+    /// Peer ID as a string
+    pub peer_id: String,
+    /// List of multiaddresses for this peer
+    pub addresses: Vec<String>,
+    /// Priority level (1 = highest, 10 = lowest)
+    pub priority: u8,
+    /// Geographic region
+    pub region: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackoffConfig {
+    /// Base delay in seconds
+    pub base_delay_secs: u64,
+    /// Maximum delay in seconds
+    pub max_delay_secs: u64,
+    /// Multiplier for exponential backoff
+    pub multiplier: f64,
+    /// Maximum number of retry attempts
+    pub max_attempts: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -98,6 +145,21 @@ impl Default for Config {
                     cleanup_interval_secs: 24 * 60 * 60, // 24 hours
                     default_ttl_secs: 24 * 60 * 60, // 24 hours
                 },
+                bootstrap: BootstrapConfig {
+                    peers: vec![],
+                    max_attempts: 5,
+                    retry_interval_secs: 2,
+                    health_check_interval_secs: 30,
+                    min_connections: 3,
+                    max_connections: 8,
+                    preferred_region: None,
+                    backoff: BackoffConfig {
+                        base_delay_secs: 2,
+                        max_delay_secs: 300,
+                        multiplier: 2.0,
+                        max_attempts: 5,
+                    },
+                },
             },
             storage: StorageConfig {
                 keys_dir: None,
@@ -155,4 +217,49 @@ impl Config {
     pub fn connection_timeout(&self) -> Duration {
         Duration::from_secs(self.network.connection_timeout_secs)
     }
+}
+
+impl BootstrapConfig {
+    /// Convert configuration to bootstrap manager
+    pub fn to_bootstrap_manager(&self) -> Result<crate::bootstrap_manager::BootstrapManager, Box<dyn std::error::Error>> {
+        use crate::bootstrap_manager::{BootstrapManager, BootstrapPeer, ExponentialBackoff};
+        use std::str::FromStr;
+        
+        let mut manager = BootstrapManager::new()
+            .with_connection_limits(self.min_connections, self.max_connections);
+        
+        if let Some(ref region) = self.preferred_region {
+            manager = manager.with_preferred_region(region.clone());
+        }
+        
+        // Configure retry strategy
+        let retry_strategy = ExponentialBackoff::new(
+            Duration::from_secs(self.backoff.base_delay_secs),
+            Duration::from_secs(self.backoff.max_delay_secs),
+            self.backoff.multiplier,
+            self.backoff.max_attempts,
+        );
+        manager = manager.with_retry_strategy(retry_strategy);
+        
+        // Add bootstrap peers
+        for peer_config in &self.peers {
+            let peer_id = PeerId::from_str(&peer_config.peer_id)?;
+            let addresses: Result<Vec<Multiaddr>, _> = peer_config.addresses
+                .iter()
+                .map(|addr| Multiaddr::from_str(addr))
+                .collect();
+            
+            let mut peer = BootstrapPeer::new(peer_id, addresses?)
+                .with_priority(peer_config.priority);
+            
+            if let Some(ref region) = peer_config.region {
+                peer = peer.with_region(region.clone());
+            }
+            
+            manager.add_bootstrap_peer(peer);
+        }
+        
+        Ok(manager)
+    }
+}
 }

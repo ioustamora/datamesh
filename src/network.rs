@@ -27,6 +27,7 @@ use std::fs;
 
 use crate::cli::Cli;
 use crate::config::Config;
+use crate::bootstrap_manager::BootstrapManager;
 
 /// Combined network behavior for the DFS node
 ///
@@ -126,6 +127,104 @@ pub async fn create_swarm_and_connect(cli: &Cli, config: &Config) -> Result<Swar
         
         // Add bootstrap peer to routing table immediately
         swarm.behaviour_mut().kad.add_address(&peer, addr);
+    }
+
+    Ok(swarm)
+}
+
+/// Creates a new libp2p swarm and connects to the network using multi-bootstrap support
+///
+/// # Arguments
+///
+/// * `cli` - Command line arguments
+/// * `config` - Configuration including bootstrap peer settings
+///
+/// # Returns
+///
+/// A configured libp2p Swarm ready for network operations with bootstrap connections
+pub async fn create_swarm_and_connect_multi_bootstrap(cli: &Cli, config: &Config) -> Result<Swarm<MyBehaviour>, Box<dyn Error>> {
+    let local_key = identity::Keypair::generate_ed25519();
+    let local_peer_id = PeerId::from(local_key.public());
+    println!("Local peer id: {:?}", local_peer_id);
+
+    // Create the swarm using the new libp2p 0.56 API
+    let mut swarm = SwarmBuilder::with_new_identity()
+        .with_tokio()
+        .with_tcp(
+            tcp::Config::default(),
+            noise::Config::new,
+            yamux::Config::default,
+        )?
+        .with_behaviour(|key| {
+            let peer_id = key.public().to_peer_id();
+            
+            // Create persistent DHT storage
+            let storage_path = config.network.dht_storage.db_path.clone()
+                .unwrap_or_else(|| {
+                    dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."))
+                        .join(".datamesh").join("dht_storage")
+                });
+            
+            // Ensure storage directory exists
+            if let Some(parent) = storage_path.parent() {
+                fs::create_dir_all(parent).expect("Failed to create storage directory");
+            }
+            
+            let storage = PersistentDHTStorage::new(
+                storage_path,
+                config.network.dht_storage.cache_size,
+                config.network.replication_factor as u8,
+                Duration::from_secs(config.network.dht_storage.cleanup_interval_secs),
+                peer_id,
+            ).expect("Failed to create persistent DHT storage");
+            
+            let mut kad = Kademlia::new(peer_id, storage);
+            
+            // Configure Kademlia for better connectivity
+            // Use Server mode to allow serving DHT requests and better peer discovery
+            kad.set_mode(Some(libp2p::kad::Mode::Server));
+            
+            MyBehaviour { kad }
+        })?
+        .with_swarm_config(|c| c.with_idle_connection_timeout(std::time::Duration::from_secs(120)))
+        .build();
+
+    swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
+
+    // Use multi-bootstrap manager for connections
+    let mut bootstrap_manager = config.network.bootstrap.to_bootstrap_manager()?;
+    
+    // Add CLI bootstrap peers if provided (for backward compatibility)
+    match cli.get_all_bootstrap_peers() {
+        Ok(cli_peers) => {
+            for peer in cli_peers {
+                println!("Adding CLI bootstrap peer: {}", peer.peer_id);
+                bootstrap_manager.add_bootstrap_peer(peer);
+            }
+        }
+        Err(e) => {
+            println!("Warning: Failed to parse CLI bootstrap peers: {}", e);
+        }
+    }
+
+    // Connect to bootstrap network
+    if bootstrap_manager.get_peer_count() > 0 {
+        println!("Connecting to bootstrap network with {} peers", bootstrap_manager.get_peer_count());
+        
+        match bootstrap_manager.connect_to_network(&mut swarm).await {
+            Ok(connected_peers) => {
+                println!("Successfully connected to {} bootstrap peers", connected_peers.len());
+                for peer_id in connected_peers {
+                    println!("Connected to: {}", peer_id);
+                }
+            }
+            Err(e) => {
+                println!("Warning: Failed to connect to bootstrap network: {}", e);
+                // Continue without bootstrap connections
+            }
+        }
+    } else {
+        println!("No bootstrap peers configured");
     }
 
     Ok(swarm)
