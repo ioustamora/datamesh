@@ -585,6 +585,28 @@ pub enum Commands {
         #[arg(long, help = "Disable Swagger UI")]
         no_swagger: bool,
     },
+    
+    /// Test advanced DataMesh systems
+    Advanced {
+        /// Test system status
+        #[arg(long, help = "Test system status")]
+        status: bool,
+        /// Test performance optimization
+        #[arg(long, help = "Test performance optimization")]
+        performance: bool,
+        /// Test billing system
+        #[arg(long, help = "Test billing system")]
+        billing: bool,
+        /// Test load balancing
+        #[arg(long, help = "Test load balancing")]
+        load_balancer: bool,
+        /// Test failover system
+        #[arg(long, help = "Test failover system")]
+        failover: bool,
+        /// Run comprehensive test suite
+        #[arg(long, help = "Run comprehensive test suite")]
+        comprehensive: bool,
+    },
 }
 
 impl Cli {

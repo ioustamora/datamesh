@@ -867,6 +867,7 @@ dependencies = [
  "dirs",
  "ecies",
  "env_logger",
+ "fastrand",
  "futures",
  "futures-util",
  "glob",

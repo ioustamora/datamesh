@@ -44,6 +44,20 @@ pub struct TokenBalance {
     pub last_updated: DateTime<Utc>,
 }
 
+/// Economic model wrapper that provides simplified interface
+#[derive(Debug)]
+pub struct EconomicModel {
+    pub service: EconomicService,
+}
+
+impl EconomicModel {
+    pub fn new() -> Self {
+        Self {
+            service: EconomicService::new(),
+        }
+    }
+}
+
 /// Economic configuration parameters
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EconomicConfig {
@@ -164,6 +178,7 @@ pub struct ResourceUsage {
 }
 
 /// Economic management service
+#[derive(Debug)]
 pub struct EconomicService {
     config: Arc<RwLock<EconomicConfig>>,
     token_info: Arc<RwLock<Token>>,

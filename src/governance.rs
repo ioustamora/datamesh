@@ -618,3 +618,25 @@ mod tests {
         assert_eq!(retrieved.unwrap().title, "Test Proposal");
     }
 }
+
+/// Governance framework wrapper for integration
+pub struct GovernanceFramework {
+    governance: NetworkGovernance,
+}
+
+impl GovernanceFramework {
+    pub fn new(
+        database: Arc<crate::database::DatabaseManager>,
+        bootstrap_manager: Arc<crate::bootstrap_manager::BootstrapManager>,
+    ) -> Self {
+        // Create a simple governance system for now
+        Self {
+            governance: NetworkGovernance::new(),
+        }
+    }
+
+    pub async fn start(&self) -> anyhow::Result<()> {
+        // Start governance processes
+        Ok(())
+    }
+}

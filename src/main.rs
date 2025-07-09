@@ -41,6 +41,12 @@ mod bootstrap_manager;
 mod concurrent_chunks;
 mod smart_cache;
 mod api_server;
+mod load_balancer;
+mod failover;
+mod performance_optimizer;
+mod billing_system;
+mod datamesh_core;
+mod advanced_commands;
 
 use std::error::Error;
 use std::path::PathBuf;
@@ -304,6 +310,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         // === API Server ===
         cli::Commands::ApiServer { host, port, https, cert_path, key_path, no_swagger } => {
             handle_api_server_command(&cli, &key_manager, host, port, *https, cert_path, key_path, *no_swagger).await
+        }
+        
+        // === Advanced Systems ===
+        cli::Commands::Advanced { status, performance, billing, load_balancer, failover, comprehensive } => {
+            handle_advanced_command(*status, *performance, *billing, *load_balancer, *failover, *comprehensive).await
         }
     };
 
@@ -1377,4 +1388,44 @@ async fn handle_api_server_command(
     
     api_server.start().await
         .map_err(|e| Box::new(e) as Box<dyn Error>)
+}
+
+/// Handles the advanced command for testing DataMesh systems
+async fn handle_advanced_command(
+    status: bool,
+    performance: bool,
+    billing: bool,
+    load_balancer: bool,
+    failover: bool,
+    comprehensive: bool,
+) -> Result<(), Box<dyn Error>> {
+    if comprehensive {
+        advanced_commands::run_comprehensive_test().await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)
+    } else if status {
+        advanced_commands::handle_system_status().await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)
+    } else if performance {
+        advanced_commands::handle_performance_optimization().await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)
+    } else if billing {
+        advanced_commands::handle_billing_demo().await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)
+    } else if load_balancer {
+        advanced_commands::handle_load_balancing_demo().await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)
+    } else if failover {
+        advanced_commands::handle_failover_demo().await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)
+    } else {
+        ui::print_info("DataMesh Advanced Systems");
+        ui::print_info("Available tests:");
+        ui::print_info("  --status        Test system status");
+        ui::print_info("  --performance   Test performance optimization");
+        ui::print_info("  --billing       Test billing system");
+        ui::print_info("  --load-balancer Test load balancing");
+        ui::print_info("  --failover      Test failover system");
+        ui::print_info("  --comprehensive Run all tests");
+        Ok(())
+    }
 }

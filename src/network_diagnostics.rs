@@ -1173,4 +1173,15 @@ impl NetworkDiagnostics {
                 jitter: 0,
             })
     }
+    
+    /// Get active peers from the network diagnostics
+    pub async fn get_active_peers(&self) -> Vec<PeerId> {
+        let stats = self.peer_stats.lock().unwrap();
+        let cutoff_time = Instant::now() - Duration::from_secs(300); // 5 minutes
+        
+        stats.iter()
+            .filter(|(_, peer_stat)| peer_stat.last_seen > cutoff_time)
+            .map(|(peer_id, _)| *peer_id)
+            .collect()
+    }
 }
