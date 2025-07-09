@@ -451,6 +451,35 @@ test_quota_management() {
     fi
 }
 
+# Test API server functionality
+test_api_server_operations() {
+    print_section "Testing API Server Operations"
+    
+    # Test API server health check
+    info "Testing API server health check..."
+    if timeout 30 "$DFS_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        api-health > "$RESULTS_DIR/api_health_output.txt" 2>&1; then
+        success "API health check test passed"
+    else
+        error "API health check test failed"
+    fi
+    
+    # Test API server status
+    info "Testing API server status..."
+    if timeout 30 "$DFS_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        api-status > "$RESULTS_DIR/api_status_output.txt" 2>&1; then
+        success "API server status test passed"
+    else
+        error "API server status test failed"
+    fi
+}
+
 # Test network operations
 test_network_operations() {
     print_section "Testing Network Operations"
@@ -490,6 +519,183 @@ test_network_operations() {
     else
         error "Peer discovery test failed"
     fi
+}
+
+# Test network isolation and multi-node operation
+test_network_isolation() {
+    print_section "Testing Network Isolation and Multi-Node Operation"
+    
+    # Test 1: Node isolation (each node should have separate data directories)
+    info "Testing node data isolation..."
+    local data_dirs_created=0
+    for node_id in "${!NODE_PIDS[@]}"; do
+        local pid="${NODE_PIDS[$node_id]}"
+        if [ "$node_id" = "bootstrap" ]; then
+            local expected_dir="/tmp/datamesh_test_bootstrap"
+        else
+            local expected_dir="/tmp/datamesh_test_${node_id}"
+        fi
+        
+        # Check if the node is using its own data directory
+        if [ -d "$expected_dir" ]; then
+            ((data_dirs_created++))
+            info "Node $node_id has isolated data directory: $expected_dir"
+        fi
+    done
+    
+    if [ $data_dirs_created -gt 0 ]; then
+        success "Network isolation test: $data_dirs_created nodes have separate data directories"
+    else
+        error "Network isolation test failed: No isolated data directories found"
+    fi
+    
+    # Test 2: Port isolation (each node should use different ports)
+    info "Testing port isolation..."
+    local ports_in_use=()
+    
+    # Check bootstrap port
+    if netstat -ln | grep -q ":$BOOTSTRAP_PORT "; then
+        ports_in_use+=("$BOOTSTRAP_PORT")
+        info "Bootstrap node using port $BOOTSTRAP_PORT"
+    fi
+    
+    # Check node ports
+    for port in "${NODE_PORTS[@]}"; do
+        if netstat -ln | grep -q ":$port "; then
+            ports_in_use+=("$port")
+            info "Service node using port $port"
+        fi
+    done
+    
+    if [ ${#ports_in_use[@]} -gt 1 ]; then
+        success "Port isolation test: ${#ports_in_use[@]} different ports in use"
+    else
+        error "Port isolation test failed: Insufficient port isolation"
+    fi
+    
+    # Test 3: Network connectivity between nodes
+    info "Testing inter-node connectivity..."
+    local connectivity_tests=0
+    local connectivity_passed=0
+    
+    # Try to connect from different ports to verify network mesh
+    for i in $(seq 1 3); do  # Test first 3 nodes
+        local test_port=$((40900 + i))
+        ((connectivity_tests++))
+        
+        # Try to connect to bootstrap node from different client ports
+        timeout 15 "$DFS_BINARY" \
+            --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+            --bootstrap-addr "$BOOTSTRAP_ADDR" \
+            --port "$test_port" \
+            --non-interactive \
+            list > "$RESULTS_DIR/connectivity_test_$test_port.log" 2>&1
+        
+        if [ $? -eq 0 ]; then
+            ((connectivity_passed++))
+            info "Connectivity test $i: PASS (port $test_port)"
+        else
+            info "Connectivity test $i: FAIL (port $test_port)"
+        fi
+    done
+    
+    if [ $connectivity_passed -gt 0 ]; then
+        success "Network connectivity test: $connectivity_passed/$connectivity_tests connections successful"
+    else
+        error "Network connectivity test failed: No successful connections"
+    fi
+    
+    # Test 4: Concurrent operations from multiple clients
+    info "Testing concurrent multi-client operations..."
+    local concurrent_clients=3
+    local concurrent_pids=()
+    
+    # Start multiple concurrent clients
+    for i in $(seq 1 $concurrent_clients); do
+        local client_port=$((41000 + i))
+        (
+            "$DFS_BINARY" \
+                --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+                --bootstrap-addr "$BOOTSTRAP_ADDR" \
+                --port "$client_port" \
+                --non-interactive \
+                list > "$RESULTS_DIR/concurrent_client_$i.log" 2>&1
+            echo $? > "$RESULTS_DIR/concurrent_client_$i.exit"
+        ) &
+        concurrent_pids+=($!)
+    done
+    
+    # Wait for all concurrent clients to complete
+    local concurrent_success=0
+    for pid in "${concurrent_pids[@]}"; do
+        wait "$pid"
+        if [ $? -eq 0 ]; then
+            ((concurrent_success++))
+        fi
+    done
+    
+    if [ $concurrent_success -eq $concurrent_clients ]; then
+        success "Concurrent multi-client test: All $concurrent_clients clients successful"
+    else
+        error "Concurrent multi-client test: Only $concurrent_success/$concurrent_clients clients successful"
+    fi
+    
+    # Test 5: Node failure resilience
+    info "Testing node failure resilience..."
+    local original_node_count=$(get_running_node_count)
+    
+    # Temporarily stop one service node
+    local stopped_node_pid=""
+    for node_id in "${!NODE_PIDS[@]}"; do
+        if [ "$node_id" != "bootstrap" ]; then
+            local pid="${NODE_PIDS[$node_id]}"
+            if kill -0 "$pid" 2>/dev/null; then
+                kill -STOP "$pid" 2>/dev/null
+                stopped_node_pid="$pid"
+                stopped_node_id="$node_id"
+                info "Temporarily stopped node $node_id (PID: $pid)"
+                break
+            fi
+        fi
+    done
+    
+    if [ -n "$stopped_node_pid" ]; then
+        sleep 3
+        
+        # Test if network still functions with one node down
+        timeout 20 "$DFS_BINARY" \
+            --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+            --bootstrap-addr "$BOOTSTRAP_ADDR" \
+            --port 41100 \
+            --non-interactive \
+            list > "$RESULTS_DIR/resilience_test.log" 2>&1
+        
+        local resilience_exit=$?
+        
+        # Resume the stopped node
+        kill -CONT "$stopped_node_pid" 2>/dev/null
+        info "Resumed node $stopped_node_id"
+        
+        if [ $resilience_exit -eq 0 ]; then
+            success "Node failure resilience test: Network functional with one node down"
+        else
+            error "Node failure resilience test: Network failed with one node down"
+        fi
+    else
+        error "Node failure resilience test: Could not stop any service node"
+    fi
+}
+
+# Helper function to count running nodes
+get_running_node_count() {
+    local count=0
+    for node_id in "${!NODE_PIDS[@]}"; do
+        local pid="${NODE_PIDS[$node_id]}"
+        if kill -0 "$pid" 2>/dev/null; then
+            ((count++))
+        fi
+    done
+    echo $count
 }
 
 # Test optimization features
@@ -592,7 +798,9 @@ run_comprehensive_tests() {
     test_health_operations
     test_performance_features
     test_quota_management
+    test_api_server_operations
     test_network_operations
+    test_network_isolation
     test_optimization_features
     test_stub_commands
 }

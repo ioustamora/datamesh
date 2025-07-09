@@ -212,7 +212,10 @@ info "Total test data size: $(du -sh "$DATA_DIR" | cut -f1)"
 section "Starting Bootstrap Node"
 log "Starting bootstrap node on port $BOOTSTRAP_PORT..."
 
-"$DFS_BINARY" --non-interactive bootstrap --port "$BOOTSTRAP_PORT" > "$LOG_DIR/bootstrap.log" 2>&1 &
+# Set unique data directory for bootstrap node
+export BOOTSTRAP_HOME="$TEST_DIR/bootstrap_home"
+mkdir -p "$BOOTSTRAP_HOME"
+HOME="$BOOTSTRAP_HOME" "$DFS_BINARY" --non-interactive bootstrap --port "$BOOTSTRAP_PORT" > "$LOG_DIR/bootstrap.log" 2>&1 &
 BOOTSTRAP_PID=$!
 echo "$BOOTSTRAP_PID" > "$TEST_DIR/pids.txt"
 
@@ -266,7 +269,10 @@ for i in "${!NODE_PORTS[@]}"; do
     log "Starting node $node_num on port $port..."
     
     node_start_time=$(date +%s)
-    "$DFS_BINARY" --non-interactive service \
+    # Set unique data directory for each node
+    export NODE_HOME="$TEST_DIR/node_${node_num}_home"
+    mkdir -p "$NODE_HOME"
+    HOME="$NODE_HOME" "$DFS_BINARY" --non-interactive service \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --port "$port" \

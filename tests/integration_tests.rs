@@ -301,3 +301,36 @@ async fn test_module_integration() {
     assert_eq!(stats.total_files, 1);
     assert_eq!(stats.total_size, 2048);
 }
+
+#[tokio::test]
+async fn test_api_server_integration() {
+    // Test API server initialization and health checks
+    let result = datamesh::api_server::test_health_check().await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test] 
+async fn test_quota_service_integration() {
+    // Test quota service functionality
+    let quota_info = datamesh::quota_service::get_quota_info().await;
+    assert!(quota_info.is_ok());
+}
+
+#[tokio::test]
+async fn test_bootstrap_manager_integration() {
+    // Test bootstrap manager functionality
+    let bootstrap_info = datamesh::bootstrap_manager::get_bootstrap_info().await;
+    assert!(bootstrap_info.is_ok());
+}
+
+#[test]
+fn test_economics_module() {
+    // Test economic calculations
+    use datamesh::economics::{calculate_storage_cost, calculate_bandwidth_cost};
+    
+    let storage_cost = calculate_storage_cost(1024 * 1024); // 1MB
+    assert!(storage_cost > 0.0);
+    
+    let bandwidth_cost = calculate_bandwidth_cost(1024 * 1024); // 1MB transfer
+    assert!(bandwidth_cost > 0.0);
+}

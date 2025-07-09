@@ -774,8 +774,30 @@ test_new_functionality() {
         --non-interactive \
         cleanup --orphaned --duplicates --dry-run > "$RESULTS_DIR/cleanup_test.log" 2>&1 || true
     
-    record_metric "new_features" "tests_completed" "11" "count" "comprehensive_feature_test"
-    info "New functionality testing completed - 11 feature tests executed"
+    # Test 12: API server health and status
+    info "Testing API server health and status..."
+    timeout 30 "$DFS_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        api-health > "$RESULTS_DIR/api_health_test.log" 2>&1 || true
+    
+    timeout 30 "$DFS_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        api-status > "$RESULTS_DIR/api_status_test.log" 2>&1 || true
+    
+    # Test 13: Economics and pricing
+    info "Testing economics and pricing calculations..."
+    "$DFS_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        pricing --size 1024 --duration 30 > "$RESULTS_DIR/pricing_test.log" 2>&1 || true
+    
+    record_metric "new_features" "tests_completed" "13" "count" "comprehensive_feature_test"
+    info "New functionality testing completed - 13 feature tests executed"
 }
 
 generate_test_report() {

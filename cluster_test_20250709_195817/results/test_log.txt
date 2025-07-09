@@ -1,0 +1,7 @@
+2025-07-09 19:58:17 [STARTED] bootstrap_startup: Bootstrap node initiated (0s)
+2025-07-09 19:58:18 [PASS] bootstrap_startup: Bootstrap node ready (1s)
+2025-07-09 19:58:20 [PASS] node_1_startup: Node started successfully (2s)
+2025-07-09 19:58:22 [FAIL] node_2_startup: Node failed to start (2s)
+2025-07-09 19:58:24 [FAIL] node_3_startup: Node failed to start (2s)
+2025-07-09 19:58:26 [FAIL] node_4_startup: Node failed to start (2s)
+2025-07-09 19:58:28 [FAIL] node_5_startup: Node failed to start (2s)

@@ -859,6 +859,7 @@ dependencies = [
  "axum-server",
  "bincode",
  "blake3",
+ "bs58",
  "bytes",
  "chrono",
  "clap",

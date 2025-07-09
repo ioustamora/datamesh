@@ -81,11 +81,11 @@ pub async fn create_swarm_and_connect(cli: &Cli, config: &Config) -> Result<Swar
         .with_behaviour(|key| {
             let peer_id = key.public().to_peer_id();
             
-            // Create persistent DHT storage
+            // Create persistent DHT storage with unique path per peer
             let storage_path = config.network.dht_storage.db_path.clone()
                 .unwrap_or_else(|| {
                     dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."))
-                        .join(".datamesh").join("dht_storage")
+                        .join(".datamesh").join("dht_storage").join(peer_id.to_string())
                 });
             
             // Ensure storage directory exists
@@ -158,11 +158,11 @@ pub async fn create_swarm_and_connect_multi_bootstrap(cli: &Cli, config: &Config
         .with_behaviour(|key| {
             let peer_id = key.public().to_peer_id();
             
-            // Create persistent DHT storage
+            // Create persistent DHT storage with unique path per peer
             let storage_path = config.network.dht_storage.db_path.clone()
                 .unwrap_or_else(|| {
                     dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."))
-                        .join(".datamesh").join("dht_storage")
+                        .join(".datamesh").join("dht_storage").join(peer_id.to_string())
                 });
             
             // Ensure storage directory exists

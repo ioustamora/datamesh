@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use libp2p::{PeerId, Multiaddr, Swarm};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Deserializer, Serializer};
 use tokio::time::{sleep, interval};
 use tracing::{info, warn, error, debug};
 use std::sync::Arc;
@@ -21,10 +21,51 @@ use tokio::sync::RwLock;
 
 use crate::network::MyBehaviour;
 
+/// Serialize PeerId as base58 string
+fn serialize_peer_id<S>(peer_id: &PeerId, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(&peer_id.to_base58())
+}
+
+/// Deserialize PeerId from base58 string
+fn deserialize_peer_id<'de, D>(deserializer: D) -> Result<PeerId, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    let bytes = bs58::decode(&s).into_vec().map_err(serde::de::Error::custom)?;
+    PeerId::from_bytes(&bytes).map_err(serde::de::Error::custom)
+}
+
+/// Serialize Vec<Multiaddr> as vector of strings
+fn serialize_addresses<S>(addresses: &Vec<Multiaddr>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let string_addrs: Vec<String> = addresses.iter().map(|addr| addr.to_string()).collect();
+    string_addrs.serialize(serializer)
+}
+
+/// Deserialize Vec<Multiaddr> from vector of strings
+fn deserialize_addresses<'de, D>(deserializer: D) -> Result<Vec<Multiaddr>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let string_addrs: Vec<String> = Vec::deserialize(deserializer)?;
+    string_addrs
+        .into_iter()
+        .map(|s| s.parse().map_err(serde::de::Error::custom))
+        .collect()
+}
+
 /// Bootstrap peer configuration with priority and health tracking
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BootstrapPeer {
+    #[serde(serialize_with = "serialize_peer_id", deserialize_with = "deserialize_peer_id")]
     pub peer_id: PeerId,
+    #[serde(serialize_with = "serialize_addresses", deserialize_with = "deserialize_addresses")]
     pub addresses: Vec<Multiaddr>,
     pub priority: u8,
     pub region: Option<String>,
