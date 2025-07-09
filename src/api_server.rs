@@ -42,6 +42,8 @@ use crate::error::{DfsError, DfsResult};
 use crate::file_storage;
 use crate::key_manager::KeyManager;
 use crate::smart_cache::SmartCacheManager;
+use crate::governance_service::GovernanceService;
+use crate::bootstrap_admin::BootstrapAdministrationService;
 
 /// API server configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,6 +90,8 @@ pub struct ApiState {
     pub config: Config,
     pub key_manager: Arc<KeyManager>,
     pub cache_manager: Arc<SmartCacheManager>,
+    pub governance_service: Arc<GovernanceService>,
+    pub bootstrap_admin: Arc<BootstrapAdministrationService>,
     pub cli: Cli,
     pub api_config: ApiConfig,
 }
@@ -236,6 +240,119 @@ pub enum WebSocketMessage {
     },
 }
 
+/// Governance status response
+#[derive(Debug, Serialize, ToSchema)]
+pub struct GovernanceStatusResponse {
+    /// Whether governance is enabled
+    pub enabled: bool,
+    /// Total number of operators
+    pub total_operators: usize,
+    /// Active operators
+    pub active_operators: usize,
+    /// Network health status
+    pub network_healthy: bool,
+    /// Can reach consensus
+    pub can_reach_consensus: bool,
+}
+
+/// Operator registration request
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ApiOperatorRegistrationRequest {
+    /// Legal name of the operator
+    pub legal_name: String,
+    /// Contact email
+    pub contact_email: String,
+    /// Jurisdiction
+    pub jurisdiction: String,
+    /// Stake amount
+    pub stake_amount: u64,
+    /// Proposed services
+    pub proposed_services: Vec<String>,
+    /// Technical contact
+    pub technical_contact: String,
+    /// Service level agreement
+    pub service_level_agreement: String,
+    /// Peer ID
+    pub peer_id: String,
+}
+
+/// Operator response
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ApiOperatorResponse {
+    /// Operator ID
+    pub operator_id: String,
+    /// Peer ID
+    pub peer_id: String,
+    /// Stake amount
+    pub stake: u64,
+    /// Jurisdiction
+    pub jurisdiction: String,
+    /// Governance weight
+    pub governance_weight: f64,
+    /// Reputation score
+    pub reputation_score: f64,
+    /// Services provided
+    pub services: Vec<String>,
+    /// Registration date
+    pub registration_date: DateTime<Utc>,
+    /// Last active
+    pub last_active: DateTime<Utc>,
+}
+
+/// Service registration request
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ApiServiceRegistrationRequest {
+    /// Service type
+    pub service_type: String,
+    /// Service configuration
+    pub service_config: serde_json::Value,
+}
+
+/// Admin action request
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ApiAdminActionRequest {
+    /// Action type
+    pub action_type: String,
+    /// Target
+    pub target: String,
+    /// Reason
+    pub reason: String,
+}
+
+/// Admin action response
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ApiAdminActionResponse {
+    /// Action ID
+    pub action_id: String,
+    /// Operator ID
+    pub operator_id: String,
+    /// Action type
+    pub action_type: String,
+    /// Target
+    pub target: String,
+    /// Reason
+    pub reason: String,
+    /// Timestamp
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Network health response
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ApiNetworkHealthResponse {
+    /// Total operators
+    pub total_operators: usize,
+    /// Online operators
+    pub online_operators: usize,
+    /// Online percentage
+    pub online_percentage: f64,
+    /// Total governance weight
+    pub total_governance_weight: f64,
+    /// Online governance weight
+    pub online_governance_weight: f64,
+    /// Can reach consensus
+    pub can_reach_consensus: bool,
+}
+
 /// OpenAPI documentation
 #[derive(OpenApi)]
 #[openapi(
@@ -247,7 +364,18 @@ pub enum WebSocketMessage {
         search_files,
         delete_file,
         get_api_stats,
-        health_check
+        health_check,
+        get_governance_status,
+        list_operators,
+        get_operator,
+        get_operator_dashboard,
+        get_network_health,
+        register_operator,
+        register_service,
+        update_service_heartbeat,
+        execute_admin_action,
+        list_admin_actions,
+        cleanup_inactive_operators
     ),
     components(
         schemas(
@@ -259,14 +387,23 @@ pub enum WebSocketMessage {
             FileSearchRequest,
             ApiErrorResponse,
             ApiStatsResponse,
-            WebSocketMessage
+            WebSocketMessage,
+            GovernanceStatusResponse,
+            ApiOperatorRegistrationRequest,
+            ApiOperatorResponse,
+            ApiServiceRegistrationRequest,
+            ApiAdminActionRequest,
+            ApiAdminActionResponse,
+            ApiNetworkHealthResponse
         )
     ),
     tags(
         (name = "files", description = "File operations API"),
         (name = "search", description = "File search API"),
         (name = "stats", description = "Statistics API"),
-        (name = "health", description = "Health check API")
+        (name = "health", description = "Health check API"),
+        (name = "governance", description = "Governance API"),
+        (name = "admin", description = "Administration API")
     ),
     info(
         title = "DataMesh API",
@@ -292,6 +429,8 @@ impl ApiServer {
         config: Config,
         key_manager: Arc<KeyManager>,
         cache_manager: Arc<SmartCacheManager>,
+        governance_service: Arc<GovernanceService>,
+        bootstrap_admin: Arc<BootstrapAdministrationService>,
         cli: Cli,
         api_config: ApiConfig,
     ) -> Self {
@@ -299,6 +438,8 @@ impl ApiServer {
             config,
             key_manager,
             cache_manager,
+            governance_service,
+            bootstrap_admin,
             cli,
             api_config: api_config.clone(),
         };
@@ -322,6 +463,19 @@ impl ApiServer {
             .route("/search", post(search_files))
             .route("/stats", get(get_api_stats))
             .route("/health", get(health_check))
+            // Governance endpoints
+            .route("/governance/status", get(get_governance_status))
+            .route("/governance/operators", get(list_operators))
+            .route("/governance/operators/:operator_id", get(get_operator))
+            .route("/governance/operators/:operator_id/dashboard", get(get_operator_dashboard))
+            .route("/governance/network/health", get(get_network_health))
+            // Admin endpoints
+            .route("/admin/operators", post(register_operator))
+            .route("/admin/operators/:operator_id/services", post(register_service))
+            .route("/admin/operators/:operator_id/services/:service_id/heartbeat", post(update_service_heartbeat))
+            .route("/admin/actions", post(execute_admin_action))
+            .route("/admin/actions", get(list_admin_actions))
+            .route("/admin/cleanup/operators", post(cleanup_inactive_operators))
             .with_state(state.clone());
 
         let mut app = Router::new()
@@ -350,7 +504,7 @@ impl ApiServer {
     }
 
     /// Start the API server
-    async fn start(&self) -> DfsResult<()> {
+    pub async fn start(&self) -> DfsResult<()> {
         let addr = format!("{}:{}", self.state.api_config.host, self.state.api_config.port);
         info!("Starting DataMesh API server on {}", addr);
 
@@ -459,6 +613,13 @@ async fn upload_file(
     })?;
 
     let original_name = file_name.unwrap_or_else(|| "unnamed_file".to_string());
+
+    // Governance validation - check if governance is enabled
+    if state.governance_service.is_enabled() {
+        // TODO: Implement proper user authentication and quota checking
+        // For now, we'll skip governance validation in the simplified implementation
+        tracing::info!("Governance validation would be performed here");
+    }
 
     // Write file to temporary location
     let temp_dir = std::env::temp_dir();
@@ -866,4 +1027,411 @@ impl IntoResponse for ApiError {
 
         (status, body).into_response()
     }
+}
+
+/// Get governance status
+#[utoipa::path(
+    get,
+    path = "/api/v1/governance/status",
+    responses(
+        (status = 200, description = "Governance status retrieved", body = GovernanceStatusResponse),
+        (status = 500, description = "Internal server error", body = ApiErrorResponse)
+    ),
+    tag = "governance"
+)]
+async fn get_governance_status(
+    State(state): State<ApiState>,
+) -> Result<Json<GovernanceStatusResponse>, ApiError> {
+    let health = state.bootstrap_admin.check_network_health();
+    
+    let response = GovernanceStatusResponse {
+        enabled: state.governance_service.is_enabled(),
+        total_operators: health.total_operators,
+        active_operators: health.online_operators,
+        network_healthy: health.online_percentage > 50.0,
+        can_reach_consensus: health.can_reach_consensus,
+    };
+    
+    Ok(Json(response))
+}
+
+/// List operators
+#[utoipa::path(
+    get,
+    path = "/api/v1/governance/operators",
+    responses(
+        (status = 200, description = "Operators listed", body = Vec<ApiOperatorResponse>),
+        (status = 500, description = "Internal server error", body = ApiErrorResponse)
+    ),
+    tag = "governance"
+)]
+async fn list_operators(
+    State(state): State<ApiState>,
+) -> Result<Json<Vec<ApiOperatorResponse>>, ApiError> {
+    let operators = state.bootstrap_admin.get_operators();
+    
+    let response: Vec<ApiOperatorResponse> = operators
+        .into_iter()
+        .map(|op| ApiOperatorResponse {
+            operator_id: op.operator_id.to_string(),
+            peer_id: op.peer_id,
+            stake: op.stake,
+            jurisdiction: op.jurisdiction,
+            governance_weight: op.governance_weight,
+            reputation_score: op.reputation_score,
+            services: op.services.into_iter().map(|s| format!("{:?}", s)).collect(),
+            registration_date: op.registration_date,
+            last_active: op.last_active,
+        })
+        .collect();
+    
+    Ok(Json(response))
+}
+
+/// Get operator details
+#[utoipa::path(
+    get,
+    path = "/api/v1/governance/operators/{operator_id}",
+    params(
+        ("operator_id" = String, Path, description = "Operator ID")
+    ),
+    responses(
+        (status = 200, description = "Operator details retrieved", body = ApiOperatorResponse),
+        (status = 404, description = "Operator not found", body = ApiErrorResponse),
+        (status = 500, description = "Internal server error", body = ApiErrorResponse)
+    ),
+    tag = "governance"
+)]
+async fn get_operator(
+    State(state): State<ApiState>,
+    Path(operator_id): Path<String>,
+) -> Result<Json<ApiOperatorResponse>, ApiError> {
+    let operator_uuid = operator_id.parse::<uuid::Uuid>()
+        .map_err(|_| ApiError::BadRequest("Invalid operator ID format".to_string()))?;
+    
+    let operator = state.bootstrap_admin.get_operator(&operator_uuid)
+        .ok_or_else(|| ApiError::NotFound("Operator not found".to_string()))?;
+    
+    let response = ApiOperatorResponse {
+        operator_id: operator.operator_id.to_string(),
+        peer_id: operator.peer_id,
+        stake: operator.stake,
+        jurisdiction: operator.jurisdiction,
+        governance_weight: operator.governance_weight,
+        reputation_score: operator.reputation_score,
+        services: operator.services.into_iter().map(|s| format!("{:?}", s)).collect(),
+        registration_date: operator.registration_date,
+        last_active: operator.last_active,
+    };
+    
+    Ok(Json(response))
+}
+
+/// Get operator dashboard
+#[utoipa::path(
+    get,
+    path = "/api/v1/governance/operators/{operator_id}/dashboard",
+    params(
+        ("operator_id" = String, Path, description = "Operator ID")
+    ),
+    responses(
+        (status = 200, description = "Operator dashboard retrieved", body = serde_json::Value),
+        (status = 404, description = "Operator not found", body = ApiErrorResponse),
+        (status = 500, description = "Internal server error", body = ApiErrorResponse)
+    ),
+    tag = "governance"
+)]
+async fn get_operator_dashboard(
+    State(state): State<ApiState>,
+    Path(operator_id): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let operator_uuid = operator_id.parse::<uuid::Uuid>()
+        .map_err(|_| ApiError::BadRequest("Invalid operator ID format".to_string()))?;
+    
+    let dashboard = state.bootstrap_admin.get_operator_dashboard(&operator_uuid)
+        .ok_or_else(|| ApiError::NotFound("Operator not found".to_string()))?;
+    
+    Ok(Json(serde_json::to_value(dashboard).unwrap()))
+}
+
+/// Get network health
+#[utoipa::path(
+    get,
+    path = "/api/v1/governance/network/health",
+    responses(
+        (status = 200, description = "Network health retrieved", body = ApiNetworkHealthResponse),
+        (status = 500, description = "Internal server error", body = ApiErrorResponse)
+    ),
+    tag = "governance"
+)]
+async fn get_network_health(
+    State(state): State<ApiState>,
+) -> Result<Json<ApiNetworkHealthResponse>, ApiError> {
+    let health = state.bootstrap_admin.check_network_health();
+    
+    let response = ApiNetworkHealthResponse {
+        total_operators: health.total_operators,
+        online_operators: health.online_operators,
+        online_percentage: health.online_percentage,
+        total_governance_weight: health.total_governance_weight,
+        online_governance_weight: health.online_governance_weight,
+        can_reach_consensus: health.can_reach_consensus,
+    };
+    
+    Ok(Json(response))
+}
+
+/// Register operator
+#[utoipa::path(
+    post,
+    path = "/api/v1/admin/operators",
+    request_body = ApiOperatorRegistrationRequest,
+    responses(
+        (status = 200, description = "Operator registered", body = ApiOperatorResponse),
+        (status = 400, description = "Bad request", body = ApiErrorResponse),
+        (status = 500, description = "Internal server error", body = ApiErrorResponse)
+    ),
+    tag = "admin"
+)]
+async fn register_operator(
+    State(state): State<ApiState>,
+    Json(request): Json<ApiOperatorRegistrationRequest>,
+) -> Result<Json<ApiOperatorResponse>, ApiError> {
+    // Convert API request to bootstrap admin request
+    use crate::bootstrap_admin::OperatorRegistrationRequest;
+    use crate::governance::NetworkService;
+    
+    let services: Vec<NetworkService> = request.proposed_services
+        .into_iter()
+        .filter_map(|s| match s.as_str() {
+            "Storage" => Some(NetworkService::Storage),
+            "Bandwidth" => Some(NetworkService::Bandwidth),
+            "BootstrapRelay" => Some(NetworkService::BootstrapRelay),
+            "ContentDelivery" => Some(NetworkService::ContentDelivery),
+            "Monitoring" => Some(NetworkService::Monitoring),
+            _ => None,
+        })
+        .collect();
+    
+    let bootstrap_request = OperatorRegistrationRequest {
+        legal_name: request.legal_name,
+        contact_email: request.contact_email,
+        jurisdiction: request.jurisdiction,
+        stake_amount: request.stake_amount,
+        proposed_services: services,
+        technical_contact: request.technical_contact,
+        service_level_agreement: request.service_level_agreement,
+    };
+    
+    let operator = state.bootstrap_admin.register_operator(bootstrap_request, request.peer_id).await
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to register operator: {}", e)))?;
+    
+    let response = ApiOperatorResponse {
+        operator_id: operator.operator_id.to_string(),
+        peer_id: operator.peer_id,
+        stake: operator.stake,
+        jurisdiction: operator.jurisdiction,
+        governance_weight: operator.governance_weight,
+        reputation_score: operator.reputation_score,
+        services: operator.services.into_iter().map(|s| format!("{:?}", s)).collect(),
+        registration_date: operator.registration_date,
+        last_active: operator.last_active,
+    };
+    
+    Ok(Json(response))
+}
+
+/// Register service
+#[utoipa::path(
+    post,
+    path = "/api/v1/admin/operators/{operator_id}/services",
+    params(
+        ("operator_id" = String, Path, description = "Operator ID")
+    ),
+    request_body = ApiServiceRegistrationRequest,
+    responses(
+        (status = 200, description = "Service registered", body = serde_json::Value),
+        (status = 400, description = "Bad request", body = ApiErrorResponse),
+        (status = 404, description = "Operator not found", body = ApiErrorResponse),
+        (status = 500, description = "Internal server error", body = ApiErrorResponse)
+    ),
+    tag = "admin"
+)]
+async fn register_service(
+    State(state): State<ApiState>,
+    Path(operator_id): Path<String>,
+    Json(request): Json<ApiServiceRegistrationRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let operator_uuid = operator_id.parse::<uuid::Uuid>()
+        .map_err(|_| ApiError::BadRequest("Invalid operator ID format".to_string()))?;
+    
+    use crate::governance::NetworkService;
+    use crate::bootstrap_admin::ServiceConfig;
+    
+    let service_type = match request.service_type.as_str() {
+        "Storage" => NetworkService::Storage,
+        "Bandwidth" => NetworkService::Bandwidth,
+        "BootstrapRelay" => NetworkService::BootstrapRelay,
+        "ContentDelivery" => NetworkService::ContentDelivery,
+        "Monitoring" => NetworkService::Monitoring,
+        _ => return Err(ApiError::BadRequest("Invalid service type".to_string())),
+    };
+    
+    // For now, create a default storage config
+    let service_config = ServiceConfig::Storage {
+        capacity_gb: 1000,
+        redundancy_factor: 3,
+        data_retention_days: 365,
+    };
+    
+    let registration = state.bootstrap_admin.register_service(&operator_uuid, service_type, service_config).await
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to register service: {}", e)))?;
+    
+    Ok(Json(serde_json::to_value(registration).unwrap()))
+}
+
+/// Update service heartbeat
+#[utoipa::path(
+    post,
+    path = "/api/v1/admin/operators/{operator_id}/services/{service_id}/heartbeat",
+    params(
+        ("operator_id" = String, Path, description = "Operator ID"),
+        ("service_id" = String, Path, description = "Service ID")
+    ),
+    responses(
+        (status = 200, description = "Heartbeat updated", body = serde_json::Value),
+        (status = 400, description = "Bad request", body = ApiErrorResponse),
+        (status = 500, description = "Internal server error", body = ApiErrorResponse)
+    ),
+    tag = "admin"
+)]
+async fn update_service_heartbeat(
+    State(state): State<ApiState>,
+    Path((operator_id, service_id)): Path<(String, String)>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let service_uuid = service_id.parse::<uuid::Uuid>()
+        .map_err(|_| ApiError::BadRequest("Invalid service ID format".to_string()))?;
+    
+    state.bootstrap_admin.update_service_heartbeat(&service_uuid).await
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to update heartbeat: {}", e)))?;
+    
+    Ok(Json(serde_json::json!({
+        "message": "Heartbeat updated successfully",
+        "service_id": service_id,
+        "timestamp": chrono::Utc::now()
+    })))
+}
+
+/// Execute admin action
+#[utoipa::path(
+    post,
+    path = "/api/v1/admin/actions",
+    request_body = ApiAdminActionRequest,
+    responses(
+        (status = 200, description = "Admin action executed", body = ApiAdminActionResponse),
+        (status = 400, description = "Bad request", body = ApiErrorResponse),
+        (status = 403, description = "Insufficient permissions", body = ApiErrorResponse),
+        (status = 500, description = "Internal server error", body = ApiErrorResponse)
+    ),
+    tag = "admin"
+)]
+async fn execute_admin_action(
+    State(state): State<ApiState>,
+    Json(request): Json<ApiAdminActionRequest>,
+) -> Result<Json<ApiAdminActionResponse>, ApiError> {
+    // TODO: Get operator ID from authentication
+    let operator_id = uuid::Uuid::new_v4(); // Placeholder
+    
+    use crate::bootstrap_admin::{AdminActionType, AdminTarget};
+    
+    let action_type = match request.action_type.as_str() {
+        "SuspendUser" => AdminActionType::SuspendUser,
+        "BanUser" => AdminActionType::BanUser,
+        "DeleteContent" => AdminActionType::DeleteContent,
+        "QuarantineContent" => AdminActionType::QuarantineContent,
+        "ApproveUser" => AdminActionType::ApproveUser,
+        "UpdateQuota" => AdminActionType::UpdateQuota,
+        "NetworkMaintenance" => AdminActionType::NetworkMaintenance,
+        "EmergencyShutdown" => AdminActionType::EmergencyShutdown,
+        _ => return Err(ApiError::BadRequest("Invalid action type".to_string())),
+    };
+    
+    let target = if request.target.starts_with("user:") {
+        let user_id = request.target.strip_prefix("user:").unwrap().parse::<uuid::Uuid>()
+            .map_err(|_| ApiError::BadRequest("Invalid user ID format".to_string()))?;
+        AdminTarget::User(user_id)
+    } else if request.target.starts_with("content:") {
+        let content_hash = request.target.strip_prefix("content:").unwrap().to_string();
+        AdminTarget::Content(content_hash)
+    } else if request.target == "network" {
+        AdminTarget::Network
+    } else {
+        return Err(ApiError::BadRequest("Invalid target format".to_string()));
+    };
+    
+    let action = state.bootstrap_admin.execute_admin_action(&operator_id, action_type, target, request.reason).await
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to execute admin action: {}", e)))?;
+    
+    let response = ApiAdminActionResponse {
+        action_id: action.action_id.to_string(),
+        operator_id: action.operator_id.to_string(),
+        action_type: format!("{:?}", action.action_type),
+        target: format!("{:?}", action.target),
+        reason: action.reason,
+        timestamp: action.timestamp,
+    };
+    
+    Ok(Json(response))
+}
+
+/// List admin actions
+#[utoipa::path(
+    get,
+    path = "/api/v1/admin/actions",
+    responses(
+        (status = 200, description = "Admin actions listed", body = Vec<ApiAdminActionResponse>),
+        (status = 500, description = "Internal server error", body = ApiErrorResponse)
+    ),
+    tag = "admin"
+)]
+async fn list_admin_actions(
+    State(state): State<ApiState>,
+) -> Result<Json<Vec<ApiAdminActionResponse>>, ApiError> {
+    let actions = state.bootstrap_admin.get_all_admin_actions();
+    
+    let response: Vec<ApiAdminActionResponse> = actions
+        .into_iter()
+        .map(|action| ApiAdminActionResponse {
+            action_id: action.action_id.to_string(),
+            operator_id: action.operator_id.to_string(),
+            action_type: format!("{:?}", action.action_type),
+            target: format!("{:?}", action.target),
+            reason: action.reason,
+            timestamp: action.timestamp,
+        })
+        .collect();
+    
+    Ok(Json(response))
+}
+
+/// Cleanup inactive operators
+#[utoipa::path(
+    post,
+    path = "/api/v1/admin/cleanup/operators",
+    responses(
+        (status = 200, description = "Cleanup completed", body = serde_json::Value),
+        (status = 500, description = "Internal server error", body = ApiErrorResponse)
+    ),
+    tag = "admin"
+)]
+async fn cleanup_inactive_operators(
+    State(state): State<ApiState>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    state.bootstrap_admin.cleanup_inactive_operators().await
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to cleanup operators: {}", e)))?;
+    
+    Ok(Json(serde_json::json!({
+        "message": "Inactive operators cleanup completed",
+        "timestamp": chrono::Utc::now()
+    })))
 }

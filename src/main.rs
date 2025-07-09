@@ -1354,11 +1354,19 @@ async fn handle_api_server_command(
     let cache_config = config.cache.to_smart_cache_config();
     let cache_manager = Arc::new(smart_cache::SmartCacheManager::new(cache_config));
     
+    // Initialize governance service
+    let governance_service = Arc::new(governance_service::GovernanceService::new());
+    
+    // Initialize bootstrap admin service
+    let bootstrap_admin = Arc::new(bootstrap_admin::BootstrapAdministrationService::new());
+    
     // Create API server
     let api_server = api_server::ApiServer::new(
         config,
         Arc::new(key_manager.clone()),
         cache_manager,
+        governance_service,
+        bootstrap_admin,
         cli.clone(),
         api_config,
     );
