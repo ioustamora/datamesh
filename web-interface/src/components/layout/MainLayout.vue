@@ -268,7 +268,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../store/auth'
 import { useThemeStore } from '../../store/theme'
-import { useWebSocketStore } from '../../store/websocket'
+import { useWebSocket, useInterval } from '../../composables/useWebSocket'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -282,7 +282,8 @@ export default {
     const router = useRouter()
     const authStore = useAuthStore()
     const themeStore = useThemeStore()
-    const webSocketStore = useWebSocketStore()
+    const webSocket = useWebSocket()
+    const { setInterval, clearAll: clearAllIntervals } = useInterval()
     
     // State
     const sidebarCollapsed = ref(localStorage.getItem('datamesh_sidebar_collapsed') === 'true')
@@ -315,7 +316,7 @@ export default {
     })
     
     const connectionStatusText = computed(() => {
-      const status = webSocketStore.connectionStatus
+      const status = webSocket.connectionStatus.value
       switch (status) {
         case 'connected': return 'Connected to DataMesh'
         case 'connecting': return 'Connecting...'
@@ -325,7 +326,7 @@ export default {
     })
     
     const connectionStatusColor = computed(() => {
-      const status = webSocketStore.connectionStatus
+      const status = webSocket.connectionStatus.value
       switch (status) {
         case 'connected': return 'var(--el-color-success)'
         case 'connecting': return 'var(--el-color-warning)'
@@ -335,7 +336,7 @@ export default {
     })
     
     const connectionStatusIcon = computed(() => {
-      const status = webSocketStore.connectionStatus
+      const status = webSocket.connectionStatus.value
       switch (status) {
         case 'connected': return 'Connection'
         case 'connecting': return 'Loading'
@@ -433,9 +434,9 @@ export default {
       }
     }
     
-    // WebSocket event handlers
+    // WebSocket event handlers with automatic cleanup
     const handleWebSocketEvents = () => {
-      webSocketStore.on('file_uploaded', (data) => {
+      webSocket.on('file_uploaded', (data) => {
         addNotification({
           type: 'success',
           title: `File "${data.file_name}" uploaded successfully`,
@@ -443,7 +444,7 @@ export default {
         })
       })
       
-      webSocketStore.on('file_deleted', (data) => {
+      webSocket.on('file_deleted', (data) => {
         addNotification({
           type: 'info',
           title: `File "${data.file_name}" deleted`,
@@ -451,7 +452,7 @@ export default {
         })
       })
       
-      webSocketStore.on('governance_update', (data) => {
+      webSocket.on('governance_update', (data) => {
         addNotification({
           type: 'info',
           title: 'Governance update',
@@ -459,7 +460,7 @@ export default {
         })
       })
       
-      webSocketStore.on('operator_status_change', (data) => {
+      webSocket.on('operator_status_change', (data) => {
         addNotification({
           type: 'warning',
           title: `Operator status changed: ${data.status}`,
@@ -467,7 +468,7 @@ export default {
         })
       })
       
-      webSocketStore.on('admin_action_executed', (data) => {
+      webSocket.on('admin_action_executed', (data) => {
         addNotification({
           type: 'info',
           title: `Admin action executed: ${data.action_type}`,
@@ -481,13 +482,14 @@ export default {
       handleWebSocketEvents()
       
       // Subscribe to system updates
-      webSocketStore.subscribeToSystemUpdates()
-      webSocketStore.subscribeToGovernanceUpdates()
+      webSocket.subscribeToSystemUpdates()
+      webSocket.subscribeToGovernanceUpdates()
     })
     
     onUnmounted(() => {
-      webSocketStore.unsubscribeFromSystemUpdates()
-      webSocketStore.unsubscribeFromGovernanceUpdates()
+      // Cleanup is handled automatically by composables
+      // Clear any remaining notifications
+      notifications.value = []
     })
     
     // Watch for route changes to update breadcrumbs

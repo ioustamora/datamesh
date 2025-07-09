@@ -406,52 +406,61 @@ export default {
       }
     }
     
-    const setupWebSocketListeners = () => {
-      // File activities
-      webSocketStore.on('file_uploaded', (data) => {
+    // WebSocket event handlers for proper cleanup
+    const webSocketHandlers = {
+      file_uploaded: (data) => {
         addActivity({
           type: 'success',
           icon: 'Upload',
           title: 'File Uploaded',
           description: `${data.file_name} was uploaded successfully`
         })
-      })
-      
-      webSocketStore.on('file_deleted', (data) => {
+      },
+      file_deleted: (data) => {
         addActivity({
           type: 'warning',
           icon: 'Delete',
           title: 'File Deleted',
           description: `${data.file_name} was deleted`
         })
-      })
-      
-      // Governance activities
-      webSocketStore.on('governance_update', (data) => {
+      },
+      governance_update: (data) => {
         addActivity({
           type: 'info',
           icon: 'Flag',
           title: 'Governance Update',
           description: data.message || 'Governance system updated'
         })
-      })
-      
-      webSocketStore.on('operator_status_change', (data) => {
+      },
+      operator_status_change: (data) => {
         addActivity({
           type: 'primary',
           icon: 'Connection',
           title: 'Operator Status Change',
           description: `Operator ${data.operator_id} is now ${data.status}`
         })
-      })
-      
-      webSocketStore.on('admin_action_executed', (data) => {
+      },
+      admin_action_executed: (data) => {
         addActivity({
           type: 'warning',
           icon: 'Setting',
           title: 'Admin Action',
           description: `${data.action_type} action executed`
         })
+      }
+    }
+    
+    const setupWebSocketListeners = () => {
+      // Register all WebSocket event handlers
+      Object.entries(webSocketHandlers).forEach(([event, handler]) => {
+        webSocketStore.on(event, handler)
+      })
+    }
+    
+    const cleanupWebSocketListeners = () => {
+      // Remove all WebSocket event handlers
+      Object.entries(webSocketHandlers).forEach(([event, handler]) => {
+        webSocketStore.off(event, handler)
       })
     }
     
@@ -476,7 +485,14 @@ export default {
     })
     
     onUnmounted(() => {
+      // Stop auto refresh
       stopAutoRefresh()
+      
+      // Clean up WebSocket listeners
+      cleanupWebSocketListeners()
+      
+      // Clear activity data
+      recentActivity.value = []
     })
     
     return {

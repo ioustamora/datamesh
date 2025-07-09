@@ -53,6 +53,9 @@ export default {
     const maxNotifications = 5
     const defaultDuration = 5000
     
+    // Track timeouts to prevent memory leaks
+    const timeouts = new Map()
+    
     const addNotification = (notification) => {
       const id = Date.now()
       const newNotification = {
@@ -69,22 +72,40 @@ export default {
       
       // Keep only max notifications
       if (notifications.value.length > maxNotifications) {
-        notifications.value = notifications.value.slice(0, maxNotifications)
+        const removed = notifications.value.splice(maxNotifications)
+        // Clear timeouts for removed notifications
+        removed.forEach(n => {
+          if (timeouts.has(n.id)) {
+            clearTimeout(timeouts.get(n.id))
+            timeouts.delete(n.id)
+          }
+        })
       }
       
       // Auto remove after duration
       if (!newNotification.persistent) {
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           removeNotification(id)
         }, newNotification.duration)
+        timeouts.set(id, timeoutId)
       }
     }
     
     const removeNotification = (id) => {
+      // Clear timeout if exists
+      if (timeouts.has(id)) {
+        clearTimeout(timeouts.get(id))
+        timeouts.delete(id)
+      }
+      
       notifications.value = notifications.value.filter(n => n.id !== id)
     }
     
     const clearAllNotifications = () => {
+      // Clear all timeouts
+      timeouts.forEach(timeoutId => clearTimeout(timeoutId))
+      timeouts.clear()
+      
       notifications.value = []
     }
     
@@ -145,6 +166,13 @@ export default {
     onUnmounted(() => {
       window.removeEventListener('global-notification', handleGlobalNotification)
       delete window.addNotification
+      
+      // Clear all timeouts to prevent memory leaks
+      timeouts.forEach(timeoutId => clearTimeout(timeoutId))
+      timeouts.clear()
+      
+      // Clear all notifications
+      notifications.value = []
     })
     
     return {

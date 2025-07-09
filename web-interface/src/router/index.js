@@ -19,6 +19,7 @@ import Register from '../views/auth/Register.vue'
 import ForgotPassword from '../views/auth/ForgotPassword.vue'
 import NotFound from '../views/errors/NotFound.vue'
 import ServerError from '../views/errors/ServerError.vue'
+import Forbidden from '../views/errors/Forbidden.vue'
 
 // Governance sub-routes
 import GovernanceOverview from '../views/governance/Overview.vue'
@@ -178,6 +179,12 @@ const routes = [
   },
   
   // Error routes
+  {
+    path: '/error/403',
+    name: 'Forbidden',
+    component: Forbidden,
+    meta: { title: 'Access Forbidden' }
+  },
   {
     path: '/error/500',
     name: 'ServerError',

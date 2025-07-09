@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { authAPI } from '../services/api'
+import { secureStorage } from '../utils/secureStorage'
 
 export const useAuthStore = defineStore('auth', () => {
   // State
   const user = ref(null)
-  const token = ref(localStorage.getItem('datamesh_token') || null)
+  const token = ref(secureStorage.getToken() || null)
   const initialized = ref(false)
   const loading = ref(false)
   
@@ -25,8 +26,8 @@ export const useAuthStore = defineStore('auth', () => {
       token.value = response.data.token
       user.value = response.data.user
       
-      // Store token in localStorage
-      localStorage.setItem('datamesh_token', token.value)
+      // Store token securely
+      secureStorage.setToken(token.value)
       
       // Set default Authorization header
       authAPI.setAuthToken(token.value)
@@ -48,7 +49,7 @@ export const useAuthStore = defineStore('auth', () => {
       token.value = response.data.token
       user.value = response.data.user
       
-      localStorage.setItem('datamesh_token', token.value)
+      secureStorage.setToken(token.value)
       authAPI.setAuthToken(token.value)
       
       return response.data
@@ -71,8 +72,8 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = null
       token.value = null
       
-      // Clear localStorage
-      localStorage.removeItem('datamesh_token')
+      // Clear secure storage
+      secureStorage.removeToken()
       
       // Clear auth header
       authAPI.setAuthToken(null)
@@ -102,7 +103,7 @@ export const useAuthStore = defineStore('auth', () => {
       // Clear invalid token
       token.value = null
       user.value = null
-      localStorage.removeItem('datamesh_token')
+      secureStorage.removeToken()
       authAPI.setAuthToken(null)
       
       initialized.value = true
@@ -164,7 +165,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const response = await authAPI.refreshToken()
       token.value = response.data.token
-      localStorage.setItem('datamesh_token', token.value)
+      secureStorage.setToken(token.value)
       authAPI.setAuthToken(token.value)
       return true
     } catch (error) {

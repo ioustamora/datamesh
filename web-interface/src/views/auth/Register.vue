@@ -32,7 +32,7 @@
             :prefix-icon="Lock"
             show-password
           />
-          <div class="password-strength">
+          <div class="password-strength" v-if="form.password">
             <div class="strength-bar">
               <div 
                 class="strength-fill" 
@@ -40,7 +40,33 @@
                 :class="passwordStrength.class"
               ></div>
             </div>
-            <span class="strength-text">{{ passwordStrength.text }}</span>
+            <div class="strength-info">
+              <div class="strength-text">{{ passwordStrength.text }}</div>
+              <div class="strength-details">
+                <div class="entropy">Entropy: {{ passwordStrength.entropy }} bits</div>
+                <div class="crack-time">Crack time: {{ passwordStrength.crackTime }}</div>
+              </div>
+            </div>
+            
+            <!-- Password Requirements -->
+            <div class="password-requirements" v-if="passwordStrength.suggestions.length > 0">
+              <div class="requirements-title">Suggestions:</div>
+              <ul class="requirements-list">
+                <li v-for="suggestion in passwordStrength.suggestions" :key="suggestion">
+                  {{ suggestion }}
+                </li>
+              </ul>
+            </div>
+            
+            <!-- Validation Errors -->
+            <div class="password-errors" v-if="passwordStrength.errors.length > 0">
+              <div class="errors-title">Issues:</div>
+              <ul class="errors-list">
+                <li v-for="error in passwordStrength.errors" :key="error">
+                  {{ error }}
+                </li>
+              </ul>
+            </div>
           </div>
         </el-form-item>
         
@@ -196,11 +222,12 @@
 </template>
 
 <script>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/auth'
 import { ElMessage } from 'element-plus'
 import { Message, Lock } from '@element-plus/icons-vue'
+import { passwordValidator } from '@/utils/passwordValidator'
 
 export default {
   name: 'Register',
@@ -276,50 +303,43 @@ export default {
       return accountTypes.find(type => type.value === form.accountType)
     })
     
+    const passwordValidation = ref(null)
+    
     const passwordStrength = computed(() => {
       const password = form.password
-      if (!password) return { percentage: 0, class: '', text: '' }
+      if (!password) return { percentage: 0, class: '', text: '', entropy: 0, crackTime: '', suggestions: [], errors: [] }
       
-      let score = 0
-      let feedback = []
-      
-      // Length check
-      if (password.length >= 8) score += 25
-      else feedback.push('at least 8 characters')
-      
-      // Uppercase check
-      if (/[A-Z]/.test(password)) score += 25
-      else feedback.push('uppercase letter')
-      
-      // Lowercase check
-      if (/[a-z]/.test(password)) score += 25
-      else feedback.push('lowercase letter')
-      
-      // Number or special char check
-      if (/[0-9]/.test(password) || /[^A-Za-z0-9]/.test(password)) score += 25
-      else feedback.push('number or special character')
-      
-      let strength = ''
-      let className = ''
-      
-      if (score <= 25) {
-        strength = 'Weak'
-        className = 'weak'
-      } else if (score <= 50) {
-        strength = 'Fair'
-        className = 'fair'
-      } else if (score <= 75) {
-        strength = 'Good'
-        className = 'good'
-      } else {
-        strength = 'Strong'
-        className = 'strong'
+      if (!passwordValidation.value) {
+        return { percentage: 0, class: '', text: '', entropy: 0, crackTime: '', suggestions: [], errors: [] }
       }
       
+      const validation = passwordValidation.value
+      const strengthNames = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong', 'Very Strong']
+      const strengthClasses = ['very-weak', 'weak', 'fair', 'good', 'strong', 'very-strong']
+      
+      const percentage = Math.min(100, (validation.strength / 5) * 100)
+      
       return {
-        percentage: score,
-        class: className,
-        text: feedback.length > 0 ? `${strength} - needs ${feedback.join(', ')}` : strength
+        percentage,
+        class: strengthClasses[validation.strength] || 'very-weak',
+        text: strengthNames[validation.strength] || 'Very Weak',
+        entropy: validation.entropy,
+        crackTime: passwordValidator.getCrackTimeDescription(validation.estimatedCrackTime),
+        suggestions: validation.suggestions || [],
+        errors: validation.errors || []
+      }
+    })
+    
+    // Watch password changes for validation
+    watch(() => form.password, (newPassword) => {
+      if (newPassword) {
+        const userInfo = {
+          email: form.email,
+          username: form.email?.split('@')[0]
+        }
+        passwordValidation.value = passwordValidator.validate(newPassword, userInfo)
+      } else {
+        passwordValidation.value = null
       }
     })
     
@@ -330,7 +350,34 @@ export default {
       ],
       password: [
         { required: true, message: 'Please create a password', trigger: 'blur' },
-        { min: 8, message: 'Password must be at least 8 characters', trigger: 'blur' }
+        {
+          validator: (rule, value, callback) => {
+            if (!value) {
+              callback(new Error('Please create a password'))
+              return
+            }
+            
+            const userInfo = {
+              email: form.email,
+              username: form.email?.split('@')[0]
+            }
+            
+            const validation = passwordValidator.validate(value, userInfo)
+            
+            if (!validation.isValid) {
+              callback(new Error(validation.errors[0] || 'Password does not meet requirements'))
+              return
+            }
+            
+            if (validation.strength < 2) { // Require at least 'Fair' strength
+              callback(new Error('Password is too weak. Please create a stronger password.'))
+              return
+            }
+            
+            callback()
+          },
+          trigger: 'blur'
+        }
       ],
       confirmPassword: [
         { required: true, message: 'Please confirm your password', trigger: 'blur' },
@@ -405,6 +452,7 @@ export default {
       accountTypes,
       selectedAccountType,
       passwordStrength,
+      passwordValidation,
       handleSubmit,
       showTerms,
       showPrivacy
@@ -467,6 +515,10 @@ export default {
   transition: all 0.3s ease;
 }
 
+.strength-fill.very-weak {
+  background: #ff4757;
+}
+
 .strength-fill.weak {
   background: var(--el-color-danger);
 }
@@ -483,9 +535,80 @@ export default {
   background: var(--el-color-primary);
 }
 
+.strength-fill.very-strong {
+  background: #5352ed;
+}
+
+.strength-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
 .strength-text {
   font-size: 12px;
   color: var(--el-text-color-secondary);
+  font-weight: 500;
+}
+
+.strength-details {
+  display: flex;
+  gap: 16px;
+  font-size: 10px;
+  color: var(--el-text-color-placeholder);
+}
+
+.password-requirements {
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 4px;
+  border-left: 3px solid var(--el-color-primary);
+}
+
+.requirements-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  margin-bottom: 4px;
+}
+
+.requirements-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 10px;
+  color: var(--el-text-color-regular);
+}
+
+.requirements-list li {
+  margin-bottom: 2px;
+}
+
+.password-errors {
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--el-color-danger-light-9);
+  border-radius: 4px;
+  border-left: 3px solid var(--el-color-danger);
+}
+
+.errors-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--el-color-danger);
+  margin-bottom: 4px;
+}
+
+.errors-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 10px;
+  color: var(--el-color-danger-dark-2);
+}
+
+.errors-list li {
+  margin-bottom: 2px;
 }
 
 .account-type-option {
@@ -602,6 +725,26 @@ export default {
   
   .auth-subtitle {
     font-size: 14px;
+  }
+  
+  .strength-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  
+  .strength-details {
+    gap: 8px;
+  }
+  
+  .password-requirements,
+  .password-errors {
+    padding: 6px;
+  }
+  
+  .requirements-list,
+  .errors-list {
+    padding-left: 12px;
   }
 }
 </style>

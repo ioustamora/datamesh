@@ -8,6 +8,7 @@ import 'element-plus/theme-chalk/dark/css-vars.css'
 import App from './App.vue'
 import router from './router'
 import { useThemeStore } from './store/theme'
+import errorHandlerPlugin from './plugins/errorHandler'
 
 // Create Vue app
 const app = createApp(App)
@@ -16,6 +17,7 @@ const app = createApp(App)
 app.use(createPinia())
 app.use(router)
 app.use(ElementPlus)
+app.use(errorHandlerPlugin)
 
 // Register Element Plus icons
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
@@ -26,14 +28,7 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 const themeStore = useThemeStore()
 themeStore.initializeTheme()
 
-// Global error handler
-app.config.errorHandler = (error, instance, info) => {
-  console.error('Global error:', error)
-  console.error('Error info:', info)
-  
-  // You can send this to a logging service
-  // logError(error, info)
-}
+// Error handler is now set up via the plugin
 
 // Global properties
 app.config.globalProperties.$APP_VERSION = '1.0.0'

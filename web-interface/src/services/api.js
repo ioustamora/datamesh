@@ -1,4 +1,6 @@
 import axios from 'axios'
+import { secureStorage } from '../utils/secureStorage'
+import { rateLimiter, csrfTokenManager } from '../utils/rateLimiter'
 
 // Create axios instance with default configuration
 const api = axios.create({
@@ -9,14 +11,35 @@ const api = axios.create({
   }
 })
 
+// Rate-limited request wrapper
+const rateLimitedRequest = async (config) => {
+  const endpoint = config.url
+  const method = config.method?.toUpperCase() || 'GET'
+  
+  return rateLimiter.executeRequest(
+    () => api.request(config),
+    endpoint,
+    method
+  )
+}
+
 // Request interceptor
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
     // Add auth token if available
-    const token = localStorage.getItem('datamesh_token')
+    const token = await secureStorage.getToken()
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
+    
+    // Add CSRF token
+    const csrfHeaders = csrfTokenManager.getHeaders()
+    Object.assign(config.headers, csrfHeaders)
+    
+    // Add rate limiting info to headers
+    const rateStatus = rateLimiter.getStatus(config.url, config.method)
+    config.headers['X-RateLimit-Remaining'] = rateStatus.remaining.toString()
+    config.headers['X-RateLimit-Limit'] = rateStatus.limit.toString()
     
     // Log request in development
     if (import.meta.env.DEV) {
@@ -46,8 +69,8 @@ api.interceptors.response.use(
     
     // Handle common errors
     if (error.response?.status === 401) {
-      // Unauthorized - redirect to login
-      localStorage.removeItem('datamesh_token')
+      // Unauthorized - clear tokens and redirect to login
+      secureStorage.clear()
       window.location.href = '/auth/login'
       return Promise.reject(new Error('Authentication required'))
     }
@@ -60,12 +83,26 @@ api.interceptors.response.use(
       return Promise.reject(new Error('Resource not found'))
     }
     
+    if (error.response?.status === 429) {
+      // Rate limited by server
+      const retryAfter = error.response.headers['retry-after']
+      const rateLimitError = new Error('Rate limit exceeded')
+      rateLimitError.code = 'RATE_LIMIT_EXCEEDED'
+      rateLimitError.retryAfter = retryAfter ? parseInt(retryAfter) * 1000 : 60000
+      return Promise.reject(rateLimitError)
+    }
+    
     if (error.response?.status >= 500) {
       return Promise.reject(new Error('Server error occurred'))
     }
     
     if (error.code === 'ECONNABORTED') {
       return Promise.reject(new Error('Request timeout'))
+    }
+    
+    if (error.code === 'RATE_LIMIT_EXCEEDED') {
+      // Client-side rate limit exceeded
+      return Promise.reject(error)
     }
     
     return Promise.reject(error.response?.data || error)
