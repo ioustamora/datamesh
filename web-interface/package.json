@@ -1,0 +1,52 @@
+{
+  "name": "datamesh-web-interface",
+  "version": "1.0.0",
+  "description": "DataMesh Web Interface - Vue.js Frontend for DataMesh Distributed Storage System",
+  "main": "src/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .vue,.js,.ts --ignore-path .gitignore",
+    "format": "prettier --write src/"
+  },
+  "dependencies": {
+    "vue": "^3.3.4",
+    "vue-router": "^4.2.5",
+    "pinia": "^2.1.6",
+    "axios": "^1.5.0",
+    "socket.io-client": "^4.7.2",
+    "chart.js": "^4.4.0",
+    "vue-chartjs": "^5.2.0",
+    "element-plus": "^2.3.14",
+    "@element-plus/icons-vue": "^2.1.0",
+    "vue-demi": "^0.14.6",
+    "dayjs": "^1.11.9",
+    "file-saver": "^2.0.5",
+    "mime-types": "^2.1.35",
+    "vue-upload-component": "^3.1.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^4.4.0",
+    "vite": "^4.4.9",
+    "eslint": "^8.49.0",
+    "eslint-plugin-vue": "^9.17.0",
+    "prettier": "^3.0.3",
+    "sass": "^1.67.0"
+  },
+  "keywords": [
+    "datamesh",
+    "distributed-storage",
+    "vue",
+    "web-interface",
+    "dashboard",
+    "governance",
+    "file-management"
+  ],
+  "author": "DataMesh Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/datamesh/datamesh"
+  }
+}
