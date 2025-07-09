@@ -18,11 +18,11 @@ A secure, fault-tolerant distributed data storage system with advanced monitorin
 - **🌐 Distributed**: Kademlia DHT for decentralized peer-to-peer storage
 - **🔧 Comprehensive**: 47 CLI commands covering all distributed storage needs
 
-### Advanced Monitoring & Analytics
-- **📊 Real-time Monitoring**: Advanced monitoring system with ML-based insights
-- **📈 Performance Analytics**: Comprehensive metrics collection and analysis
-- **🚨 Intelligent Alerting**: ML-based anomaly detection and predictive alerts
-- **📋 Analytics Dashboard**: Time-series data visualization and reporting
+### Advanced Network Management
+- **⚖️ Intelligent Load Balancing**: Adaptive load distribution with auto-scaling
+- **🛡️ Advanced Failover**: Circuit breakers and automatic recovery systems
+- **🚀 Performance Optimization**: ML-based performance tuning and recommendations
+- **📊 Real-time Monitoring**: Advanced monitoring system with predictive analytics
 - **🔍 System Health**: Automated health scoring and optimization recommendations
 
 ### Web Interface & API
@@ -34,10 +34,10 @@ A secure, fault-tolerant distributed data storage system with advanced monitorin
 
 ### Network & Governance
 - **🏛️ Network Governance**: Bootstrap node administration and user quotas
-- **💰 Economic Model**: Token-based incentives and fair usage policies
+- **💰 Economic Model**: Token-based incentives and comprehensive billing system
 - **🗳️ Democratic Voting**: Community governance for network decisions
-- **🌍 Multi-region Support**: Geographic distribution and compliance
-- **🔐 User Management**: Account tiers, quotas, and billing integration
+- **💳 Billing & Subscriptions**: Multi-tier subscription management with usage tracking
+- **🔐 User Management**: Account tiers, quotas, and payment processing
 
 ### File Management & Operations
 - **🔄 Synchronization**: Directory sync with file watching capabilities
@@ -59,6 +59,9 @@ cargo build --release
 
 # Retrieve a file
 ./target/release/datamesh get a1b2c3d4e5f6... ./recovered_file.txt
+
+# Test advanced systems
+./target/release/datamesh advanced --comprehensive
 ```
 
 ## 💻 Installation
@@ -169,9 +172,14 @@ export, import
 pin, unpin, share
 ```
 
-#### Performance & Config (3 commands)
+#### Performance & Config (5 commands)
 ```bash
 optimize, benchmark, config, metrics, networks
+```
+
+#### Advanced Systems (1 command)
+```bash
+advanced
 ```
 
 ## 🏗️ Architecture
@@ -282,15 +290,21 @@ optimize, benchmark, config, metrics, networks
 - ✅ **Democratic Voting**: Community governance mechanisms
 - ✅ **Multi-region Support**: Geographic distribution and compliance
 
+#### Advanced Network Systems
+- ✅ **Load Balancing**: Intelligent load distribution with multiple strategies
+- ✅ **Auto-scaling**: Dynamic scaling based on performance metrics
+- ✅ **Failover Management**: Circuit breakers and automatic recovery systems
+- ✅ **Performance Optimization**: ML-based performance tuning and recommendations
+- ✅ **Billing System**: Comprehensive billing with subscription management
+- ✅ **Advanced Testing**: Comprehensive test suite for all advanced systems
+
 ### 🔄 **In Progress:**
 - Enhanced caching system with intelligent prefetching
-- Distributed load balancing and auto-scaling
 - Advanced fault injection testing
 - Integration with cloud storage providers
 
 ### 📋 **Future Enhancements:**
 - Docker deployment and Kubernetes operators
-- Machine learning-based optimization
 - Advanced compression and deduplication
 - Enterprise SSO integration
 - Multi-tenancy and permission systems
@@ -314,6 +328,14 @@ The codebase is organized into well-defined modules with comprehensive functiona
 - **network_diagnostics.rs**: Network topology analysis and peer discovery
 - **performance.rs**: Real-time metrics collection and analysis
 - **smart_cache.rs**: Intelligent caching with ML-based prefetching
+
+### Advanced Network Systems
+- **load_balancer.rs**: Intelligent load balancing with auto-scaling
+- **failover.rs**: Advanced failover management with circuit breakers
+- **performance_optimizer.rs**: ML-based performance optimization
+- **billing_system.rs**: Comprehensive billing and subscription management
+- **datamesh_core.rs**: Unified integration layer for all systems
+- **advanced_commands.rs**: Testing and management commands
 
 ### Web Interface & API
 - **api_server.rs**: REST API server with authentication and rate limiting
