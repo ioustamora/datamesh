@@ -32,6 +32,7 @@ pub mod economics;
 pub mod persistent_dht;
 pub mod bootstrap_manager;
 pub mod concurrent_chunks;
+pub mod smart_cache;
 
 pub use key_manager::KeyManager;
 pub use database::DatabaseManager;

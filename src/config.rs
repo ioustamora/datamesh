@@ -16,6 +16,8 @@ pub struct Config {
     pub logging: LoggingConfig,
     /// Performance configuration
     pub performance: PerformanceConfig,
+    /// Caching configuration
+    pub cache: CacheConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -184,6 +186,38 @@ pub struct TimeoutConfig {
     pub peer_discovery_timeout_secs: u64,
 }
 
+/// Configuration for intelligent caching system
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CacheConfig {
+    /// Maximum size of file cache in GB
+    pub file_cache_size_gb: f64,
+    /// Maximum size of chunk cache in MB
+    pub chunk_cache_size_mb: u64,
+    /// Maximum size for individual files to be cached in MB
+    pub max_file_size_mb: u64,
+    /// Whether to enable predictive preloading
+    pub preload_popular: bool,
+    /// Time-to-live for cached items in hours
+    pub ttl_hours: u64,
+    /// Cleanup interval in minutes
+    pub cleanup_interval_minutes: u64,
+    /// Cache policies configuration
+    pub policies: CachePoliciesConfig,
+}
+
+/// Configuration for cache policies
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CachePoliciesConfig {
+    /// Weight for LRU (Least Recently Used) factor
+    pub lru_weight: f64,
+    /// Weight for frequency of access factor
+    pub frequency_weight: f64,
+    /// Weight for recency of access factor
+    pub recency_weight: f64,
+    /// Weight for file size factor (smaller files preferred)
+    pub size_weight: f64,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -251,6 +285,20 @@ impl Default for Config {
                     dht_query_timeout_secs: 15,
                     file_operation_timeout_secs: 120, // 2 minutes
                     peer_discovery_timeout_secs: 30,
+                },
+            },
+            cache: CacheConfig {
+                file_cache_size_gb: 2.0,
+                chunk_cache_size_mb: 500,
+                max_file_size_mb: 100,
+                preload_popular: true,
+                ttl_hours: 24,
+                cleanup_interval_minutes: 60,
+                policies: CachePoliciesConfig {
+                    lru_weight: 0.4,
+                    frequency_weight: 0.3,
+                    recency_weight: 0.2,
+                    size_weight: 0.1,
                 },
             },
         }
@@ -368,6 +416,26 @@ impl ChunkPerformanceConfig {
             retry_failed_chunks: self.retry_failed_chunks,
             prefer_fast_peers: self.prefer_fast_peers,
             peer_response_timeout: Duration::from_secs(self.peer_response_timeout_secs),
+        }
+    }
+}
+
+impl CacheConfig {
+    /// Convert configuration to smart cache config
+    pub fn to_smart_cache_config(&self) -> crate::smart_cache::CacheConfig {
+        crate::smart_cache::CacheConfig {
+            file_cache_size_bytes: (self.file_cache_size_gb * 1024.0 * 1024.0 * 1024.0) as u64,
+            chunk_cache_size_bytes: self.chunk_cache_size_mb * 1024 * 1024,
+            max_file_size_bytes: self.max_file_size_mb * 1024 * 1024,
+            preload_popular: self.preload_popular,
+            ttl_hours: self.ttl_hours,
+            cleanup_interval: Duration::from_secs(self.cleanup_interval_minutes * 60),
+            policies: crate::smart_cache::CachePolicies {
+                lru_weight: self.policies.lru_weight,
+                frequency_weight: self.policies.frequency_weight,
+                recency_weight: self.policies.recency_weight,
+                size_weight: self.policies.size_weight,
+            },
         }
     }
 }

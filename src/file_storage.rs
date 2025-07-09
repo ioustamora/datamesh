@@ -33,6 +33,8 @@ use crate::database::{self, DatabaseManager};
 use crate::ui;
 use crate::concurrent_chunks::{ConcurrentChunkManager, ConcurrentChunkConfig};
 use crate::quota_service::{QuotaService, QuotaResult};
+use crate::smart_cache::{SmartCacheManager, AccessType};
+use tracing::warn;
 
 /// Number of data shards for Reed-Solomon erasure coding
 const DATA_SHARDS: usize = 4;
@@ -312,7 +314,7 @@ pub async fn handle_get_command(
     ).await
 }
 
-/// Concurrent file retrieval using ConcurrentChunkManager
+/// Concurrent file retrieval using ConcurrentChunkManager with Smart Caching
 async fn attempt_concurrent_file_retrieval(
     cli: &Cli,
     key_manager: &KeyManager,
@@ -324,7 +326,11 @@ async fn attempt_concurrent_file_retrieval(
     use std::sync::Arc;
     use tokio::sync::RwLock;
     
-    println!("Using concurrent chunk retrieval for enhanced performance...");
+    println!("Using concurrent chunk retrieval with smart caching for enhanced performance...");
+    
+    // Create smart cache manager
+    let cache_config = config.cache.to_smart_cache_config();
+    let mut smart_cache = SmartCacheManager::new(cache_config);
     
     // Create swarm and connect to bootstrap nodes
     let swarm = create_swarm_and_connect_multi_bootstrap(cli, config).await?;
@@ -332,7 +338,36 @@ async fn attempt_concurrent_file_retrieval(
     
     // Create concurrent chunk manager
     let chunk_config = config.performance.chunks.to_concurrent_chunk_config();
-    let chunk_manager = ConcurrentChunkManager::new(chunk_config);
+    let chunk_manager = Arc::new(ConcurrentChunkManager::new(chunk_config));
+    
+    // Connect smart cache with concurrent chunk manager
+    smart_cache.set_concurrent_chunks(chunk_manager.clone());
+    
+    // Start background tasks for cache management
+    smart_cache.start_background_tasks().await;
+    
+    // Check cache first
+    match smart_cache.get_file_smart(key).await {
+        Ok(cached_data) => {
+            println!("Cache hit! Retrieved {} bytes from cache", cached_data.len());
+            
+            // TODO: Decrypt and verify the cached data
+            // For now, just write the raw data
+            std::fs::write(output_path, cached_data)?;
+            println!("File saved to: {}", output_path.display());
+            
+            // Print cache statistics
+            let stats = smart_cache.get_stats().await;
+            println!("Cache stats - Hits: {}, Misses: {}, Hit ratio: {:.2}%", 
+                     stats.file_cache_hits, stats.file_cache_misses, stats.hit_ratio * 100.0);
+            
+            return Ok(());
+        }
+        Err(e) => {
+            // Cache miss or error - continue with network retrieval
+            println!("Cache miss: {}", e);
+        }
+    }
     
     // Enhanced DHT bootstrapping and peer discovery
     println!("Bootstrapping into DHT network...");
@@ -386,9 +421,32 @@ async fn attempt_concurrent_file_retrieval(
             // In a full implementation, this would be properly reconstructed with Reed-Solomon
             println!("Successfully retrieved file data ({} bytes) using concurrent chunks", file_data.len());
             
+            // Cache the retrieved data for future use
+            if let Err(e) = smart_cache.cache_file_intelligent(key, file_data.clone()).await {
+                warn!("Failed to cache retrieved file: {}", e);
+            } else {
+                println!("File cached for future access");
+            }
+            
+            // Update access patterns
+            {
+                let mut patterns = smart_cache.access_patterns.lock().await;
+                patterns.record_access(
+                    key.to_string(),
+                    AccessType::NetworkFetch,
+                    std::time::Duration::from_millis(0), // TODO: Track actual response time
+                    file_data.len() as u64,
+                );
+            }
+            
             // Write to output file
             std::fs::write(output_path, file_data)?;
             println!("File saved to: {}", output_path.display());
+            
+            // Print cache statistics
+            let stats = smart_cache.get_stats().await;
+            println!("Cache stats - Hits: {}, Misses: {}, Hit ratio: {:.2}%", 
+                     stats.file_cache_hits, stats.file_cache_misses, stats.hit_ratio * 100.0);
             
             Ok(())
         }
