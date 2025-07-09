@@ -14,6 +14,8 @@ pub struct Config {
     pub security: SecurityConfig,
     /// Logging configuration
     pub logging: LoggingConfig,
+    /// Performance configuration
+    pub performance: PerformanceConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -130,6 +132,58 @@ pub struct LoggingConfig {
     pub log_file: Option<PathBuf>,
 }
 
+/// Performance configuration for concurrent operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceConfig {
+    /// Chunk operation settings
+    pub chunks: ChunkPerformanceConfig,
+    /// Connection pool settings
+    pub connection_pool: ConnectionPoolConfig,
+    /// Timeout configurations
+    pub timeouts: TimeoutConfig,
+}
+
+/// Configuration for concurrent chunk operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChunkPerformanceConfig {
+    /// Maximum concurrent chunk retrievals
+    pub max_concurrent_retrievals: usize,
+    /// Maximum concurrent chunk uploads
+    pub max_concurrent_uploads: usize,
+    /// Timeout for individual chunk operations in seconds
+    pub chunk_timeout_secs: u64,
+    /// Number of retry attempts for failed chunks
+    pub retry_failed_chunks: u32,
+    /// Whether to prefer faster responding peers
+    pub prefer_fast_peers: bool,
+    /// Maximum time to wait for peer responses in seconds
+    pub peer_response_timeout_secs: u64,
+    /// Enable chunk operation metrics collection
+    pub enable_metrics: bool,
+}
+
+/// Configuration for connection pooling
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectionPoolConfig {
+    /// Maximum number of connections per peer
+    pub max_connections_per_peer: usize,
+    /// Connection idle timeout in seconds
+    pub idle_timeout_secs: u64,
+    /// Connection keep-alive interval in seconds
+    pub keep_alive_interval_secs: u64,
+}
+
+/// Configuration for various timeout values
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimeoutConfig {
+    /// DHT query timeout in seconds
+    pub dht_query_timeout_secs: u64,
+    /// File operation timeout in seconds
+    pub file_operation_timeout_secs: u64,
+    /// Peer discovery timeout in seconds
+    pub peer_discovery_timeout_secs: u64,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -178,6 +232,27 @@ impl Default for Config {
                 structured: true,
                 log_file: None,
             },
+            performance: PerformanceConfig {
+                chunks: ChunkPerformanceConfig {
+                    max_concurrent_retrievals: 8,
+                    max_concurrent_uploads: 4,
+                    chunk_timeout_secs: 10,
+                    retry_failed_chunks: 3,
+                    prefer_fast_peers: true,
+                    peer_response_timeout_secs: 5,
+                    enable_metrics: true,
+                },
+                connection_pool: ConnectionPoolConfig {
+                    max_connections_per_peer: 3,
+                    idle_timeout_secs: 300, // 5 minutes
+                    keep_alive_interval_secs: 60, // 1 minute
+                },
+                timeouts: TimeoutConfig {
+                    dht_query_timeout_secs: 15,
+                    file_operation_timeout_secs: 120, // 2 minutes
+                    peer_discovery_timeout_secs: 30,
+                },
+            },
         }
     }
 }
@@ -216,6 +291,26 @@ impl Config {
     /// Get connection timeout as Duration
     pub fn connection_timeout(&self) -> Duration {
         Duration::from_secs(self.network.connection_timeout_secs)
+    }
+
+    /// Get chunk timeout as Duration
+    pub fn chunk_timeout(&self) -> Duration {
+        Duration::from_secs(self.performance.chunks.chunk_timeout_secs)
+    }
+
+    /// Get peer response timeout as Duration
+    pub fn peer_response_timeout(&self) -> Duration {
+        Duration::from_secs(self.performance.chunks.peer_response_timeout_secs)
+    }
+
+    /// Get DHT query timeout as Duration
+    pub fn dht_query_timeout(&self) -> Duration {
+        Duration::from_secs(self.performance.timeouts.dht_query_timeout_secs)
+    }
+
+    /// Get file operation timeout as Duration
+    pub fn file_operation_timeout(&self) -> Duration {
+        Duration::from_secs(self.performance.timeouts.file_operation_timeout_secs)
     }
 }
 
@@ -262,4 +357,17 @@ impl BootstrapConfig {
         Ok(manager)
     }
 }
+
+impl ChunkPerformanceConfig {
+    /// Convert configuration to concurrent chunk config
+    pub fn to_concurrent_chunk_config(&self) -> crate::concurrent_chunks::ConcurrentChunkConfig {
+        crate::concurrent_chunks::ConcurrentChunkConfig {
+            max_concurrent_retrievals: self.max_concurrent_retrievals,
+            max_concurrent_uploads: self.max_concurrent_uploads,
+            chunk_timeout: Duration::from_secs(self.chunk_timeout_secs),
+            retry_failed_chunks: self.retry_failed_chunks,
+            prefer_fast_peers: self.prefer_fast_peers,
+            peer_response_timeout: Duration::from_secs(self.peer_response_timeout_secs),
+        }
+    }
 }

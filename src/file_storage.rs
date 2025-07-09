@@ -18,6 +18,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 use crate::cli::Cli;
 use crate::config::Config;
@@ -29,6 +31,8 @@ use crate::performance;
 use crate::resilience::{retry_async, RetryConfig};
 use crate::database::{self, DatabaseManager};
 use crate::ui;
+use crate::concurrent_chunks::{ConcurrentChunkManager, ConcurrentChunkConfig};
+use crate::quota_service::{QuotaService, QuotaResult};
 
 /// Number of data shards for Reed-Solomon erasure coding
 const DATA_SHARDS: usize = 4;
