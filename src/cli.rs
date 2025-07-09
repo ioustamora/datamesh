@@ -561,6 +561,30 @@ pub enum Commands {
         #[arg(long, default_value = "30", help = "Duration for each test")]
         duration: u64,
     },
+    
+    // === API Server ===
+    
+    /// Start the REST API server
+    ApiServer {
+        /// Server host address
+        #[arg(long, default_value = "127.0.0.1", help = "Server host address")]
+        host: Option<String>,
+        /// Server port
+        #[arg(long, default_value = "8080", help = "Server port")]
+        port: Option<u16>,
+        /// Enable HTTPS
+        #[arg(long, help = "Enable HTTPS")]
+        https: bool,
+        /// Path to TLS certificate file
+        #[arg(long, help = "Path to TLS certificate file")]
+        cert_path: Option<PathBuf>,
+        /// Path to TLS private key file
+        #[arg(long, help = "Path to TLS private key file")]
+        key_path: Option<PathBuf>,
+        /// Disable Swagger UI
+        #[arg(long, help = "Disable Swagger UI")]
+        no_swagger: bool,
+    },
 }
 
 impl Cli {

@@ -535,7 +535,7 @@ impl SmartCacheManager {
                 file_size,
                 stored_at: Utc::now(),
                 content_type: None,
-                checksum: format!("{:x}", data_hash),
+                checksum: data_hash.to_hex().to_string(),
             },
             access_count: 1,
             last_accessed: Utc::now(),

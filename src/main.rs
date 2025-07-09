@@ -38,6 +38,9 @@ mod governance_service;
 mod economics;
 mod persistent_dht;
 mod bootstrap_manager;
+mod concurrent_chunks;
+mod smart_cache;
+mod api_server;
 
 use std::error::Error;
 use std::path::PathBuf;
@@ -296,6 +299,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
         cli::Commands::Benchmark { full, network, storage, duration } => {
             handle_benchmark_command(&cli, &key_manager, *full, *network, *storage, *duration).await
+        }
+        
+        // === API Server ===
+        cli::Commands::ApiServer { host, port, https, cert_path, key_path, no_swagger } => {
+            handle_api_server_command(&cli, &key_manager, host, port, *https, cert_path, key_path, *no_swagger).await
         }
     };
 
@@ -1302,4 +1310,63 @@ fn apply_network_preset(cli: &mut cli::Cli) -> Result<(), Box<dyn Error>> {
     }
     
     Ok(())
+}
+
+/// Handles the API server command
+async fn handle_api_server_command(
+    cli: &cli::Cli,
+    key_manager: &key_manager::KeyManager,
+    host: &Option<String>,
+    port: &Option<u16>,
+    https: bool,
+    cert_path: &Option<PathBuf>,
+    key_path: &Option<PathBuf>,
+    no_swagger: bool,
+) -> Result<(), Box<dyn Error>> {
+    use std::sync::Arc;
+    
+    // Load configuration
+    let config = config::Config::load_or_default(None)?;
+    
+    // Override API configuration with CLI arguments
+    let mut api_config = config.api.to_api_server_config();
+    
+    if let Some(host) = host {
+        api_config.host = host.clone();
+    }
+    if let Some(port) = port {
+        api_config.port = *port;
+    }
+    if https {
+        api_config.enable_https = true;
+    }
+    if let Some(cert_path) = cert_path {
+        api_config.cert_path = Some(cert_path.clone());
+    }
+    if let Some(key_path) = key_path {
+        api_config.key_path = Some(key_path.clone());
+    }
+    if no_swagger {
+        api_config.enable_swagger = false;
+    }
+    
+    // Initialize smart cache
+    let cache_config = config.cache.to_smart_cache_config();
+    let cache_manager = Arc::new(smart_cache::SmartCacheManager::new(cache_config));
+    
+    // Create API server
+    let api_server = api_server::ApiServer::new(
+        config,
+        Arc::new(key_manager.clone()),
+        cache_manager,
+        cli.clone(),
+        api_config,
+    );
+    
+    // Start the server
+    ui::print_info(&format!("Starting DataMesh API server on {}:{}", 
+        api_server.state.api_config.host, api_server.state.api_config.port));
+    
+    api_server.start().await
+        .map_err(|e| Box::new(e) as Box<dyn Error>)
 }

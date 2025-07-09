@@ -18,6 +18,8 @@ pub struct Config {
     pub performance: PerformanceConfig,
     /// Caching configuration
     pub cache: CacheConfig,
+    /// API server configuration
+    pub api: ApiConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -218,6 +220,29 @@ pub struct CachePoliciesConfig {
     pub size_weight: f64,
 }
 
+/// Configuration for API server
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiConfig {
+    /// Server host address
+    pub host: String,
+    /// Server port
+    pub port: u16,
+    /// Maximum upload file size in bytes
+    pub max_upload_size: u64,
+    /// API rate limiting - requests per minute
+    pub rate_limit_per_minute: u32,
+    /// Enable HTTPS
+    pub enable_https: bool,
+    /// Path to TLS certificate file
+    pub cert_path: Option<PathBuf>,
+    /// Path to TLS private key file
+    pub key_path: Option<PathBuf>,
+    /// Enable Swagger UI
+    pub enable_swagger: bool,
+    /// API prefix (e.g., "/api/v1")
+    pub api_prefix: String,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -300,6 +325,17 @@ impl Default for Config {
                     recency_weight: 0.2,
                     size_weight: 0.1,
                 },
+            },
+            api: ApiConfig {
+                host: "127.0.0.1".to_string(),
+                port: 8080,
+                max_upload_size: 100 * 1024 * 1024, // 100MB
+                rate_limit_per_minute: 1000,
+                enable_https: false,
+                cert_path: None,
+                key_path: None,
+                enable_swagger: true,
+                api_prefix: "/api/v1".to_string(),
             },
         }
     }
@@ -436,6 +472,23 @@ impl CacheConfig {
                 recency_weight: self.policies.recency_weight,
                 size_weight: self.policies.size_weight,
             },
+        }
+    }
+}
+
+impl ApiConfig {
+    /// Convert configuration to API server config
+    pub fn to_api_server_config(&self) -> crate::api_server::ApiConfig {
+        crate::api_server::ApiConfig {
+            host: self.host.clone(),
+            port: self.port,
+            max_upload_size: self.max_upload_size,
+            rate_limit_per_minute: self.rate_limit_per_minute,
+            enable_https: self.enable_https,
+            cert_path: self.cert_path.clone(),
+            key_path: self.key_path.clone(),
+            enable_swagger: self.enable_swagger,
+            api_prefix: self.api_prefix.clone(),
         }
     }
 }

@@ -44,6 +44,20 @@ thiserror = "1.0"
 sled = "0.34"
 lru = "0.12"
 
+# REST API dependencies
+axum = { version = "0.7", features = ["multipart"] }
+axum-server = { version = "0.5", features = ["tls-rustls"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["fs", "cors", "trace"] }
+hyper = "1.0"
+axum-macros = "0.4"
+utoipa = { version = "4.0", features = ["axum_extras"] }
+utoipa-swagger-ui = { version = "6.0", features = ["axum"] }
+serde_yaml = "0.9"
+mime = "0.3"
+multer = "3.0"
+bytes = "1.5"
+
 # Security enhancements
 argon2 = "0.5"
 aes-gcm = "0.10"
