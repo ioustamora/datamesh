@@ -14,14 +14,15 @@ use std::time::{Duration, Instant};
 use std::sync::Arc;
 use anyhow::{Result, anyhow};
 use libp2p::{PeerId, Swarm};
-use libp2p::kad::{Record, RecordKey, Quorum};
+use libp2p::kad::{Record, RecordKey, Quorum, Event as KademliaEvent, GetRecordOk, QueryResult};
+use libp2p::swarm::SwarmEvent;
 use tokio::sync::{Semaphore, RwLock, mpsc};
 use tokio::time::timeout;
 use futures::future::{select_ok, BoxFuture};
-use futures::FutureExt;
+use futures::{FutureExt, StreamExt};
 use tracing::{info, warn, error, debug};
 
-use crate::network::MyBehaviour;
+use crate::network::{MyBehaviour, MyBehaviourEvent};
 use crate::file_storage::StoredFile;
 
 /// Configuration for concurrent chunk operations
@@ -177,6 +178,68 @@ impl ConcurrentChunkManager {
                 peer_response_times: HashMap::new(),
             })),
         }
+    }
+
+    /// Retrieve a complete file using parallel chunk operations
+    /// This is the main entry point for concurrent chunk retrieval as specified in the roadmap
+    pub async fn retrieve_file_parallel(
+        &self,
+        file_key: &str,
+        swarm: Arc<RwLock<Swarm<MyBehaviour>>>,
+    ) -> Result<Vec<u8>> {
+        // Get chunk keys for the file
+        let chunk_keys = self.get_chunk_keys(file_key, swarm.clone()).await?;
+        
+        // Retrieve all chunks concurrently
+        let chunk_results = self.retrieve_chunks_concurrent(chunk_keys, swarm).await?;
+        
+        // Reconstruct file from chunks (this would be handled by the calling code)
+        // For now, return the concatenated chunk data as a placeholder
+        let mut file_data = Vec::new();
+        for chunk in chunk_results {
+            file_data.extend(chunk.data);
+        }
+        
+        Ok(file_data)
+    }
+    
+    /// Get chunk keys for a file from its metadata
+    async fn get_chunk_keys(
+        &self,
+        file_key: &str,
+        swarm: Arc<RwLock<Swarm<MyBehaviour>>>,
+    ) -> Result<Vec<RecordKey>> {
+        let key_bytes = hex::decode(file_key)?;
+        let record_key = RecordKey::from(key_bytes);
+        
+        // Retrieve file metadata
+        let metadata = self.retrieve_file_metadata(record_key, swarm).await?;
+        
+        // Convert chunk key bytes to RecordKeys
+        let chunk_keys = metadata.chunk_keys
+            .into_iter()
+            .map(|key_bytes| RecordKey::from(key_bytes))
+            .collect();
+        
+        Ok(chunk_keys)
+    }
+    
+    /// Retrieve file metadata from DHT
+    async fn retrieve_file_metadata(
+        &self,
+        file_key: RecordKey,
+        swarm: Arc<RwLock<Swarm<MyBehaviour>>>,
+    ) -> Result<StoredFile> {
+        let metadata_result = Self::retrieve_chunk_from_dht(
+            file_key,
+            swarm,
+            self.config.clone(),
+        ).await?;
+        
+        // Parse metadata
+        let stored_file: StoredFile = serde_json::from_slice(&metadata_result.data)?;
+        
+        Ok(stored_file)
     }
 
     /// Retrieve multiple chunks concurrently
@@ -377,7 +440,7 @@ impl ConcurrentChunkManager {
         result
     }
 
-    /// Retrieve chunk from DHT
+    /// Retrieve chunk from DHT with proper event handling
     async fn retrieve_chunk_from_dht(
         chunk_key: RecordKey,
         swarm: Arc<RwLock<Swarm<MyBehaviour>>>,
@@ -393,23 +456,45 @@ impl ConcurrentChunkManager {
         
         // Wait for response with timeout
         let result = timeout(config.chunk_timeout, async {
-            // TODO: Implement proper event listening for DHT response
-            // For now, simulate a response
-            tokio::time::sleep(Duration::from_millis(100)).await;
-            
-            // This is a placeholder - in real implementation, we would listen for DHT events
-            ChunkResult {
-                chunk_key: chunk_key.clone(),
-                data: vec![0; 1024], // Placeholder data
-                peer_id: None,
-                response_time: request_start.elapsed(),
-                attempt_count: 1,
+            loop {
+                let mut swarm = swarm.write().await;
+                match swarm.select_next_some().await {
+                    SwarmEvent::Behaviour(MyBehaviourEvent::Kad(kad_event)) => {
+                        match kad_event {
+                            KademliaEvent::OutboundQueryProgressed { result, .. } => {
+                                match result {
+                                    QueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(peer_record))) => {
+                                        let record = &peer_record.record;
+                                        
+                                        // Check if this is the chunk we're looking for
+                                        if record.key == chunk_key {
+                                            return ChunkResult {
+                                                chunk_key: record.key.clone(),
+                                                data: record.value.clone(),
+                                                peer_id: Some(peer_record.peer),
+                                                response_time: request_start.elapsed(),
+                                                attempt_count: 1,
+                                            };
+                                        }
+                                    }
+                                    QueryResult::GetRecord(Err(err)) => {
+                                        debug!("DHT query failed for chunk {:?}: {:?}", chunk_key, err);
+                                        continue;
+                                    }
+                                    _ => continue,
+                                }
+                            }
+                            _ => continue,
+                        }
+                    }
+                    _ => continue,
+                }
             }
         }).await;
         
         match result {
             Ok(chunk_result) => Ok(chunk_result),
-            Err(_) => Err(anyhow!("Chunk retrieval timed out")),
+            Err(_) => Err(anyhow!("Chunk retrieval timed out for key: {:?}", chunk_key)),
         }
     }
 
@@ -526,7 +611,7 @@ impl ConcurrentChunkManager {
         })
     }
 
-    /// Upload chunk to DHT
+    /// Upload chunk to DHT with proper event handling
     async fn upload_chunk_to_dht(
         chunk_key: RecordKey,
         data: Vec<u8>,
@@ -551,19 +636,41 @@ impl ConcurrentChunkManager {
         
         // Wait for confirmation with timeout
         let result = timeout(config.chunk_timeout, async {
-            // TODO: Implement proper event listening for DHT response
-            // For now, simulate a successful upload
-            tokio::time::sleep(Duration::from_millis(50)).await;
-            true
+            let mut peers_contacted = Vec::new();
+            
+            loop {
+                let mut swarm = swarm.write().await;
+                match swarm.select_next_some().await {
+                    SwarmEvent::Behaviour(MyBehaviourEvent::Kad(kad_event)) => {
+                        match kad_event {
+                            KademliaEvent::OutboundQueryProgressed { result, .. } => {
+                                match result {
+                                    QueryResult::PutRecord(Ok(put_record_ok)) => {
+                                        peers_contacted.push(put_record_ok.peer);
+                                        return (true, peers_contacted);
+                                    }
+                                    QueryResult::PutRecord(Err(err)) => {
+                                        debug!("DHT put failed for chunk {:?}: {:?}", chunk_key, err);
+                                        return (false, peers_contacted);
+                                    }
+                                    _ => continue,
+                                }
+                            }
+                            _ => continue,
+                        }
+                    }
+                    _ => continue,
+                }
+            }
         }).await;
         
         let response_time = upload_start.elapsed();
         
         match result {
-            Ok(success) => Ok(ChunkUploadResult {
+            Ok((success, peers_contacted)) => Ok(ChunkUploadResult {
                 chunk_key,
                 success,
-                peers_contacted: vec![], // TODO: Track actual peers contacted
+                peers_contacted,
                 response_time,
                 attempt_count: 1,
             }),
