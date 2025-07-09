@@ -1,8 +1,10 @@
 # DataMesh Core Modules Documentation
 
-This document describes the newly implemented core modules that complete the DataMesh distributed data storage system.
+This document describes the comprehensive module architecture of DataMesh, including core infrastructure, advanced monitoring, web interface, and governance systems.
 
 ## 📊 Database Module (`src/database.rs`)
+
+**Status**: ✅ Production Ready
 
 **Purpose**: SQLite-based persistent storage for file metadata and system state.
 
@@ -38,6 +40,8 @@ let tagged_files = db.list_files(Some("work"))?;
 ```
 
 ## 📁 File Manager Module (`src/file_manager.rs`)
+
+**Status**: ✅ Production Ready
 
 **Purpose**: High-level file operations including sync, backup, and search.
 
@@ -75,6 +79,8 @@ let results = search_files(criteria).await?;
 
 ## 🔄 Batch Operations Module (`src/batch_operations.rs`)
 
+**Status**: ✅ Production Ready
+
 **Purpose**: Efficient bulk operations with parallel processing.
 
 ### Key Features
@@ -101,6 +107,8 @@ println!("Uploaded {} files, {} failed", result.successful, result.failed);
 ```
 
 ## 🏥 Health Manager Module (`src/health_manager.rs`)
+
+**Status**: ✅ Production Ready
 
 **Purpose**: System health monitoring, repair, and maintenance.
 
@@ -131,6 +139,8 @@ println!("System health: {:.1}%", report.average_health);
 
 ## 🌐 Network Diagnostics Module (`src/network_diagnostics.rs`)
 
+**Status**: ✅ Production Ready
+
 **Purpose**: Network analysis, peer management, and performance monitoring.
 
 ### Key Features
@@ -155,6 +165,8 @@ handle_health_command(&mut swarm, true, 5).await?;
 ```
 
 ## ⚙️ Network Presets Module (`src/presets.rs`)
+
+**Status**: ✅ Production Ready
 
 **Purpose**: Simplified network configuration with preset options.
 
@@ -181,6 +193,8 @@ presets.print_available_presets();
 
 ## 🛠️ Enhanced Error Handling (`src/error_handling.rs`)
 
+**Status**: ✅ Production Ready
+
 **Purpose**: User-friendly error messages with actionable suggestions.
 
 ### Key Features
@@ -204,6 +218,8 @@ display_enhanced_error(&contextual);
 ```
 
 ## 🎨 Enhanced UI Components (`src/ui.rs`)
+
+**Status**: ✅ Production Ready
 
 **Purpose**: Professional CLI interface with progress bars and formatting.
 
@@ -232,6 +248,262 @@ ui::print_warning("Check your configuration");
 if ui::confirm_action("Delete all files?", false) {
     // User confirmed
 }
+```
+
+## 📊 Advanced Monitoring System (`src/monitoring/`)
+
+**Status**: ✅ Production Ready
+
+### Core Monitoring (`src/monitoring/mod.rs`)
+
+**Purpose**: Central monitoring system with comprehensive metrics collection and analytics.
+
+### Key Features
+- **Real-time Metrics**: Comprehensive system performance monitoring
+- **ML-based Analytics**: Predictive insights and optimization recommendations
+- **Health Scoring**: Weighted system health calculation
+- **Report Generation**: Comprehensive analytics reports
+- **Auto-scaling**: Intelligent resource management
+
+### Example Usage
+```rust
+use datamesh::monitoring::AdvancedMonitoringSystem;
+
+let monitoring = AdvancedMonitoringSystem::new(config).await?;
+monitoring.start().await?;
+
+let metrics = monitoring.collect_comprehensive_metrics().await?;
+let report = monitoring.generate_analytics_report(Duration::from_days(7)).await?;
+```
+
+### Metrics Collection (`src/monitoring/metrics.rs`)
+
+**Purpose**: Intelligent data gathering with minimal performance impact.
+
+### Key Features
+- **Multi-source Collection**: System, network, storage, user, and governance metrics
+- **Performance Optimization**: Minimal overhead metrics collection
+- **Real-time Caching**: Efficient data aggregation and storage
+- **Custom Metrics**: Extensible metrics framework
+
+### Example Usage
+```rust
+use datamesh::monitoring::metrics::MetricsCollector;
+
+let collector = MetricsCollector::new(collection_interval).await?;
+let metrics = collector.collect_all_metrics().await?;
+```
+
+### Time Series Database (`src/monitoring/time_series.rs`)
+
+**Purpose**: High-performance historical data storage and querying.
+
+### Key Features
+- **Data Compression**: Efficient storage with compression algorithms
+- **Advanced Querying**: Complex time-series queries with aggregations
+- **Retention Management**: Automated data lifecycle management
+- **Performance Optimization**: Indexing and caching for fast queries
+
+### Example Usage
+```rust
+use datamesh::monitoring::time_series::{TimeSeriesDB, TimeSeriesQuery};
+
+let db = TimeSeriesDB::new(retention_period).await?;
+let query = TimeSeriesQuery {
+    metric_names: vec!["cpu_usage".to_string()],
+    start_time: Utc::now() - Duration::from_hours(24),
+    end_time: Utc::now(),
+    aggregation: Some(AggregationFunction::Average),
+};
+let data = db.query(&query).await?;
+```
+
+### Intelligent Alerting (`src/monitoring/alerts.rs`)
+
+**Purpose**: ML-based anomaly detection and intelligent alerting system.
+
+### Key Features
+- **Anomaly Detection**: Machine learning-based pattern recognition
+- **Escalation Management**: Intelligent alert routing and escalation
+- **Correlation Analysis**: Multi-metric correlation and pattern detection
+- **Notification Routing**: Multiple notification channels with preferences
+
+### Example Usage
+```rust
+use datamesh::monitoring::alerts::{AlertManager, AlertRule};
+
+let alert_manager = AlertManager::new(cooldown_period).await?;
+let rule = AlertRule::new("high_cpu")
+    .condition(AlertCondition::Threshold {
+        metric: "cpu_usage".to_string(),
+        threshold: 80.0,
+    })
+    .severity(AlertSeverity::Warning);
+alert_manager.register_rule(rule).await?;
+```
+
+### Analytics Engine (`src/monitoring/analytics.rs`)
+
+**Purpose**: Advanced analytics with ML-based insights and predictive capabilities.
+
+### Key Features
+- **Predictive Analytics**: ML models for performance prediction
+- **Pattern Recognition**: Automated usage pattern detection
+- **Optimization Recommendations**: AI-driven optimization suggestions
+- **Performance Insights**: Deep performance analysis and trending
+
+### Example Usage
+```rust
+use datamesh::monitoring::analytics::AnalyticsEngine;
+
+let engine = AnalyticsEngine::new(analysis_window).await?;
+let insights = engine.generate_insights_report(Duration::from_days(30)).await?;
+let recommendations = engine.get_optimization_recommendations().await?;
+```
+
+### Real-time Dashboard (`src/monitoring/dashboard.rs`)
+
+**Purpose**: Interactive monitoring dashboard with real-time visualization.
+
+### Key Features
+- **Live Data Updates**: Real-time metrics visualization
+- **Customizable Widgets**: User-configurable dashboard layouts
+- **Export Capabilities**: Data export in multiple formats
+- **User Preferences**: Personalized dashboard configurations
+
+### Example Usage
+```rust
+use datamesh::monitoring::dashboard::MonitoringDashboard;
+
+let dashboard = MonitoringDashboard::new(refresh_interval).await?;
+let data = dashboard.get_dashboard_data().await?;
+let export = dashboard.export_dashboard_data(ExportFormat::JSON, time_range).await?;
+```
+
+## 🌐 Web Interface (`web-interface/`)
+
+**Status**: ✅ Production Ready
+
+### Vue.js Frontend Application
+
+**Purpose**: Modern web interface for DataMesh with comprehensive functionality.
+
+### Key Features
+- **Responsive Design**: Mobile-friendly interface with modern UI
+- **Real-time Updates**: WebSocket integration for live data
+- **File Management**: Drag-and-drop uploads with progress tracking
+- **Analytics Dashboard**: Interactive charts and metrics visualization
+- **User Authentication**: Secure login and session management
+- **Multi-language Support**: Internationalization ready
+
+### Core Views
+- **Dashboard.vue**: Main system overview with key metrics
+- **Analytics.vue**: Comprehensive analytics with interactive charts
+- **FileManager.vue**: File management with upload/download capabilities
+- **Governance.vue**: Network governance and voting interface
+- **Profile.vue**: User profile and settings management
+
+### State Management
+- **auth.js**: Authentication state and user management
+- **files.js**: File operations and metadata management
+- **governance.js**: Governance proposals and voting
+- **websocket.js**: Real-time data synchronization
+
+### API Integration
+- **api.js**: RESTful API client with authentication
+- **Real-time updates**: WebSocket integration for live data
+- **Error handling**: Comprehensive error handling and user feedback
+
+## 🏛️ Governance System (`src/governance.rs`, `src/governance_service.rs`)
+
+**Status**: ✅ Production Ready
+
+### Network Governance (`src/governance.rs`)
+
+**Purpose**: Democratic network governance with bootstrap node administration.
+
+### Key Features
+- **Proposal System**: Democratic proposal submission and voting
+- **Bootstrap Administration**: Operator management and permissions
+- **Token Economics**: Governance token distribution and staking
+- **Voting Mechanisms**: Weighted voting with quorum requirements
+
+### Example Usage
+```rust
+use datamesh::governance::{GovernanceManager, Proposal};
+
+let governance = GovernanceManager::new().await?;
+let proposal = Proposal::new(
+    "Network Upgrade",
+    "Proposal to upgrade network protocol",
+    ProposalType::NetworkUpgrade,
+);
+governance.submit_proposal(proposal).await?;
+```
+
+### Governance Service (`src/governance_service.rs`)
+
+**Purpose**: API service for governance operations and proposal management.
+
+### Key Features
+- **Proposal Management**: Create, vote on, and execute proposals
+- **Operator Administration**: Bootstrap node operator management
+- **Voting Interface**: Web-based voting with real-time updates
+- **Governance Analytics**: Participation metrics and voting patterns
+
+## 💰 Economic System (`src/economics.rs`, `src/quota_service.rs`)
+
+**Status**: ✅ Production Ready
+
+### Token Economics (`src/economics.rs`)
+
+**Purpose**: Network economics with token-based incentives and rewards.
+
+### Key Features
+- **Token System**: Native token with staking and rewards
+- **Incentive Engine**: Reward calculations for node operators
+- **Cost Calculator**: Fair usage pricing and cost estimation
+- **Reward Distribution**: Automated token distribution system
+
+### Quota Service (`src/quota_service.rs`)
+
+**Purpose**: User quota management and fair usage enforcement.
+
+### Key Features
+- **Tiered Quotas**: Free, premium, and enterprise account tiers
+- **Usage Tracking**: Real-time usage monitoring and enforcement
+- **Rate Limiting**: API and bandwidth rate limiting
+- **Billing Integration**: Usage-based billing and subscription management
+
+### Example Usage
+```rust
+use datamesh::quota_service::{QuotaManager, UserQuota};
+
+let quota_manager = QuotaManager::new().await?;
+let quota = quota_manager.get_user_quota(&user_id).await?;
+quota_manager.enforce_upload_quota(&user_id, file_size).await?;
+```
+
+## 📝 Audit & Logging (`src/audit_logger.rs`)
+
+**Status**: ✅ Production Ready
+
+### Audit Logger (`src/audit_logger.rs`)
+
+**Purpose**: Comprehensive audit logging for compliance and security.
+
+### Key Features
+- **Comprehensive Logging**: All user actions and system events
+- **Compliance Support**: GDPR, HIPAA, and regulatory compliance
+- **Security Monitoring**: Authentication and authorization logging
+- **Performance Tracking**: Operation timing and success rates
+
+### Example Usage
+```rust
+use datamesh::audit_logger::{AuditLogger, AuditEvent};
+
+let logger = AuditLogger::new().await?;
+logger.log_user_action(&user_id, "file_upload", &metadata).await?;
 ```
 
 ## 🚀 Integration Examples
@@ -288,45 +560,118 @@ ui::print_file_list(&search_results);
 
 // Generate distribution analysis
 handle_distribution_command(&mut swarm, &None, &Some("work".to_string())).await?;
+
+// Advanced monitoring integration
+let monitoring = AdvancedMonitoringSystem::new(config).await?;
+monitoring.start().await?;
+
+// Real-time analytics
+let insights = monitoring.analytics_engine.generate_insights_report(Duration::from_days(7)).await?;
+let recommendations = monitoring.get_optimization_recommendations().await?;
+
+// Dashboard integration
+let dashboard = MonitoringDashboard::new(Duration::from_secs(5)).await?;
+let live_data = dashboard.get_dashboard_data().await?;
+```
+
+### Web Interface Integration
+```rust
+// Start REST API server
+let api_server = ApiServer::new(config).await?;
+api_server.start().await?;
+
+// WebSocket for real-time updates
+let websocket_handler = WebSocketHandler::new();
+websocket_handler.start_broadcasting().await?;
+
+// User authentication and quotas
+let auth_service = AuthenticationService::new().await?;
+let quota_service = QuotaService::new().await?;
+
+// Governance integration
+let governance = GovernanceManager::new().await?;
+governance.start_proposal_monitoring().await?;
 ```
 
 ## 📈 Performance & Monitoring
 
-All modules include comprehensive logging, error handling, and performance monitoring:
+All modules include comprehensive performance monitoring and observability:
 
-- **Tracing**: Structured logging for debugging and monitoring
-- **Metrics**: Operation timing and success rates
-- **Health Checks**: Continuous system health monitoring
-- **Benchmarking**: Performance testing capabilities
+- **Advanced Monitoring**: ML-based monitoring with predictive analytics
+- **Time-series Database**: High-performance historical data storage
+- **Intelligent Alerting**: Anomaly detection with smart notifications
+- **Real-time Dashboard**: Interactive monitoring with customizable widgets
+- **Analytics Engine**: Performance insights and optimization recommendations
+- **Audit Logging**: Comprehensive audit trails for compliance
+- **Health Scoring**: Weighted system health calculation
+- **Auto-scaling**: Intelligent resource management and optimization
 
 ## 🔧 Testing
 
 Comprehensive test suite covering:
-- Unit tests for each module
-- Integration tests for module interactions
-- Error handling scenarios
-- Performance benchmarks
+- **Unit Tests**: Each module with comprehensive coverage
+- **Integration Tests**: Module interactions and workflows
+- **End-to-End Tests**: Complete system functionality
+- **Performance Tests**: Benchmarking and load testing
+- **Web Interface Tests**: Frontend component and integration testing
+- **Monitoring Tests**: Analytics and alerting system validation
+- **Governance Tests**: Proposal and voting system validation
 
 Run tests with:
 ```bash
+# Core system tests
 cargo test
 cargo test --release --test integration_tests
+
+# Web interface tests
+cd web-interface && npm test
+
+# Comprehensive cluster tests
+cd examples && ./comprehensive_cluster_test.sh
 ```
 
 ## 📚 Dependencies
 
-All modules use production-ready dependencies:
-- `tokio` - Async runtime
-- `anyhow` - Error handling
-- `rusqlite` - SQLite database
-- `chrono` - Date/time handling
-- `serde` - Serialization
-- `indicatif` - Progress bars
-- `colored` - Terminal colors
+### Backend Dependencies
+- `tokio` - Async runtime for concurrent operations
+- `anyhow` - Error handling and context
+- `rusqlite` - SQLite database for metadata
+- `rocksdb` - High-performance key-value store
+- `chrono` - Date/time handling and serialization
+- `serde` - Serialization framework
+- `axum` - Modern web framework for REST API
+- `uuid` - Unique identifier generation
+- `blake3` - Fast cryptographic hashing
+- `indicatif` - Progress bars and user feedback
+- `colored` - Terminal colors and formatting
+- `tracing` - Structured logging and observability
 
-The modules are designed to be:
-- **Async-first**: Non-blocking operations
-- **Error-resilient**: Graceful error handling
-- **User-friendly**: Clear feedback and suggestions
-- **Performant**: Parallel processing where beneficial
-- **Maintainable**: Well-documented and tested
+### Frontend Dependencies
+- `vue` - Progressive JavaScript framework
+- `element-plus` - Vue.js UI component library
+- `pinia` - State management for Vue.js
+- `chart.js` - Interactive charts and visualization
+- `axios` - HTTP client for API communication
+- `dayjs` - Date manipulation and formatting
+- `vite` - Fast build tool and dev server
+
+### Monitoring Dependencies
+- `prometheus` - Metrics collection and monitoring
+- `grafana` - Data visualization and dashboards
+- `sled` - Embedded database for time-series data
+- `bincode` - Binary serialization for performance
+- `lru` - LRU cache implementation
+- `futures` - Async utilities and combinators
+
+### Architecture Principles
+
+The modules are designed with these principles:
+- **Async-first**: Non-blocking operations throughout
+- **Error-resilient**: Graceful error handling and recovery
+- **User-friendly**: Clear feedback and actionable suggestions
+- **Performant**: Parallel processing and optimization
+- **Maintainable**: Well-documented and thoroughly tested
+- **Modular**: Loosely coupled components with clear interfaces
+- **Scalable**: Designed for production workloads
+- **Observable**: Comprehensive monitoring and logging
+- **Secure**: Security-first design with audit trails
