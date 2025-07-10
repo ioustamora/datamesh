@@ -500,27 +500,29 @@ impl BackupSystem {
     }
 
     /// Backup a directory recursively
-    async fn backup_directory(
-        &self,
-        dir_path: &Path,
-        config: &BackupConfig,
-        metadata: &mut BackupMetadata,
-    ) -> DfsResult<()> {
-        let entries = std::fs::read_dir(dir_path)
-            .map_err(|e| DfsError::Storage(format!("Failed to read directory {:?}: {}", dir_path, e)))?;
+    fn backup_directory<'a>(
+        &'a self,
+        dir_path: &'a Path,
+        config: &'a BackupConfig,
+        metadata: &'a mut BackupMetadata,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = DfsResult<()>> + 'a + Send>> {
+        Box::pin(async move {
+            let entries = std::fs::read_dir(dir_path)
+                .map_err(|e| DfsError::Storage(format!("Failed to read directory {:?}: {}", dir_path, e)))?;
 
-        for entry in entries {
-            let entry = entry.map_err(|e| DfsError::Storage(e.to_string()))?;
-            let path = entry.path();
+            for entry in entries {
+                let entry = entry.map_err(|e| DfsError::Storage(e.to_string()))?;
+                let path = entry.path();
 
-            if path.is_file() {
-                self.backup_file(&path, config, metadata).await?;
-            } else if path.is_dir() {
-                self.backup_directory(&path, config, metadata).await?;
+                if path.is_file() {
+                    self.backup_file(&path, config, metadata).await?;
+                } else if path.is_dir() {
+                    self.backup_directory(&path, config, metadata).await?;
+                }
             }
-        }
 
-        Ok(())
+            Ok(())
+        })
     }
 
     /// Store a file backup using DataMesh storage
@@ -625,14 +627,14 @@ impl BackupSystem {
         use std::io::Read;
         
         let mut file = File::open(file_path)
-            .map_err(|e| DfsError::Io(format!("Failed to open file for checksum: {}", e)))?;
+            .map_err(|e| DfsError::Io(e))?;
         
         let mut hasher = blake3::Hasher::new();
         let mut buffer = [0; 8192];
         
         loop {
             let bytes_read = file.read(&mut buffer)
-                .map_err(|e| DfsError::Io(format!("Failed to read file for checksum: {}", e)))?;
+                .map_err(|e| DfsError::Io(e))?;
             
             if bytes_read == 0 {
                 break;
@@ -1112,7 +1114,7 @@ impl BackupSystem {
     pub fn create_disaster_recovery_plan(&self, name: String, scenario: RecoveryScenario) -> DisasterRecoveryPlan {
         let mut plan = DisasterRecoveryPlan {
             name,
-            scenario,
+            scenario: scenario.clone(),
             steps: vec![],
             created_at: Utc::now(),
             estimated_duration_minutes: 0,

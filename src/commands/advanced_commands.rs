@@ -18,7 +18,7 @@ pub struct AdvancedCommandHandler {
 
 #[async_trait::async_trait]
 impl CommandHandler for AdvancedCommandHandler {
-    async fn execute(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
+    async fn execute(&self, _context: &CommandContext) -> Result<(), Box<dyn Error>> {
         // For now, return an error indicating the command needs to be implemented
         // This prevents compilation errors while we implement the missing functions
         match &self.command {

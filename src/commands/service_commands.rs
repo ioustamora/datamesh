@@ -38,11 +38,30 @@ pub struct InteractiveCommand {
 #[async_trait::async_trait]
 impl CommandHandler for InteractiveCommand {
     async fn execute(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
+        // For now, convert the parameters to the expected types
+        // TODO: Fix the command structure to match the CLI properly
+        let bootstrap_peer = if self.bootstrap_peer {
+            // We don't have the actual peer ID here, so we'll pass None
+            // This needs to be fixed in the CLI integration
+            None
+        } else {
+            None
+        };
+        
+        let bootstrap_addr = if let Some(addr_str) = &self.bootstrap_addr {
+            addr_str.parse().ok()
+        } else {
+            None
+        };
+        
+        // Extract KeyManager from Arc - this is a temporary workaround
+        let key_manager = (**context.key_manager).clone();
+        
         interactive::run_interactive_mode(
             &context.cli,
-            context.key_manager.clone(),
-            self.bootstrap_peer,
-            self.bootstrap_addr.clone(),
+            key_manager,
+            bootstrap_peer,
+            bootstrap_addr,
             self.port,
         ).await
     }
@@ -64,11 +83,30 @@ pub struct ServiceCommand {
 #[async_trait::async_trait]
 impl CommandHandler for ServiceCommand {
     async fn execute(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
+        // For now, convert the parameters to the expected types
+        // TODO: Fix the command structure to match the CLI properly
+        let bootstrap_peer = if self.bootstrap_peer {
+            // We don't have the actual peer ID here, so we'll pass None
+            // This needs to be fixed in the CLI integration
+            None
+        } else {
+            None
+        };
+        
+        let bootstrap_addr = if let Some(addr_str) = &self.bootstrap_addr {
+            addr_str.parse().ok()
+        } else {
+            None
+        };
+        
+        // Extract KeyManager from Arc - this is a temporary workaround
+        let key_manager = (**context.key_manager).clone();
+        
         interactive::run_service_mode(
             &context.cli,
-            context.key_manager.clone(),
-            self.bootstrap_peer,
-            self.bootstrap_addr.clone(),
+            key_manager,
+            bootstrap_peer,
+            bootstrap_addr,
             self.port,
             self.timeout,
         ).await

@@ -95,6 +95,8 @@ pub fn get_error_severity(error: &DfsError) -> ErrorSeverity {
         DfsError::Export(_) => ErrorSeverity::Warning,
         DfsError::Import(_) => ErrorSeverity::Warning,
         DfsError::Authentication(_) => ErrorSeverity::Critical,
+        DfsError::Config(_) => ErrorSeverity::Critical,
+        DfsError::Backup(_) => ErrorSeverity::Warning,
     }
 }
 
@@ -167,6 +169,8 @@ pub fn handle_error(error: &(dyn std::error::Error + 'static)) -> EnhancedError 
             DfsError::Import(msg) => DfsError::Import(msg.clone()),
             DfsError::Generic(msg) => DfsError::Generic(msg.clone()),
             DfsError::Authentication(msg) => DfsError::Authentication(msg.clone()),
+            DfsError::Config(msg) => DfsError::Config(msg.clone()),
+            DfsError::Backup(msg) => DfsError::Backup(msg.clone()),
         }
     } else {
         // Fall back to string analysis for unknown error types

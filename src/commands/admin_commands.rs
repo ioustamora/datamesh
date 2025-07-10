@@ -54,19 +54,38 @@ impl CommandHandler for MetricsCommand {
             let summary = monitor.get_summary();
             println!("📊 Performance Summary");
             println!("─────────────────────");
-            println!("Total Operations: {}", summary.total_operations);
-            println!("Success Rate: {:.1}%", summary.success_rate * 100.0);
-            println!("Average Duration: {:.2}ms", summary.avg_duration);
             
-            if !summary.recent_metrics.is_empty() {
+            // Calculate totals across all operations
+            let total_operations: usize = summary.values().map(|s| s.total_operations).sum();
+            let total_successful: usize = summary.values().map(|s| s.successful_operations).sum();
+            let overall_success_rate = if total_operations > 0 {
+                (total_successful as f64 / total_operations as f64) * 100.0
+            } else {
+                0.0
+            };
+            let avg_duration: f64 = if !summary.is_empty() {
+                summary.values()
+                    .map(|s| s.avg_duration_ms)
+                    .sum::<f64>() / summary.len() as f64
+            } else {
+                0.0
+            };
+            
+            println!("Total Operations: {}", total_operations);
+            println!("Success Rate: {:.1}%", overall_success_rate);
+            println!("Average Duration: {:.2}ms", avg_duration);
+            
+            // Show recent operations from the performance monitor
+            let recent_metrics = monitor.get_recent_metrics(10);
+            if !recent_metrics.is_empty() {
                 println!("\n📈 Recent Operations:");
                 println!("{:<15} {:<12} {:<10} {:<8} {:<20}", 
                     "Operation", "Duration", "Success", "Bytes", "Timestamp");
                 println!("{}", "─".repeat(70));
                 
-                for metric in &summary.recent_metrics {
+                for metric in &recent_metrics {
                     let duration_str = if let Some(duration) = metric.duration {
-                        format!("{:.2}ms", duration)
+                        format!("{:.2}ms", duration.as_secs_f64() * 1000.0)
                     } else {
                         "pending".to_string()
                     };
@@ -81,6 +100,8 @@ impl CommandHandler for MetricsCommand {
                     println!("{:<15} {:<12} {:<10} {:<8} {:<20}", 
                         metric.operation, duration_str, success_str, bytes_str, timestamp_str);
                 }
+            } else {
+                println!("\nNo recent operations recorded");
             }
         }
         

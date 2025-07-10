@@ -487,8 +487,10 @@ impl ApiConfig {
             enable_https: self.enable_https,
             cert_path: self.cert_path.clone(),
             key_path: self.key_path.clone(),
+            min_tls_version: "1.2".to_string(), // Default to TLS 1.2
             enable_swagger: self.enable_swagger,
             api_prefix: self.api_prefix.clone(),
+            jwt: crate::api_server::JwtConfig::default(), // Use default JWT config
         }
     }
 }
