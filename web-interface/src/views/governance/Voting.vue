@@ -12,11 +12,18 @@
         </template>
 
         <div class="voting-list">
-          <div v-for="vote in votes" :key="vote.id" class="vote-item">
+          <div
+            v-for="vote in votes"
+            :key="vote.id"
+            class="vote-item"
+          >
             <div class="vote-info">
               <h4>{{ vote.proposal }}</h4>
               <div class="vote-progress">
-                <el-progress :percentage="vote.yesPercentage" :show-text="false" />
+                <el-progress
+                  :percentage="vote.yesPercentage"
+                  :show-text="false"
+                />
                 <div class="vote-results">
                   <span class="vote-yes">Yes: {{ vote.yes }}</span>
                   <span class="vote-no">No: {{ vote.no }}</span>
@@ -24,8 +31,18 @@
               </div>
             </div>
             <div class="vote-actions">
-              <el-button type="success" size="small">Vote Yes</el-button>
-              <el-button type="danger" size="small">Vote No</el-button>
+              <el-button
+                type="success"
+                size="small"
+              >
+                Vote Yes
+              </el-button>
+              <el-button
+                type="danger"
+                size="small"
+              >
+                Vote No
+              </el-button>
             </div>
           </div>
         </div>

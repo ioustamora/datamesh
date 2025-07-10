@@ -1,8 +1,12 @@
 <template>
   <div class="settings-container">
     <div class="settings-header">
-      <h1 class="settings-title">Settings</h1>
-      <p class="settings-subtitle">Manage your account preferences and system configuration</p>
+      <h1 class="settings-title">
+        Settings
+      </h1>
+      <p class="settings-subtitle">
+        Manage your account preferences and system configuration
+      </p>
     </div>
     
     <div class="settings-content">
@@ -41,9 +45,16 @@
       
       <div class="settings-main">
         <!-- Profile Settings -->
-        <div v-if="activeTab === 'profile'" class="settings-section">
-          <h2 class="section-title">Profile Information</h2>
-          <p class="section-description">Update your personal information and profile settings</p>
+        <div
+          v-if="activeTab === 'profile'"
+          class="settings-section"
+        >
+          <h2 class="section-title">
+            Profile Information
+          </h2>
+          <p class="section-description">
+            Update your personal information and profile settings
+          </p>
           
           <el-form
             ref="profileForm"
@@ -53,23 +64,42 @@
             style="max-width: 600px"
           >
             <div class="profile-avatar">
-              <el-avatar :size="100" :src="profileData.avatar">
+              <el-avatar
+                :size="100"
+                :src="profileData.avatar"
+              >
                 <el-icon><User /></el-icon>
               </el-avatar>
               <div class="avatar-actions">
-                <el-button size="small" @click="changeAvatar">Change Avatar</el-button>
-                <el-button size="small" @click="removeAvatar">Remove</el-button>
+                <el-button
+                  size="small"
+                  @click="changeAvatar"
+                >
+                  Change Avatar
+                </el-button>
+                <el-button
+                  size="small"
+                  @click="removeAvatar"
+                >
+                  Remove
+                </el-button>
               </div>
             </div>
             
-            <el-form-item label="Display Name" prop="displayName">
+            <el-form-item
+              label="Display Name"
+              prop="displayName"
+            >
               <el-input
                 v-model="profileData.displayName"
                 placeholder="Enter your display name"
               />
             </el-form-item>
             
-            <el-form-item label="Email Address" prop="email">
+            <el-form-item
+              label="Email Address"
+              prop="email"
+            >
               <el-input
                 v-model="profileData.email"
                 type="email"
@@ -77,11 +107,16 @@
                 disabled
               />
               <div class="form-help">
-                Email cannot be changed. <el-link type="primary">Contact support</el-link> if needed.
+                Email cannot be changed. <el-link type="primary">
+                  Contact support
+                </el-link> if needed.
               </div>
             </el-form-item>
             
-            <el-form-item label="Bio" prop="bio">
+            <el-form-item
+              label="Bio"
+              prop="bio"
+            >
               <el-input
                 v-model="profileData.bio"
                 type="textarea"
@@ -91,31 +126,52 @@
             </el-form-item>
             
             <el-form-item>
-              <el-button type="primary" @click="saveProfile" :loading="saving">
+              <el-button
+                type="primary"
+                :loading="saving"
+                @click="saveProfile"
+              >
                 Save Changes
               </el-button>
-              <el-button @click="resetProfile">Reset</el-button>
+              <el-button @click="resetProfile">
+                Reset
+              </el-button>
             </el-form-item>
           </el-form>
         </div>
         
         <!-- Account & Billing -->
-        <div v-if="activeTab === 'account'" class="settings-section">
-          <h2 class="section-title">Account & Billing</h2>
-          <p class="section-description">Manage your subscription and billing information</p>
+        <div
+          v-if="activeTab === 'account'"
+          class="settings-section"
+        >
+          <h2 class="section-title">
+            Account & Billing
+          </h2>
+          <p class="section-description">
+            Manage your subscription and billing information
+          </p>
           
           <div class="account-info">
             <el-card class="account-card">
               <div class="account-tier">
                 <div class="tier-info">
                   <h3>{{ accountData.tier.name }}</h3>
-                  <p class="tier-price">{{ accountData.tier.price }}</p>
+                  <p class="tier-price">
+                    {{ accountData.tier.price }}
+                  </p>
                 </div>
                 <div class="tier-actions">
-                  <el-button v-if="accountData.tier.value !== 'enterprise'" type="primary">
+                  <el-button
+                    v-if="accountData.tier.value !== 'enterprise'"
+                    type="primary"
+                  >
                     Upgrade
                   </el-button>
-                  <el-button v-if="accountData.tier.value !== 'free'" type="danger">
+                  <el-button
+                    v-if="accountData.tier.value !== 'free'"
+                    type="danger"
+                  >
                     Downgrade
                   </el-button>
                 </div>
@@ -123,7 +179,9 @@
               
               <div class="account-usage">
                 <div class="usage-item">
-                  <div class="usage-label">Storage Used</div>
+                  <div class="usage-label">
+                    Storage Used
+                  </div>
                   <div class="usage-progress">
                     <el-progress
                       :percentage="accountData.usage.storagePercent"
@@ -133,7 +191,9 @@
                 </div>
                 
                 <div class="usage-item">
-                  <div class="usage-label">Bandwidth Used This Month</div>
+                  <div class="usage-label">
+                    Bandwidth Used This Month
+                  </div>
                   <div class="usage-progress">
                     <el-progress
                       :percentage="accountData.usage.bandwidthPercent"
@@ -171,31 +231,46 @@
         </div>
         
         <!-- Security Settings -->
-        <div v-if="activeTab === 'security'" class="settings-section">
-          <h2 class="section-title">Security</h2>
-          <p class="section-description">Manage your account security and privacy settings</p>
+        <div
+          v-if="activeTab === 'security'"
+          class="settings-section"
+        >
+          <h2 class="section-title">
+            Security
+          </h2>
+          <p class="section-description">
+            Manage your account security and privacy settings
+          </p>
           
           <div class="security-settings">
             <el-card class="security-card">
               <h3>Password</h3>
               <p>Change your password regularly to keep your account secure</p>
-              <el-button @click="showPasswordDialog = true">Change Password</el-button>
+              <el-button @click="showPasswordDialog = true">
+                Change Password
+              </el-button>
             </el-card>
             
             <el-card class="security-card">
               <h3>Two-Factor Authentication</h3>
               <p>Add an extra layer of security to your account</p>
               <div class="twofa-status">
-                <el-tag v-if="securityData.twoFactorEnabled" type="success">
+                <el-tag
+                  v-if="securityData.twoFactorEnabled"
+                  type="success"
+                >
                   Enabled
                 </el-tag>
-                <el-tag v-else type="warning">
+                <el-tag
+                  v-else
+                  type="warning"
+                >
                   Disabled
                 </el-tag>
                 <el-button 
                   :type="securityData.twoFactorEnabled ? 'danger' : 'primary'"
-                  @click="toggle2FA"
                   style="margin-left: 12px"
+                  @click="toggle2FA"
                 >
                   {{ securityData.twoFactorEnabled ? 'Disable' : 'Enable' }} 2FA
                 </el-button>
@@ -212,14 +287,26 @@
                   class="session-item"
                 >
                   <div class="session-info">
-                    <div class="session-device">{{ session.device }}</div>
+                    <div class="session-device">
+                      {{ session.device }}
+                    </div>
                     <div class="session-details">
                       {{ session.location }} • {{ formatDate(session.lastActive) }}
                     </div>
                   </div>
                   <div class="session-actions">
-                    <el-tag v-if="session.current" type="success">Current</el-tag>
-                    <el-button v-else size="small" type="danger" @click="terminateSession(session.id)">
+                    <el-tag
+                      v-if="session.current"
+                      type="success"
+                    >
+                      Current
+                    </el-tag>
+                    <el-button
+                      v-else
+                      size="small"
+                      type="danger"
+                      @click="terminateSession(session.id)"
+                    >
                       Terminate
                     </el-button>
                   </div>
@@ -230,20 +317,42 @@
         </div>
         
         <!-- Storage Settings -->
-        <div v-if="activeTab === 'storage'" class="settings-section">
-          <h2 class="section-title">Storage Settings</h2>
-          <p class="section-description">Configure your storage preferences and manage files</p>
+        <div
+          v-if="activeTab === 'storage'"
+          class="settings-section"
+        >
+          <h2 class="section-title">
+            Storage Settings
+          </h2>
+          <p class="section-description">
+            Configure your storage preferences and manage files
+          </p>
           
           <div class="storage-settings">
             <el-card class="storage-card">
               <h3>Storage Preferences</h3>
               <el-form label-position="top">
                 <el-form-item label="Auto-delete files after">
-                  <el-select v-model="storageData.autoDeleteDays" placeholder="Select retention period">
-                    <el-option label="Never" value="0" />
-                    <el-option label="30 days" value="30" />
-                    <el-option label="90 days" value="90" />
-                    <el-option label="1 year" value="365" />
+                  <el-select
+                    v-model="storageData.autoDeleteDays"
+                    placeholder="Select retention period"
+                  >
+                    <el-option
+                      label="Never"
+                      value="0"
+                    />
+                    <el-option
+                      label="30 days"
+                      value="30"
+                    />
+                    <el-option
+                      label="90 days"
+                      value="90"
+                    />
+                    <el-option
+                      label="1 year"
+                      value="365"
+                    />
                   </el-select>
                 </el-form-item>
                 
@@ -262,7 +371,10 @@
                 </el-form-item>
                 
                 <el-form-item>
-                  <el-button type="primary" @click="saveStorageSettings">
+                  <el-button
+                    type="primary"
+                    @click="saveStorageSettings"
+                  >
                     Save Settings
                   </el-button>
                 </el-form-item>
@@ -273,28 +385,48 @@
               <h3>Storage Cleanup</h3>
               <p>Free up space by cleaning up old or unused files</p>
               <div class="cleanup-actions">
-                <el-button @click="cleanupDuplicates">Remove Duplicates</el-button>
-                <el-button @click="cleanupOldFiles">Clean Old Files</el-button>
-                <el-button @click="cleanupTempFiles">Clean Temporary Files</el-button>
+                <el-button @click="cleanupDuplicates">
+                  Remove Duplicates
+                </el-button>
+                <el-button @click="cleanupOldFiles">
+                  Clean Old Files
+                </el-button>
+                <el-button @click="cleanupTempFiles">
+                  Clean Temporary Files
+                </el-button>
               </div>
             </el-card>
           </div>
         </div>
         
         <!-- Notifications -->
-        <div v-if="activeTab === 'notifications'" class="settings-section">
-          <h2 class="section-title">Notifications</h2>
-          <p class="section-description">Configure how you receive notifications</p>
+        <div
+          v-if="activeTab === 'notifications'"
+          class="settings-section"
+        >
+          <h2 class="section-title">
+            Notifications
+          </h2>
+          <p class="section-description">
+            Configure how you receive notifications
+          </p>
           
           <div class="notifications-settings">
             <el-card class="notification-card">
               <h3>Email Notifications</h3>
               <el-form label-position="top">
-                <el-form-item v-for="notification in notificationData.email" :key="notification.key">
+                <el-form-item
+                  v-for="notification in notificationData.email"
+                  :key="notification.key"
+                >
                   <div class="notification-item">
                     <div class="notification-info">
-                      <div class="notification-label">{{ notification.label }}</div>
-                      <div class="notification-description">{{ notification.description }}</div>
+                      <div class="notification-label">
+                        {{ notification.label }}
+                      </div>
+                      <div class="notification-description">
+                        {{ notification.description }}
+                      </div>
                     </div>
                     <el-switch v-model="notification.enabled" />
                   </div>
@@ -305,11 +437,18 @@
             <el-card class="notification-card">
               <h3>Push Notifications</h3>
               <el-form label-position="top">
-                <el-form-item v-for="notification in notificationData.push" :key="notification.key">
+                <el-form-item
+                  v-for="notification in notificationData.push"
+                  :key="notification.key"
+                >
                   <div class="notification-item">
                     <div class="notification-info">
-                      <div class="notification-label">{{ notification.label }}</div>
-                      <div class="notification-description">{{ notification.description }}</div>
+                      <div class="notification-label">
+                        {{ notification.label }}
+                      </div>
+                      <div class="notification-description">
+                        {{ notification.description }}
+                      </div>
                     </div>
                     <el-switch v-model="notification.enabled" />
                   </div>
@@ -320,9 +459,16 @@
         </div>
         
         <!-- Advanced Settings -->
-        <div v-if="activeTab === 'advanced'" class="settings-section">
-          <h2 class="section-title">Advanced Settings</h2>
-          <p class="section-description">Advanced configuration options for power users</p>
+        <div
+          v-if="activeTab === 'advanced'"
+          class="settings-section"
+        >
+          <h2 class="section-title">
+            Advanced Settings
+          </h2>
+          <p class="section-description">
+            Advanced configuration options for power users
+          </p>
           
           <div class="advanced-settings">
             <el-card class="advanced-card">
@@ -331,24 +477,48 @@
               <div class="api-keys">
                 <div class="api-key-item">
                   <div class="api-key-info">
-                    <div class="api-key-name">Primary API Key</div>
-                    <div class="api-key-value">{{ maskApiKey(advancedData.primaryApiKey) }}</div>
+                    <div class="api-key-name">
+                      Primary API Key
+                    </div>
+                    <div class="api-key-value">
+                      {{ maskApiKey(advancedData.primaryApiKey) }}
+                    </div>
                   </div>
                   <div class="api-key-actions">
-                    <el-button size="small" @click="copyApiKey">Copy</el-button>
-                    <el-button size="small" type="danger" @click="regenerateApiKey">Regenerate</el-button>
+                    <el-button
+                      size="small"
+                      @click="copyApiKey"
+                    >
+                      Copy
+                    </el-button>
+                    <el-button
+                      size="small"
+                      type="danger"
+                      @click="regenerateApiKey"
+                    >
+                      Regenerate
+                    </el-button>
                   </div>
                 </div>
               </div>
-              <el-button @click="showCreateApiKeyDialog = true">Create New API Key</el-button>
+              <el-button @click="showCreateApiKeyDialog = true">
+                Create New API Key
+              </el-button>
             </el-card>
             
             <el-card class="advanced-card">
               <h3>Data Export</h3>
               <p>Export your data or delete your account</p>
               <div class="export-actions">
-                <el-button @click="exportData">Export All Data</el-button>
-                <el-button type="danger" @click="deleteAccount">Delete Account</el-button>
+                <el-button @click="exportData">
+                  Export All Data
+                </el-button>
+                <el-button
+                  type="danger"
+                  @click="deleteAccount"
+                >
+                  Delete Account
+                </el-button>
               </div>
             </el-card>
           </div>
@@ -357,22 +527,58 @@
     </div>
     
     <!-- Password Change Dialog -->
-    <el-dialog v-model="showPasswordDialog" title="Change Password" width="400px">
-      <el-form ref="passwordForm" :model="passwordData" :rules="passwordRules" label-position="top">
-        <el-form-item label="Current Password" prop="currentPassword">
-          <el-input v-model="passwordData.currentPassword" type="password" show-password />
+    <el-dialog
+      v-model="showPasswordDialog"
+      title="Change Password"
+      width="400px"
+    >
+      <el-form
+        ref="passwordForm"
+        :model="passwordData"
+        :rules="passwordRules"
+        label-position="top"
+      >
+        <el-form-item
+          label="Current Password"
+          prop="currentPassword"
+        >
+          <el-input
+            v-model="passwordData.currentPassword"
+            type="password"
+            show-password
+          />
         </el-form-item>
-        <el-form-item label="New Password" prop="newPassword">
-          <el-input v-model="passwordData.newPassword" type="password" show-password />
+        <el-form-item
+          label="New Password"
+          prop="newPassword"
+        >
+          <el-input
+            v-model="passwordData.newPassword"
+            type="password"
+            show-password
+          />
         </el-form-item>
-        <el-form-item label="Confirm New Password" prop="confirmPassword">
-          <el-input v-model="passwordData.confirmPassword" type="password" show-password />
+        <el-form-item
+          label="Confirm New Password"
+          prop="confirmPassword"
+        >
+          <el-input
+            v-model="passwordData.confirmPassword"
+            type="password"
+            show-password
+          />
         </el-form-item>
       </el-form>
       
       <template #footer>
-        <el-button @click="showPasswordDialog = false">Cancel</el-button>
-        <el-button type="primary" @click="changePassword" :loading="changingPassword">
+        <el-button @click="showPasswordDialog = false">
+          Cancel
+        </el-button>
+        <el-button
+          type="primary"
+          :loading="changingPassword"
+          @click="changePassword"
+        >
           Change Password
         </el-button>
       </template>

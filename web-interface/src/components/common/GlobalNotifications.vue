@@ -1,6 +1,9 @@
 <template>
   <div class="notifications-container">
-    <transition-group name="notification" tag="div">
+    <transition-group
+      name="notification"
+      tag="div"
+    >
       <div
         v-for="notification in notifications"
         :key="notification.id"
@@ -13,8 +16,13 @@
           </el-icon>
         </div>
         <div class="notification-content">
-          <div class="notification-title">{{ notification.title }}</div>
-          <div v-if="notification.message" class="notification-message">
+          <div class="notification-title">
+            {{ notification.title }}
+          </div>
+          <div
+            v-if="notification.message"
+            class="notification-message"
+          >
             {{ notification.message }}
           </div>
         </div>

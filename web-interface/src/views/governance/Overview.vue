@@ -12,37 +12,61 @@
           <el-col :span="6">
             <el-card class="stat-card">
               <div class="stat-content">
-                <div class="stat-number">{{ totalOperators }}</div>
-                <div class="stat-label">Active Operators</div>
+                <div class="stat-number">
+                  {{ totalOperators }}
+                </div>
+                <div class="stat-label">
+                  Active Operators
+                </div>
               </div>
-              <el-icon class="stat-icon"><UserFilled /></el-icon>
+              <el-icon class="stat-icon">
+                <UserFilled />
+              </el-icon>
             </el-card>
           </el-col>
           <el-col :span="6">
             <el-card class="stat-card">
               <div class="stat-content">
-                <div class="stat-number">{{ activeProposals }}</div>
-                <div class="stat-label">Active Proposals</div>
+                <div class="stat-number">
+                  {{ activeProposals }}
+                </div>
+                <div class="stat-label">
+                  Active Proposals
+                </div>
               </div>
-              <el-icon class="stat-icon"><DocumentCopy /></el-icon>
+              <el-icon class="stat-icon">
+                <DocumentCopy />
+              </el-icon>
             </el-card>
           </el-col>
           <el-col :span="6">
             <el-card class="stat-card">
               <div class="stat-content">
-                <div class="stat-number">{{ networkHealth }}%</div>
-                <div class="stat-label">Network Health</div>
+                <div class="stat-number">
+                  {{ networkHealth }}%
+                </div>
+                <div class="stat-label">
+                  Network Health
+                </div>
               </div>
-              <el-icon class="stat-icon"><Monitor /></el-icon>
+              <el-icon class="stat-icon">
+                <Monitor />
+              </el-icon>
             </el-card>
           </el-col>
           <el-col :span="6">
             <el-card class="stat-card">
               <div class="stat-content">
-                <div class="stat-number">{{ votingPower }}</div>
-                <div class="stat-label">Total Voting Power</div>
+                <div class="stat-number">
+                  {{ votingPower }}
+                </div>
+                <div class="stat-label">
+                  Total Voting Power
+                </div>
               </div>
-              <el-icon class="stat-icon"><Select /></el-icon>
+              <el-icon class="stat-icon">
+                <Select />
+              </el-icon>
             </el-card>
           </el-col>
         </el-row>
@@ -54,19 +78,32 @@
           <template #header>
             <div class="card-header">
               <h3>Recent Activity</h3>
-              <el-button text @click="viewAllActivity">View All</el-button>
+              <el-button
+                text
+                @click="viewAllActivity"
+              >
+                View All
+              </el-button>
             </div>
           </template>
           <div class="activity-list">
-            <div v-for="activity in recentActivity" :key="activity.id" class="activity-item">
+            <div
+              v-for="activity in recentActivity"
+              :key="activity.id"
+              class="activity-item"
+            >
               <div class="activity-icon">
                 <el-icon :color="getActivityColor(activity.type)">
                   <component :is="getActivityIcon(activity.type)" />
                 </el-icon>
               </div>
               <div class="activity-content">
-                <div class="activity-title">{{ activity.title }}</div>
-                <div class="activity-time">{{ formatTime(activity.timestamp) }}</div>
+                <div class="activity-title">
+                  {{ activity.title }}
+                </div>
+                <div class="activity-time">
+                  {{ formatTime(activity.timestamp) }}
+                </div>
               </div>
             </div>
           </div>
@@ -80,7 +117,10 @@
             <h3>Quick Actions</h3>
           </template>
           <div class="action-buttons">
-            <el-button type="primary" @click="$router.push('/governance/proposals')">
+            <el-button
+              type="primary"
+              @click="$router.push('/governance/proposals')"
+            >
               <el-icon><Plus /></el-icon>
               Create Proposal
             </el-button>

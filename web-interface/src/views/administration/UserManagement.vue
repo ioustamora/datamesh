@@ -10,15 +10,32 @@
         <template #header>
           <div class="card-header">
             <h3>Users</h3>
-            <el-button type="primary">Add User</el-button>
+            <el-button type="primary">
+              Add User
+            </el-button>
           </div>
         </template>
 
-        <el-table :data="users" style="width: 100%">
-          <el-table-column prop="name" label="Name" />
-          <el-table-column prop="email" label="Email" />
-          <el-table-column prop="role" label="Role" />
-          <el-table-column prop="status" label="Status">
+        <el-table
+          :data="users"
+          style="width: 100%"
+        >
+          <el-table-column
+            prop="name"
+            label="Name"
+          />
+          <el-table-column
+            prop="email"
+            label="Email"
+          />
+          <el-table-column
+            prop="role"
+            label="Role"
+          />
+          <el-table-column
+            prop="status"
+            label="Status"
+          >
             <template #default="scope">
               <el-tag :type="scope.row.status === 'Active' ? 'success' : 'danger'">
                 {{ scope.row.status }}
@@ -27,8 +44,15 @@
           </el-table-column>
           <el-table-column label="Actions">
             <template #default="scope">
-              <el-button size="small">Edit</el-button>
-              <el-button size="small" type="danger">Delete</el-button>
+              <el-button size="small">
+                Edit
+              </el-button>
+              <el-button
+                size="small"
+                type="danger"
+              >
+                Delete
+              </el-button>
             </template>
           </el-table-column>
         </el-table>

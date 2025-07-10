@@ -1,49 +1,71 @@
 <template>
-  <div class="file-thumbnail" :class="{ 'loading': isLoading }">
+  <div
+    class="file-thumbnail"
+    :class="{ 'loading': isLoading }"
+  >
     <!-- Image thumbnails -->
     <img 
       v-if="thumbnailType === 'image'" 
       :src="thumbnailUrl" 
       :alt="`Thumbnail of ${file.file_name}`"
+      class="thumbnail-image"
       @load="onThumbnailLoad"
       @error="onThumbnailError"
-      class="thumbnail-image"
-    />
+    >
     
     <!-- Video thumbnails -->
-    <div v-else-if="thumbnailType === 'video'" class="video-thumbnail">
+    <div
+      v-else-if="thumbnailType === 'video'"
+      class="video-thumbnail"
+    >
       <img 
         v-if="thumbnailUrl"
         :src="thumbnailUrl" 
         :alt="`Video thumbnail of ${file.file_name}`"
+        class="thumbnail-image"
         @load="onThumbnailLoad"
         @error="onThumbnailError"
-        class="thumbnail-image"
-      />
+      >
       <div class="video-overlay">
-        <el-icon class="play-icon"><VideoPlay /></el-icon>
-        <span v-if="file.duration" class="video-duration">{{ formatDuration(file.duration) }}</span>
+        <el-icon class="play-icon">
+          <VideoPlay />
+        </el-icon>
+        <span
+          v-if="file.duration"
+          class="video-duration"
+        >{{ formatDuration(file.duration) }}</span>
       </div>
     </div>
     
     <!-- PDF thumbnails -->
-    <div v-else-if="thumbnailType === 'pdf'" class="pdf-thumbnail">
+    <div
+      v-else-if="thumbnailType === 'pdf'"
+      class="pdf-thumbnail"
+    >
       <img 
         v-if="thumbnailUrl"
         :src="thumbnailUrl" 
         :alt="`PDF thumbnail of ${file.file_name}`"
+        class="thumbnail-image"
         @load="onThumbnailLoad"
         @error="onThumbnailError"
-        class="thumbnail-image"
-      />
+      >
       <div class="pdf-overlay">
-        <el-icon class="pdf-icon"><Document /></el-icon>
-        <span v-if="file.page_count" class="page-count">{{ file.page_count }} pages</span>
+        <el-icon class="pdf-icon">
+          <Document />
+        </el-icon>
+        <span
+          v-if="file.page_count"
+          class="page-count"
+        >{{ file.page_count }} pages</span>
       </div>
     </div>
     
     <!-- Audio thumbnails -->
-    <div v-else-if="thumbnailType === 'audio'" class="audio-thumbnail">
+    <div
+      v-else-if="thumbnailType === 'audio'"
+      class="audio-thumbnail"
+    >
       <div class="audio-visualizer">
         <div class="waveform">
           <div 
@@ -53,47 +75,93 @@
             :style="{ height: getWaveformHeight(i) + '%' }"
           />
         </div>
-        <el-icon class="audio-icon"><Headphone /></el-icon>
-        <span v-if="file.duration" class="audio-duration">{{ formatDuration(file.duration) }}</span>
+        <el-icon class="audio-icon">
+          <Headphone />
+        </el-icon>
+        <span
+          v-if="file.duration"
+          class="audio-duration"
+        >{{ formatDuration(file.duration) }}</span>
       </div>
     </div>
     
     <!-- Text file previews -->
-    <div v-else-if="thumbnailType === 'text'" class="text-thumbnail">
-      <div v-if="textPreview" class="text-content">
+    <div
+      v-else-if="thumbnailType === 'text'"
+      class="text-thumbnail"
+    >
+      <div
+        v-if="textPreview"
+        class="text-content"
+      >
         {{ textPreview }}
       </div>
-      <div v-else class="text-placeholder">
-        <el-icon class="text-icon"><Document /></el-icon>
+      <div
+        v-else
+        class="text-placeholder"
+      >
+        <el-icon class="text-icon">
+          <Document />
+        </el-icon>
         <span>Text File</span>
       </div>
     </div>
     
     <!-- Archive thumbnails -->
-    <div v-else-if="thumbnailType === 'archive'" class="archive-thumbnail">
-      <el-icon class="archive-icon"><FolderOpened /></el-icon>
-      <span v-if="file.file_count" class="file-count">{{ file.file_count }} files</span>
+    <div
+      v-else-if="thumbnailType === 'archive'"
+      class="archive-thumbnail"
+    >
+      <el-icon class="archive-icon">
+        <FolderOpened />
+      </el-icon>
+      <span
+        v-if="file.file_count"
+        class="file-count"
+      >{{ file.file_count }} files</span>
     </div>
     
     <!-- Code file thumbnails -->
-    <div v-else-if="thumbnailType === 'code'" class="code-thumbnail">
-      <div v-if="codePreview" class="code-content">
+    <div
+      v-else-if="thumbnailType === 'code'"
+      class="code-thumbnail"
+    >
+      <div
+        v-if="codePreview"
+        class="code-content"
+      >
         <pre><code>{{ codePreview }}</code></pre>
       </div>
-      <div v-else class="code-placeholder">
-        <el-icon class="code-icon"><Notebook /></el-icon>
+      <div
+        v-else
+        class="code-placeholder"
+      >
+        <el-icon class="code-icon">
+          <Notebook />
+        </el-icon>
         <span>{{ getFileExtension(file.file_name).toUpperCase() }}</span>
       </div>
     </div>
     
     <!-- Loading state -->
-    <div v-if="isLoading" class="thumbnail-loading">
-      <el-skeleton-item variant="image" class="thumbnail-skeleton" />
+    <div
+      v-if="isLoading"
+      class="thumbnail-loading"
+    >
+      <el-skeleton-item
+        variant="image"
+        class="thumbnail-skeleton"
+      />
     </div>
     
     <!-- Error state -->
-    <div v-if="hasError" class="thumbnail-error">
-      <el-icon class="error-icon"><Warning /></el-icon>
+    <div
+      v-if="hasError"
+      class="thumbnail-error"
+    >
+      <el-icon class="error-icon">
+        <Warning />
+      </el-icon>
       <span>Preview unavailable</span>
     </div>
   </div>

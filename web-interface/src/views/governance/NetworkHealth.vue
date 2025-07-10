@@ -12,8 +12,12 @@
             <h3>Network Status</h3>
           </template>
           <div class="health-indicator">
-            <div class="health-score">{{ networkScore }}%</div>
-            <div class="health-status">{{ networkStatus }}</div>
+            <div class="health-score">
+              {{ networkScore }}%
+            </div>
+            <div class="health-status">
+              {{ networkStatus }}
+            </div>
           </div>
         </el-card>
 

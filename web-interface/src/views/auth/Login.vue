@@ -35,10 +35,16 @@
       
       <el-form-item>
         <div class="login-options">
-          <el-checkbox v-model="loginForm.remember" :disabled="loading">
+          <el-checkbox
+            v-model="loginForm.remember"
+            :disabled="loading"
+          >
             Remember me
           </el-checkbox>
-          <router-link to="/auth/forgot-password" class="forgot-link">
+          <router-link
+            to="/auth/forgot-password"
+            class="forgot-link"
+          >
             Forgot password?
           </router-link>
         </div>
@@ -49,8 +55,8 @@
           type="primary"
           size="large"
           :loading="loading"
-          @click="handleLogin"
           class="login-button"
+          @click="handleLogin"
         >
           Sign In
         </el-button>
@@ -58,17 +64,30 @@
     </el-form>
     
     <div class="login-footer">
-      <p>Don't have an account? <router-link to="/auth/register">Sign up</router-link></p>
+      <p>
+        Don't have an account? <router-link to="/auth/register">
+          Sign up
+        </router-link>
+      </p>
     </div>
     
     <!-- Demo credentials -->
-    <div v-if="isDev" class="demo-credentials">
+    <div
+      v-if="isDev"
+      class="demo-credentials"
+    >
       <el-divider>Demo Credentials</el-divider>
       <div class="demo-buttons">
-        <el-button size="small" @click="setDemoCredentials('admin')">
+        <el-button
+          size="small"
+          @click="setDemoCredentials('admin')"
+        >
           Admin Demo
         </el-button>
-        <el-button size="small" @click="setDemoCredentials('user')">
+        <el-button
+          size="small"
+          @click="setDemoCredentials('user')"
+        >
           User Demo
         </el-button>
       </div>

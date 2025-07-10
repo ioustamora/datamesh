@@ -8,14 +8,21 @@
       </div>
       
       <div class="error-content">
-        <h1 class="error-title">404</h1>
-        <h2 class="error-subtitle">Page Not Found</h2>
+        <h1 class="error-title">
+          404
+        </h1>
+        <h2 class="error-subtitle">
+          Page Not Found
+        </h2>
         <p class="error-message">
           The page you're looking for doesn't exist or has been moved.
         </p>
         
         <div class="error-actions">
-          <el-button type="primary" @click="goHome">
+          <el-button
+            type="primary"
+            @click="goHome"
+          >
             <el-icon><House /></el-icon>
             Go to Dashboard
           </el-button>

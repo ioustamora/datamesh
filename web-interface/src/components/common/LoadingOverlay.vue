@@ -2,14 +2,23 @@
   <div class="loading-overlay">
     <div class="loading-container">
       <div class="loading-spinner">
-        <el-icon size="48" class="rotating">
+        <el-icon
+          size="48"
+          class="rotating"
+        >
           <Loading />
         </el-icon>
       </div>
-      <div v-if="message" class="loading-message">
+      <div
+        v-if="message"
+        class="loading-message"
+      >
         {{ message }}
       </div>
-      <div v-if="hasProgress" class="loading-progress">
+      <div
+        v-if="hasProgress"
+        class="loading-progress"
+      >
         <el-progress
           :percentage="progress"
           :stroke-width="6"

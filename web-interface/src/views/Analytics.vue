@@ -1,8 +1,12 @@
 <template>
   <div class="analytics-container">
     <div class="analytics-header">
-      <h1 class="analytics-title">Analytics Dashboard</h1>
-      <p class="analytics-subtitle">Monitor system performance, usage metrics, and network health</p>
+      <h1 class="analytics-title">
+        Analytics Dashboard
+      </h1>
+      <p class="analytics-subtitle">
+        Monitor system performance, usage metrics, and network health
+      </p>
       
       <div class="analytics-controls">
         <el-date-picker
@@ -15,7 +19,11 @@
           value-format="YYYY-MM-DD HH:mm:ss"
           @change="handleDateRangeChange"
         />
-        <el-select v-model="selectedMetric" placeholder="Select metric" @change="handleMetricChange">
+        <el-select
+          v-model="selectedMetric"
+          placeholder="Select metric"
+          @change="handleMetricChange"
+        >
           <el-option
             v-for="metric in availableMetrics"
             :key="metric.value"
@@ -23,7 +31,10 @@
             :value="metric.value"
           />
         </el-select>
-        <el-button @click="refreshData" :loading="loading">
+        <el-button
+          :loading="loading"
+          @click="refreshData"
+        >
           <el-icon><Refresh /></el-icon>
           Refresh
         </el-button>
@@ -40,12 +51,20 @@
           <el-card class="metric-card">
             <div class="metric-header">
               <h3>System Health</h3>
-              <el-icon class="metric-icon" :class="getHealthIconClass(systemHealth.status)">
+              <el-icon
+                class="metric-icon"
+                :class="getHealthIconClass(systemHealth.status)"
+              >
                 <component :is="getHealthIcon(systemHealth.status)" />
               </el-icon>
             </div>
-            <div class="metric-value">{{ systemHealth.score }}%</div>
-            <div class="metric-change" :class="getChangeClass(systemHealth.change)">
+            <div class="metric-value">
+              {{ systemHealth.score }}%
+            </div>
+            <div
+              class="metric-change"
+              :class="getChangeClass(systemHealth.change)"
+            >
               {{ systemHealth.change > 0 ? '+' : '' }}{{ systemHealth.change }}%
             </div>
           </el-card>
@@ -57,8 +76,13 @@
                 <User />
               </el-icon>
             </div>
-            <div class="metric-value">{{ formatNumber(activeUsers.current) }}</div>
-            <div class="metric-change" :class="getChangeClass(activeUsers.change)">
+            <div class="metric-value">
+              {{ formatNumber(activeUsers.current) }}
+            </div>
+            <div
+              class="metric-change"
+              :class="getChangeClass(activeUsers.change)"
+            >
               {{ activeUsers.change > 0 ? '+' : '' }}{{ formatNumber(activeUsers.change) }}
             </div>
           </el-card>
@@ -70,8 +94,13 @@
                 <FolderOpened />
               </el-icon>
             </div>
-            <div class="metric-value">{{ storageUsage.used }}</div>
-            <div class="metric-change" :class="getChangeClass(storageUsage.changePercent)">
+            <div class="metric-value">
+              {{ storageUsage.used }}
+            </div>
+            <div
+              class="metric-change"
+              :class="getChangeClass(storageUsage.changePercent)"
+            >
               {{ storageUsage.changePercent > 0 ? '+' : '' }}{{ storageUsage.changePercent }}%
             </div>
           </el-card>
@@ -83,8 +112,13 @@
                 <TrendCharts />
               </el-icon>
             </div>
-            <div class="metric-value">{{ networkThroughput.current }}</div>
-            <div class="metric-change" :class="getChangeClass(networkThroughput.change)">
+            <div class="metric-value">
+              {{ networkThroughput.current }}
+            </div>
+            <div
+              class="metric-change"
+              :class="getChangeClass(networkThroughput.change)"
+            >
               {{ networkThroughput.change > 0 ? '+' : '' }}{{ networkThroughput.change }}%
             </div>
           </el-card>
@@ -97,15 +131,27 @@
             <div class="chart-header">
               <h3>Performance Metrics</h3>
               <div class="chart-controls">
-                <el-radio-group v-model="performanceMetric" size="small">
-                  <el-radio-button label="response_time">Response Time</el-radio-button>
-                  <el-radio-button label="throughput">Throughput</el-radio-button>
-                  <el-radio-button label="error_rate">Error Rate</el-radio-button>
+                <el-radio-group
+                  v-model="performanceMetric"
+                  size="small"
+                >
+                  <el-radio-button label="response_time">
+                    Response Time
+                  </el-radio-button>
+                  <el-radio-button label="throughput">
+                    Throughput
+                  </el-radio-button>
+                  <el-radio-button label="error_rate">
+                    Error Rate
+                  </el-radio-button>
                 </el-radio-group>
               </div>
             </div>
             <div class="chart-content">
-              <canvas ref="performanceChart" height="300"></canvas>
+              <canvas
+                ref="performanceChart"
+                height="300"
+              />
             </div>
           </el-card>
           
@@ -113,15 +159,27 @@
             <div class="chart-header">
               <h3>Usage Statistics</h3>
               <div class="chart-controls">
-                <el-radio-group v-model="usageMetric" size="small">
-                  <el-radio-button label="users">Users</el-radio-button>
-                  <el-radio-button label="files">Files</el-radio-button>
-                  <el-radio-button label="bandwidth">Bandwidth</el-radio-button>
+                <el-radio-group
+                  v-model="usageMetric"
+                  size="small"
+                >
+                  <el-radio-button label="users">
+                    Users
+                  </el-radio-button>
+                  <el-radio-button label="files">
+                    Files
+                  </el-radio-button>
+                  <el-radio-button label="bandwidth">
+                    Bandwidth
+                  </el-radio-button>
                 </el-radio-group>
               </div>
             </div>
             <div class="chart-content">
-              <canvas ref="usageChart" height="300"></canvas>
+              <canvas
+                ref="usageChart"
+                height="300"
+              />
             </div>
           </el-card>
         </div>
@@ -134,7 +192,9 @@
             <div class="chart-content">
               <div class="health-grid">
                 <div class="health-item">
-                  <div class="health-label">Bootstrap Nodes</div>
+                  <div class="health-label">
+                    Bootstrap Nodes
+                  </div>
                   <div class="health-status">
                     <el-progress
                       :percentage="networkHealth.bootstrapNodes"
@@ -146,7 +206,9 @@
                 </div>
                 
                 <div class="health-item">
-                  <div class="health-label">Peer Connectivity</div>
+                  <div class="health-label">
+                    Peer Connectivity
+                  </div>
                   <div class="health-status">
                     <el-progress
                       :percentage="networkHealth.peerConnectivity"
@@ -158,7 +220,9 @@
                 </div>
                 
                 <div class="health-item">
-                  <div class="health-label">Data Availability</div>
+                  <div class="health-label">
+                    Data Availability
+                  </div>
                   <div class="health-status">
                     <el-progress
                       :percentage="networkHealth.dataAvailability"
@@ -170,7 +234,9 @@
                 </div>
                 
                 <div class="health-item">
-                  <div class="health-label">Consensus Health</div>
+                  <div class="health-label">
+                    Consensus Health
+                  </div>
                   <div class="health-status">
                     <el-progress
                       :percentage="networkHealth.consensusHealth"
@@ -189,7 +255,10 @@
               <h3>Resource Distribution</h3>
             </div>
             <div class="chart-content">
-              <canvas ref="distributionChart" height="300"></canvas>
+              <canvas
+                ref="distributionChart"
+                height="300"
+              />
             </div>
           </el-card>
         </div>
@@ -203,8 +272,8 @@
               <el-input
                 v-model="searchQuery"
                 placeholder="Search metrics..."
-                @input="filterMetrics"
                 clearable
+                @input="filterMetrics"
               >
                 <template #prefix>
                   <el-icon><Search /></el-icon>
@@ -218,25 +287,58 @@
             style="width: 100%"
             @sort-change="handleSortChange"
           >
-            <el-table-column prop="metric" label="Metric" min-width="200" sortable />
-            <el-table-column prop="current" label="Current Value" width="150" sortable />
-            <el-table-column prop="average" label="Average" width="120" sortable />
-            <el-table-column prop="peak" label="Peak" width="120" sortable />
-            <el-table-column prop="change" label="Change" width="100" sortable>
+            <el-table-column
+              prop="metric"
+              label="Metric"
+              min-width="200"
+              sortable
+            />
+            <el-table-column
+              prop="current"
+              label="Current Value"
+              width="150"
+              sortable
+            />
+            <el-table-column
+              prop="average"
+              label="Average"
+              width="120"
+              sortable
+            />
+            <el-table-column
+              prop="peak"
+              label="Peak"
+              width="120"
+              sortable
+            />
+            <el-table-column
+              prop="change"
+              label="Change"
+              width="100"
+              sortable
+            >
               <template #default="{ row }">
                 <span :class="getChangeClass(row.change)">
                   {{ row.change > 0 ? '+' : '' }}{{ row.change }}%
                 </span>
               </template>
             </el-table-column>
-            <el-table-column prop="status" label="Status" width="120">
+            <el-table-column
+              prop="status"
+              label="Status"
+              width="120"
+            >
               <template #default="{ row }">
                 <el-tag :type="getStatusType(row.status)">
                   {{ row.status }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="lastUpdated" label="Last Updated" width="180">
+            <el-table-column
+              prop="lastUpdated"
+              label="Last Updated"
+              width="180"
+            >
               <template #default="{ row }">
                 {{ formatDateTime(row.lastUpdated) }}
               </template>
@@ -250,13 +352,34 @@
           <div class="alerts-header">
             <h3>System Alerts</h3>
             <div class="alerts-controls">
-              <el-select v-model="alertFilter" placeholder="Filter alerts" size="small">
-                <el-option label="All" value="all" />
-                <el-option label="Critical" value="critical" />
-                <el-option label="Warning" value="warning" />
-                <el-option label="Info" value="info" />
+              <el-select
+                v-model="alertFilter"
+                placeholder="Filter alerts"
+                size="small"
+              >
+                <el-option
+                  label="All"
+                  value="all"
+                />
+                <el-option
+                  label="Critical"
+                  value="critical"
+                />
+                <el-option
+                  label="Warning"
+                  value="warning"
+                />
+                <el-option
+                  label="Info"
+                  value="info"
+                />
               </el-select>
-              <el-button size="small" @click="clearAlerts">Clear All</el-button>
+              <el-button
+                size="small"
+                @click="clearAlerts"
+              >
+                Clear All
+              </el-button>
             </div>
           </div>
           
@@ -273,15 +396,27 @@
                 </el-icon>
               </div>
               <div class="alert-content">
-                <div class="alert-title">{{ alert.title }}</div>
-                <div class="alert-description">{{ alert.description }}</div>
-                <div class="alert-time">{{ formatTimeAgo(alert.timestamp) }}</div>
+                <div class="alert-title">
+                  {{ alert.title }}
+                </div>
+                <div class="alert-description">
+                  {{ alert.description }}
+                </div>
+                <div class="alert-time">
+                  {{ formatTimeAgo(alert.timestamp) }}
+                </div>
               </div>
               <div class="alert-actions">
-                <el-button size="small" @click="acknowledgeAlert(alert.id)">
+                <el-button
+                  size="small"
+                  @click="acknowledgeAlert(alert.id)"
+                >
                   Acknowledge
                 </el-button>
-                <el-button size="small" @click="dismissAlert(alert.id)">
+                <el-button
+                  size="small"
+                  @click="dismissAlert(alert.id)"
+                >
                   Dismiss
                 </el-button>
               </div>

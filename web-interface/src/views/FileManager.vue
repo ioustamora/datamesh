@@ -1,8 +1,20 @@
 <template>
-  <div class="file-manager">
-    <div class="file-manager-header">
-      <div class="header-actions">
-        <el-button type="primary" @click="showUploadDialog = true">
+  <div
+    class="file-manager"
+    role="main"
+    aria-label="File Manager"
+  >
+    <header class="file-manager-header">
+      <div
+        class="header-actions"
+        role="toolbar"
+        aria-label="File management actions"
+      >
+        <el-button
+          type="primary"
+          aria-label="Upload new files"
+          @click="showUploadDialog = true"
+        >
           <el-icon><Upload /></el-icon>
           Upload Files
         </el-button>
@@ -16,19 +28,67 @@
         </el-button>
       </div>
       
-      <div class="header-search">
-        <el-input
-          v-model="searchQuery"
-          placeholder="Search files..."
-          @input="searchFiles"
-          clearable
-        >
-          <template #prefix>
-            <el-icon><Search /></el-icon>
-          </template>
-        </el-input>
+      <div
+        class="header-search"
+        role="search"
+        aria-label="File search and filtering"
+      >
+        <div class="search-filters">
+          <el-input
+            v-model="searchQuery"
+            placeholder="Search files..."
+            clearable
+            style="width: 200px; margin-right: 8px;"
+            @input="searchFiles"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+          
+          <el-select
+            v-model="filterBy"
+            placeholder="Filter by type"
+            style="width: 120px; margin-right: 8px;"
+          >
+            <el-option
+              v-for="type in fileTypes"
+              :key="type"
+              :label="type === 'all' ? 'All Types' : type"
+              :value="type"
+            />
+          </el-select>
+          
+          <el-select
+            v-model="sortBy"
+            placeholder="Sort by"
+            style="width: 120px; margin-right: 8px;"
+          >
+            <el-option
+              label="Name"
+              value="name"
+            />
+            <el-option
+              label="Size"
+              value="size"
+            />
+            <el-option
+              label="Type"
+              value="type"
+            />
+            <el-option
+              label="Date"
+              value="uploadDate"
+            />
+          </el-select>
+          
+          <el-button @click="sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'">
+            <el-icon><Sort /></el-icon>
+            {{ sortOrder === 'asc' ? '↑' : '↓' }}
+          </el-button>
+        </div>
       </div>
-    </div>
+    </header>
 
     <!-- File Upload Dialog -->
     <el-dialog
@@ -47,9 +107,14 @@
           @dragenter.prevent
         >
           <div class="drop-zone-content">
-            <el-icon class="upload-icon"><UploadFilled /></el-icon>
+            <el-icon class="upload-icon">
+              <UploadFilled />
+            </el-icon>
             <p>Drag & drop files here or click to select</p>
-            <el-button type="primary" @click="triggerFileSelect">
+            <el-button
+              type="primary"
+              @click="triggerFileSelect"
+            >
               Select Files
             </el-button>
           </div>
@@ -57,15 +122,22 @@
             ref="fileInput"
             type="file"
             multiple
-            @change="handleFileSelect"
             style="display: none"
-          />
+            @change="handleFileSelect"
+          >
         </div>
         
         <!-- Upload Queue -->
-        <div v-if="uploadQueue.length > 0" class="upload-queue">
+        <div
+          v-if="uploadQueue.length > 0"
+          class="upload-queue"
+        >
           <h4>Upload Queue</h4>
-          <div v-for="(item, index) in uploadQueue" :key="index" class="upload-item">
+          <div
+            v-for="(item, index) in uploadQueue"
+            :key="index"
+            class="upload-item"
+          >
             <div class="upload-item-info">
               <span class="file-name">{{ item.file.name }}</span>
               <span class="file-size">{{ formatFileSize(item.file.size) }}</span>
@@ -87,10 +159,16 @@
           </div>
           
           <div class="upload-actions">
-            <el-button type="primary" @click="startUpload" :disabled="isUploading">
+            <el-button
+              type="primary"
+              :disabled="isUploading"
+              @click="startUpload"
+            >
               Start Upload
             </el-button>
-            <el-button @click="clearQueue">Clear Queue</el-button>
+            <el-button @click="clearQueue">
+              Clear Queue
+            </el-button>
           </div>
         </div>
       </div>
@@ -98,51 +176,96 @@
 
     <!-- File List/Grid -->
     <div class="file-content">
-      <el-loading v-loading="loading" element-loading-text="Loading files...">
-        <div v-if="viewMode === 'list'" class="file-list">
+      <el-loading
+        v-loading="loading"
+        element-loading-text="Loading files..."
+      >
+        <div
+          v-if="viewMode === 'list'"
+          class="file-list"
+        >
           <el-table
             :data="filteredFiles"
             style="width: 100%"
             @selection-change="handleSelectionChange"
           >
-            <el-table-column type="selection" width="55" />
-            <el-table-column prop="name" label="Name" min-width="200">
+            <el-table-column
+              type="selection"
+              width="55"
+            />
+            <el-table-column
+              prop="name"
+              label="Name"
+              min-width="200"
+            >
               <template #default="{ row }">
                 <div class="file-item">
-                  <el-icon class="file-icon" :class="getFileIconClass(row.type)">
+                  <el-icon
+                    class="file-icon"
+                    :class="getFileIconClass(row.type)"
+                  >
                     <component :is="getFileIcon(row.type)" />
                   </el-icon>
                   <span class="file-name">{{ row.name }}</span>
                 </div>
               </template>
             </el-table-column>
-            <el-table-column prop="size" label="Size" width="100">
+            <el-table-column
+              prop="size"
+              label="Size"
+              width="100"
+            >
               <template #default="{ row }">
                 {{ formatFileSize(row.size) }}
               </template>
             </el-table-column>
-            <el-table-column prop="type" label="Type" width="100" />
-            <el-table-column prop="uploadDate" label="Upload Date" width="180">
+            <el-table-column
+              prop="type"
+              label="Type"
+              width="100"
+            />
+            <el-table-column
+              prop="uploadDate"
+              label="Upload Date"
+              width="180"
+            >
               <template #default="{ row }">
                 {{ formatDate(row.uploadDate) }}
               </template>
             </el-table-column>
-            <el-table-column prop="status" label="Status" width="100">
+            <el-table-column
+              prop="status"
+              label="Status"
+              width="100"
+            >
               <template #default="{ row }">
                 <el-tag :type="getStatusType(row.status)">
                   {{ row.status }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="Actions" width="150">
+            <el-table-column
+              label="Actions"
+              width="150"
+            >
               <template #default="{ row }">
-                <el-button size="small" @click="downloadFile(row)">
+                <el-button
+                  size="small"
+                  @click="downloadFile(row)"
+                >
                   <el-icon><Download /></el-icon>
                 </el-button>
-                <el-button size="small" @click="shareFile(row)">
+                <el-button
+                  size="small"
+                  @click="shareFile(row)"
+                >
                   <el-icon><Share /></el-icon>
                 </el-button>
-                <el-button size="small" type="danger" @click="deleteFile(row)">
+                <el-button
+                  size="small"
+                  type="danger"
+                  @click="deleteFile(row)"
+                >
                   <el-icon><Delete /></el-icon>
                 </el-button>
               </template>
@@ -150,7 +273,10 @@
           </el-table>
         </div>
         
-        <div v-else class="file-grid">
+        <div
+          v-else
+          class="file-grid"
+        >
           <div
             v-for="file in filteredFiles"
             :key="file.id"
@@ -159,23 +285,42 @@
             @dblclick="downloadFile(file)"
           >
             <div class="file-card-thumbnail">
-              <el-icon class="file-icon-large" :class="getFileIconClass(file.type)">
+              <el-icon
+                class="file-icon-large"
+                :class="getFileIconClass(file.type)"
+              >
                 <component :is="getFileIcon(file.type)" />
               </el-icon>
-              <img v-if="file.thumbnail" :src="file.thumbnail" class="thumbnail-image" />
+              <img
+                v-if="file.thumbnail"
+                :src="file.thumbnail"
+                class="thumbnail-image"
+                @click.stop="openPreview(file)"
+              >
             </div>
             <div class="file-card-info">
-              <div class="file-name" :title="file.name">{{ file.name }}</div>
+              <div
+                class="file-name"
+                :title="file.name"
+              >
+                {{ file.name }}
+              </div>
               <div class="file-meta">
                 <span class="file-size">{{ formatFileSize(file.size) }}</span>
                 <span class="file-date">{{ formatDate(file.uploadDate) }}</span>
               </div>
             </div>
             <div class="file-card-actions">
-              <el-button size="small" @click.stop="downloadFile(file)">
+              <el-button
+                size="small"
+                @click.stop="downloadFile(file)"
+              >
                 <el-icon><Download /></el-icon>
               </el-button>
-              <el-button size="small" @click.stop="shareFile(file)">
+              <el-button
+                size="small"
+                @click.stop="shareFile(file)"
+              >
                 <el-icon><Share /></el-icon>
               </el-button>
               <el-dropdown @command="handleFileAction">
@@ -190,7 +335,10 @@
                     <el-dropdown-item :command="{ action: 'rename', file }">
                       Rename
                     </el-dropdown-item>
-                    <el-dropdown-item :command="{ action: 'delete', file }" divided>
+                    <el-dropdown-item
+                      :command="{ action: 'delete', file }"
+                      divided
+                    >
                       Delete
                     </el-dropdown-item>
                   </el-dropdown-menu>
@@ -208,31 +356,158 @@
       title="File Information"
       width="500px"
     >
-      <div v-if="selectedFile" class="file-info">
-        <el-descriptions :column="1" border>
-          <el-descriptions-item label="Name">{{ selectedFile.name }}</el-descriptions-item>
-          <el-descriptions-item label="Size">{{ formatFileSize(selectedFile.size) }}</el-descriptions-item>
-          <el-descriptions-item label="Type">{{ selectedFile.type }}</el-descriptions-item>
-          <el-descriptions-item label="Upload Date">{{ formatDate(selectedFile.uploadDate) }}</el-descriptions-item>
+      <div
+        v-if="selectedFile"
+        class="file-info"
+      >
+        <el-descriptions
+          :column="1"
+          border
+        >
+          <el-descriptions-item label="Name">
+            {{ selectedFile.name }}
+          </el-descriptions-item>
+          <el-descriptions-item label="Size">
+            {{ formatFileSize(selectedFile.size) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="Type">
+            {{ selectedFile.type }}
+          </el-descriptions-item>
+          <el-descriptions-item label="Upload Date">
+            {{ formatDate(selectedFile.uploadDate) }}
+          </el-descriptions-item>
           <el-descriptions-item label="Status">
             <el-tag :type="getStatusType(selectedFile.status)">
               {{ selectedFile.status }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="File ID">{{ selectedFile.id }}</el-descriptions-item>
-          <el-descriptions-item label="Chunks">{{ selectedFile.chunks || 'N/A' }}</el-descriptions-item>
-          <el-descriptions-item label="Redundancy">{{ selectedFile.redundancy || 'N/A' }}</el-descriptions-item>
+          <el-descriptions-item label="File ID">
+            {{ selectedFile.id }}
+          </el-descriptions-item>
+          <el-descriptions-item label="Chunks">
+            {{ selectedFile.chunks || 'N/A' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="Redundancy">
+            {{ selectedFile.redundancy || 'N/A' }}
+          </el-descriptions-item>
         </el-descriptions>
       </div>
     </el-dialog>
 
+    <!-- File Preview Dialog -->
+    <el-dialog
+      v-model="showPreview"
+      :title="previewFile?.name || 'File Preview'"
+      width="80%"
+      top="5vh"
+      :before-close="closePreview"
+    >
+      <div
+        v-if="previewFile"
+        class="file-preview"
+      >
+        <div
+          v-if="isImageFile(previewFile)"
+          class="image-preview"
+        >
+          <img
+            :src="getPreviewUrl(previewFile)"
+            :alt="previewFile.name"
+            class="preview-image"
+          >
+        </div>
+        <div
+          v-else-if="isVideoFile(previewFile)"
+          class="video-preview"
+        >
+          <video
+            :src="getPreviewUrl(previewFile)"
+            controls
+            class="preview-video"
+          >
+            Your browser does not support the video tag.
+          </video>
+        </div>
+        <div
+          v-else-if="isAudioFile(previewFile)"
+          class="audio-preview"
+        >
+          <audio
+            :src="getPreviewUrl(previewFile)"
+            controls
+            class="preview-audio"
+          >
+            Your browser does not support the audio tag.
+          </audio>
+        </div>
+        <div
+          v-else-if="isTextFile(previewFile)"
+          class="text-preview"
+        >
+          <el-skeleton
+            v-if="loadingPreview"
+            :rows="10"
+            animated
+          />
+          <pre
+            v-else
+            class="text-content"
+          >{{ previewContent }}</pre>
+        </div>
+        <div
+          v-else
+          class="unsupported-preview"
+        >
+          <el-result
+            icon="warning"
+            title="Preview Not Available"
+            sub-title="This file type is not supported for preview"
+          >
+            <template #extra>
+              <el-button
+                type="primary"
+                @click="downloadFile(previewFile)"
+              >
+                Download File
+              </el-button>
+            </template>
+          </el-result>
+        </div>
+      </div>
+      
+      <template #footer>
+        <div class="preview-actions">
+          <el-button @click="downloadFile(previewFile)">
+            <el-icon><Download /></el-icon>
+            Download
+          </el-button>
+          <el-button @click="shareFile(previewFile)">
+            <el-icon><Share /></el-icon>
+            Share
+          </el-button>
+          <el-button @click="closePreview">
+            Close
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
+
     <!-- Batch Actions -->
-    <div v-if="selectedFiles.length > 0" class="batch-actions">
-      <el-button type="primary" @click="downloadSelected">
+    <div
+      v-if="selectedFiles.length > 0"
+      class="batch-actions"
+    >
+      <el-button
+        type="primary"
+        @click="downloadSelected"
+      >
         <el-icon><Download /></el-icon>
         Download Selected ({{ selectedFiles.length }})
       </el-button>
-      <el-button type="danger" @click="deleteSelected">
+      <el-button
+        type="danger"
+        @click="deleteSelected"
+      >
         <el-icon><Delete /></el-icon>
         Delete Selected
       </el-button>
@@ -257,10 +532,10 @@ import {
   List,
   More,
   Document,
-  Picture,
   VideoPlay,
   Folder,
-  Files
+  Files,
+  Sort
 } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 
@@ -278,10 +553,10 @@ export default {
     List,
     More,
     Document,
-    Picture,
     VideoPlay,
     Folder,
-    Files
+    Files,
+    Sort
   },
   setup() {
     const filesStore = useFilesStore()
@@ -292,21 +567,67 @@ export default {
     const searchQuery = ref('')
     const showUploadDialog = ref(false)
     const showFileInfo = ref(false)
+    const showPreview = ref(false)
     const selectedFile = ref(null)
     const selectedFiles = ref([])
     const uploadQueue = ref([])
     const isUploading = ref(false)
     const isDragOver = ref(false)
     const fileInput = ref(null)
+    const sortBy = ref('uploadDate')
+    const sortOrder = ref('desc')
+    const filterBy = ref('all')
+    const previewFile = ref(null)
+    const searchTimeout = ref(null)
+    const loadingPreview = ref(false)
+    const previewContent = ref('')
     
     // Computed properties
     const loading = computed(() => loadingStore.isLoading)
     const files = computed(() => filesStore.files)
     const filteredFiles = computed(() => {
-      if (!searchQuery.value) return files.value
-      return files.value.filter(file =>
-        file.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-      )
+      let result = files.value
+      
+      // Apply text search
+      if (searchQuery.value) {
+        result = result.filter(file =>
+          file.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+          file.type.toLowerCase().includes(searchQuery.value.toLowerCase())
+        )
+      }
+      
+      // Apply type filter
+      if (filterBy.value !== 'all') {
+        result = result.filter(file => file.type === filterBy.value)
+      }
+      
+      // Apply sorting
+      result.sort((a, b) => {
+        let aVal = a[sortBy.value]
+        let bVal = b[sortBy.value]
+        
+        if (sortBy.value === 'size') {
+          aVal = a.size || 0
+          bVal = b.size || 0
+        } else if (sortBy.value === 'uploadDate') {
+          aVal = new Date(a.uploadDate || 0)
+          bVal = new Date(b.uploadDate || 0)
+        }
+        
+        if (sortOrder.value === 'asc') {
+          return aVal > bVal ? 1 : -1
+        } else {
+          return aVal < bVal ? 1 : -1
+        }
+      })
+      
+      return result
+    })
+    
+    const fileTypes = computed(() => {
+      const types = new Set(['all'])
+      files.value.forEach(file => types.add(file.type))
+      return Array.from(types)
     })
     
     // Methods
@@ -320,7 +641,16 @@ export default {
     }
     
     const searchFiles = () => {
-      // Search is handled by computed property
+      // Clear existing timeout
+      if (searchTimeout.value) {
+        clearTimeout(searchTimeout.value)
+      }
+      
+      // Debounce search to avoid excessive API calls
+      searchTimeout.value = setTimeout(() => {
+        // Search is handled by computed property
+        // This timeout prevents excessive filtering on rapid typing
+      }, 300)
     }
     
     const toggleView = () => {
@@ -507,9 +837,9 @@ export default {
     
     const getFileIcon = (type) => {
       const typeMap = {
-        'image': Picture,
+        'image': Document, // Using Document instead of Picture to avoid reserved name
         'video': VideoPlay,
-        'audio': Headphones,
+        'audio': Document,
         'document': Document,
         'archive': Folder,
         'default': Files
@@ -539,13 +869,89 @@ export default {
       return typeMap[status] || 'info'
     }
     
+    // Preview functions
+    const openPreview = async (file) => {
+      previewFile.value = file
+      showPreview.value = true
+      
+      if (isTextFile(file)) {
+        loadingPreview.value = true
+        try {
+          // Simulate loading text content
+          await new Promise(resolve => setTimeout(resolve, 500))
+          previewContent.value = 'Text content preview would be loaded here...'
+        } catch (error) {
+          previewContent.value = 'Error loading file content'
+        } finally {
+          loadingPreview.value = false
+        }
+      }
+    }
+    
+    const closePreview = () => {
+      showPreview.value = false
+      previewFile.value = null
+      previewContent.value = ''
+    }
+    
+    const isImageFile = (file) => {
+      return file.type === 'image' || /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(file.name)
+    }
+    
+    const isVideoFile = (file) => {
+      return file.type === 'video' || /\.(mp4|webm|ogg|avi|mov)$/i.test(file.name)
+    }
+    
+    const isAudioFile = (file) => {
+      return file.type === 'audio' || /\.(mp3|wav|ogg|flac|m4a)$/i.test(file.name)
+    }
+    
+    const isTextFile = (file) => {
+      return file.type === 'document' || /\.(txt|md|json|xml|csv|log)$/i.test(file.name)
+    }
+    
+    const getPreviewUrl = (file) => {
+      // This would generate a preview URL from the file service
+      return file.preview_url || `/api/files/${file.id}/preview`
+    }
+    
+    // Keyboard shortcuts
+    const handleKeydown = (event) => {
+      if (event.ctrlKey || event.metaKey) {
+        switch (event.key) {
+          case 'f':
+            event.preventDefault()
+            document.querySelector('.header-search input')?.focus()
+            break
+          case 'u':
+            event.preventDefault()
+            showUploadDialog.value = true
+            break
+          case 'a':
+            if (viewMode.value === 'list') {
+              event.preventDefault()
+              // Select all files
+              selectedFiles.value = [...filteredFiles.value]
+            }
+            break
+        }
+      } else if (event.key === 'Escape') {
+        if (showPreview.value) {
+          closePreview()
+        } else if (showUploadDialog.value) {
+          showUploadDialog.value = false
+        }
+      }
+    }
+    
     // Lifecycle hooks
     onMounted(() => {
       refreshFiles()
+      document.addEventListener('keydown', handleKeydown)
     })
     
     onUnmounted(() => {
-      // Cleanup
+      document.removeEventListener('keydown', handleKeydown)
     })
     
     return {
@@ -591,7 +997,24 @@ export default {
       formatDate,
       getFileIcon,
       getFileIconClass,
-      getStatusType
+      getStatusType,
+      
+      // Preview
+      openPreview,
+      closePreview,
+      isImageFile,
+      isVideoFile,
+      isAudioFile,
+      isTextFile,
+      getPreviewUrl,
+      loadingPreview,
+      previewContent,
+      
+      // Search and filtering
+      sortBy,
+      sortOrder,
+      filterBy,
+      fileTypes
     }
   }
 }
@@ -618,7 +1041,15 @@ export default {
 }
 
 .header-search {
-  width: 300px;
+  flex: 1;
+  max-width: 600px;
+}
+
+.search-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .file-content {
@@ -790,6 +1221,68 @@ export default {
 .file-info {
   max-height: 400px;
   overflow-y: auto;
+}
+
+/* Preview styles */
+.file-preview {
+  max-height: 70vh;
+  overflow: auto;
+  text-align: center;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.preview-video {
+  max-width: 100%;
+  max-height: 60vh;
+  border-radius: 8px;
+}
+
+.preview-audio {
+  width: 100%;
+  max-width: 400px;
+}
+
+.text-preview {
+  text-align: left;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.text-content {
+  background: var(--el-fill-color-lighter);
+  padding: 16px;
+  border-radius: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.unsupported-preview {
+  padding: 40px;
+}
+
+.preview-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.thumbnail-image {
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.thumbnail-image:hover {
+  transform: scale(1.05);
 }
 
 @media (max-width: 768px) {

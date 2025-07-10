@@ -14,15 +14,21 @@
           <div class="status-list">
             <div class="status-item">
               <span>Server Status:</span>
-              <el-tag type="success">Online</el-tag>
+              <el-tag type="success">
+                Online
+              </el-tag>
             </div>
             <div class="status-item">
               <span>Database:</span>
-              <el-tag type="success">Connected</el-tag>
+              <el-tag type="success">
+                Connected
+              </el-tag>
             </div>
             <div class="status-item">
               <span>Storage:</span>
-              <el-tag type="warning">75% Full</el-tag>
+              <el-tag type="warning">
+                75% Full
+              </el-tag>
             </div>
           </div>
         </el-card>
@@ -33,12 +39,20 @@
           </template>
           <div class="stats-grid">
             <div class="stat-box">
-              <div class="stat-number">{{ totalUsers }}</div>
-              <div class="stat-label">Total Users</div>
+              <div class="stat-number">
+                {{ totalUsers }}
+              </div>
+              <div class="stat-label">
+                Total Users
+              </div>
             </div>
             <div class="stat-box">
-              <div class="stat-number">{{ activeUsers }}</div>
-              <div class="stat-label">Active Users</div>
+              <div class="stat-number">
+                {{ activeUsers }}
+              </div>
+              <div class="stat-label">
+                Active Users
+              </div>
             </div>
           </div>
         </el-card>

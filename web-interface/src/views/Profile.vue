@@ -4,39 +4,66 @@
       <div class="profile-banner">
         <div class="banner-content">
           <div class="profile-avatar">
-            <el-avatar :size="120" :src="profileData.avatar">
+            <el-avatar
+              :size="120"
+              :src="profileData.avatar"
+            >
               <el-icon><User /></el-icon>
             </el-avatar>
             <div class="avatar-status">
-              <el-tag :type="getStatusType(profileData.status)" size="small">
+              <el-tag
+                :type="getStatusType(profileData.status)"
+                size="small"
+              >
                 {{ profileData.status }}
               </el-tag>
             </div>
           </div>
           
           <div class="profile-info">
-            <h1 class="profile-name">{{ profileData.displayName || profileData.email }}</h1>
-            <p class="profile-email">{{ profileData.email }}</p>
-            <p class="profile-bio">{{ profileData.bio || 'No bio provided' }}</p>
+            <h1 class="profile-name">
+              {{ profileData.displayName || profileData.email }}
+            </h1>
+            <p class="profile-email">
+              {{ profileData.email }}
+            </p>
+            <p class="profile-bio">
+              {{ profileData.bio || 'No bio provided' }}
+            </p>
             
             <div class="profile-stats">
               <div class="stat-item">
-                <div class="stat-value">{{ profileData.stats.filesUploaded }}</div>
-                <div class="stat-label">Files Uploaded</div>
+                <div class="stat-value">
+                  {{ profileData.stats.filesUploaded }}
+                </div>
+                <div class="stat-label">
+                  Files Uploaded
+                </div>
               </div>
               <div class="stat-item">
-                <div class="stat-value">{{ profileData.stats.totalStorage }}</div>
-                <div class="stat-label">Total Storage</div>
+                <div class="stat-value">
+                  {{ profileData.stats.totalStorage }}
+                </div>
+                <div class="stat-label">
+                  Total Storage
+                </div>
               </div>
               <div class="stat-item">
-                <div class="stat-value">{{ profileData.stats.memberSince }}</div>
-                <div class="stat-label">Member Since</div>
+                <div class="stat-value">
+                  {{ profileData.stats.memberSince }}
+                </div>
+                <div class="stat-label">
+                  Member Since
+                </div>
               </div>
             </div>
           </div>
           
           <div class="profile-actions">
-            <el-button type="primary" @click="editProfile">
+            <el-button
+              type="primary"
+              @click="editProfile"
+            >
               <el-icon><Edit /></el-icon>
               Edit Profile
             </el-button>
@@ -51,18 +78,43 @@
     
     <div class="profile-content">
       <div class="profile-tabs">
-        <el-tabs v-model="activeTab" @tab-click="handleTabClick">
-          <el-tab-pane label="Activity" name="activity">
+        <el-tabs
+          v-model="activeTab"
+          @tab-click="handleTabClick"
+        >
+          <el-tab-pane
+            label="Activity"
+            name="activity"
+          >
             <div class="activity-feed">
               <div class="activity-header">
                 <h3>Recent Activity</h3>
                 <div class="activity-filters">
-                  <el-select v-model="activityFilter" placeholder="Filter by type" size="small">
-                    <el-option label="All" value="all" />
-                    <el-option label="Uploads" value="upload" />
-                    <el-option label="Downloads" value="download" />
-                    <el-option label="Shares" value="share" />
-                    <el-option label="Deletes" value="delete" />
+                  <el-select
+                    v-model="activityFilter"
+                    placeholder="Filter by type"
+                    size="small"
+                  >
+                    <el-option
+                      label="All"
+                      value="all"
+                    />
+                    <el-option
+                      label="Uploads"
+                      value="upload"
+                    />
+                    <el-option
+                      label="Downloads"
+                      value="download"
+                    />
+                    <el-option
+                      label="Shares"
+                      value="share"
+                    />
+                    <el-option
+                      label="Deletes"
+                      value="delete"
+                    />
                   </el-select>
                 </div>
               </div>
@@ -120,7 +172,10 @@
             </div>
           </el-tab-pane>
           
-          <el-tab-pane label="Files" name="files">
+          <el-tab-pane
+            label="Files"
+            name="files"
+          >
             <div class="files-overview">
               <div class="files-header">
                 <h3>File Overview</h3>
@@ -139,8 +194,12 @@
                       <el-icon><Files /></el-icon>
                     </div>
                     <div class="stat-info">
-                      <div class="stat-number">{{ filesData.totalFiles }}</div>
-                      <div class="stat-text">Total Files</div>
+                      <div class="stat-number">
+                        {{ filesData.totalFiles }}
+                      </div>
+                      <div class="stat-text">
+                        Total Files
+                      </div>
                     </div>
                   </div>
                   
@@ -149,8 +208,12 @@
                       <el-icon><Upload /></el-icon>
                     </div>
                     <div class="stat-info">
-                      <div class="stat-number">{{ filesData.uploadedThisMonth }}</div>
-                      <div class="stat-text">Uploaded This Month</div>
+                      <div class="stat-number">
+                        {{ filesData.uploadedThisMonth }}
+                      </div>
+                      <div class="stat-text">
+                        Uploaded This Month
+                      </div>
                     </div>
                   </div>
                   
@@ -159,8 +222,12 @@
                       <el-icon><Share /></el-icon>
                     </div>
                     <div class="stat-info">
-                      <div class="stat-number">{{ filesData.sharedFiles }}</div>
-                      <div class="stat-text">Shared Files</div>
+                      <div class="stat-number">
+                        {{ filesData.sharedFiles }}
+                      </div>
+                      <div class="stat-text">
+                        Shared Files
+                      </div>
                     </div>
                   </div>
                   
@@ -169,8 +236,12 @@
                       <el-icon><Download /></el-icon>
                     </div>
                     <div class="stat-info">
-                      <div class="stat-number">{{ filesData.totalDownloads }}</div>
-                      <div class="stat-text">Total Downloads</div>
+                      <div class="stat-number">
+                        {{ filesData.totalDownloads }}
+                      </div>
+                      <div class="stat-text">
+                        Total Downloads
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -179,7 +250,10 @@
               <div class="files-chart">
                 <h4>Storage Usage Over Time</h4>
                 <div class="chart-container">
-                  <canvas ref="storageChart" height="200"></canvas>
+                  <canvas
+                    ref="storageChart"
+                    height="200"
+                  />
                 </div>
               </div>
               
@@ -198,18 +272,27 @@
                         </el-icon>
                       </div>
                       <div class="breakdown-details">
-                        <div class="breakdown-type">{{ type.type }}</div>
-                        <div class="breakdown-count">{{ type.count }} files</div>
+                        <div class="breakdown-type">
+                          {{ type.type }}
+                        </div>
+                        <div class="breakdown-count">
+                          {{ type.count }} files
+                        </div>
                       </div>
                     </div>
-                    <div class="breakdown-size">{{ type.size }}</div>
+                    <div class="breakdown-size">
+                      {{ type.size }}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </el-tab-pane>
           
-          <el-tab-pane label="Storage" name="storage">
+          <el-tab-pane
+            label="Storage"
+            name="storage"
+          >
             <div class="storage-overview">
               <div class="storage-header">
                 <h3>Storage Usage</h3>
@@ -231,8 +314,12 @@
                       :stroke-width="12"
                     >
                       <div class="usage-info">
-                        <div class="usage-used">{{ storageData.usedStorage }}</div>
-                        <div class="usage-total">of {{ storageData.totalStorage }}</div>
+                        <div class="usage-used">
+                          {{ storageData.usedStorage }}
+                        </div>
+                        <div class="usage-total">
+                          of {{ storageData.totalStorage }}
+                        </div>
                       </div>
                     </el-progress>
                   </div>
@@ -240,26 +327,38 @@
                   <div class="usage-details">
                     <div class="usage-breakdown">
                       <div class="breakdown-category">
-                        <div class="category-indicator active"></div>
+                        <div class="category-indicator active" />
                         <div class="category-info">
-                          <div class="category-name">Files</div>
-                          <div class="category-size">{{ storageData.filesSize }}</div>
+                          <div class="category-name">
+                            Files
+                          </div>
+                          <div class="category-size">
+                            {{ storageData.filesSize }}
+                          </div>
                         </div>
                       </div>
                       
                       <div class="breakdown-category">
-                        <div class="category-indicator cached"></div>
+                        <div class="category-indicator cached" />
                         <div class="category-info">
-                          <div class="category-name">Cache</div>
-                          <div class="category-size">{{ storageData.cacheSize }}</div>
+                          <div class="category-name">
+                            Cache
+                          </div>
+                          <div class="category-size">
+                            {{ storageData.cacheSize }}
+                          </div>
                         </div>
                       </div>
                       
                       <div class="breakdown-category">
-                        <div class="category-indicator temp"></div>
+                        <div class="category-indicator temp" />
                         <div class="category-info">
-                          <div class="category-name">Temporary</div>
-                          <div class="category-size">{{ storageData.tempSize }}</div>
+                          <div class="category-name">
+                            Temporary
+                          </div>
+                          <div class="category-size">
+                            {{ storageData.tempSize }}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -281,11 +380,18 @@
                       </el-icon>
                     </div>
                     <div class="recommendation-content">
-                      <div class="recommendation-title">{{ recommendation.title }}</div>
-                      <div class="recommendation-description">{{ recommendation.description }}</div>
+                      <div class="recommendation-title">
+                        {{ recommendation.title }}
+                      </div>
+                      <div class="recommendation-description">
+                        {{ recommendation.description }}
+                      </div>
                     </div>
                     <div class="recommendation-action">
-                      <el-button size="small" @click="executeRecommendation(recommendation.id)">
+                      <el-button
+                        size="small"
+                        @click="executeRecommendation(recommendation.id)"
+                      >
                         {{ recommendation.actionText }}
                       </el-button>
                     </div>
@@ -299,18 +405,31 @@
     </div>
     
     <!-- Edit Profile Dialog -->
-    <el-dialog v-model="showEditDialog" title="Edit Profile" width="500px">
+    <el-dialog
+      v-model="showEditDialog"
+      title="Edit Profile"
+      width="500px"
+    >
       <el-form
         ref="editForm"
         :model="editData"
         :rules="editRules"
         label-position="top"
       >
-        <el-form-item label="Display Name" prop="displayName">
-          <el-input v-model="editData.displayName" placeholder="Enter your display name" />
+        <el-form-item
+          label="Display Name"
+          prop="displayName"
+        >
+          <el-input
+            v-model="editData.displayName"
+            placeholder="Enter your display name"
+          />
         </el-form-item>
         
-        <el-form-item label="Bio" prop="bio">
+        <el-form-item
+          label="Bio"
+          prop="bio"
+        >
           <el-input
             v-model="editData.bio"
             type="textarea"
@@ -321,20 +440,39 @@
         
         <el-form-item label="Avatar">
           <div class="avatar-upload">
-            <el-avatar :size="80" :src="editData.avatar">
+            <el-avatar
+              :size="80"
+              :src="editData.avatar"
+            >
               <el-icon><User /></el-icon>
             </el-avatar>
             <div class="upload-actions">
-              <el-button size="small" @click="uploadAvatar">Upload New</el-button>
-              <el-button size="small" @click="removeAvatar">Remove</el-button>
+              <el-button
+                size="small"
+                @click="uploadAvatar"
+              >
+                Upload New
+              </el-button>
+              <el-button
+                size="small"
+                @click="removeAvatar"
+              >
+                Remove
+              </el-button>
             </div>
           </div>
         </el-form-item>
       </el-form>
       
       <template #footer>
-        <el-button @click="showEditDialog = false">Cancel</el-button>
-        <el-button type="primary" @click="saveProfile" :loading="saving">
+        <el-button @click="showEditDialog = false">
+          Cancel
+        </el-button>
+        <el-button
+          type="primary"
+          :loading="saving"
+          @click="saveProfile"
+        >
           Save Changes
         </el-button>
       </template>

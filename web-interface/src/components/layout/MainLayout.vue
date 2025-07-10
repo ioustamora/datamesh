@@ -1,5 +1,9 @@
 <template>
-  <div class="main-layout" role="application" aria-label="DataMesh Application">
+  <div
+    class="main-layout"
+    role="application"
+    aria-label="DataMesh Application"
+  >
     <!-- Mobile Navigation -->
     <MobileNavigation
       v-if="isMobile"
@@ -27,16 +31,23 @@
         <div class="sidebar-header">
           <div 
             class="logo" 
-            @click="$router.push('/')"
-            @keydown="handleLogoKeydown"
             role="button"
             tabindex="0"
             :aria-label="'DataMesh home, navigate to dashboard'"
+            @click="$router.push('/')"
+            @keydown="handleLogoKeydown"
           >
-            <el-icon size="28" color="#409EFF" aria-hidden="true">
+            <el-icon
+              size="28"
+              color="#409EFF"
+              aria-hidden="true"
+            >
               <DataBoard />
             </el-icon>
-            <span v-if="!sidebarCollapsed" class="logo-text">DataMesh</span>
+            <span
+              v-if="!sidebarCollapsed"
+              class="logo-text"
+            >DataMesh</span>
           </div>
         </div>
         
@@ -45,111 +56,165 @@
           role="navigation" 
           :aria-label="'Main navigation'"
         >
-        <el-menu
-          :default-active="activeMenu"
-          :collapse="sidebarCollapsed"
-          :unique-opened="true"
-          class="sidebar-menu"
-          router
-          role="menubar"
-          :aria-orientation="'vertical'"
-        >
-          <el-menu-item 
-            index="/" 
-            route="/"
-            role="menuitem"
-            :aria-label="'Dashboard'"
+          <el-menu
+            :default-active="activeMenu"
+            :collapse="sidebarCollapsed"
+            :unique-opened="true"
+            class="sidebar-menu"
+            router
+            role="menubar"
+            :aria-orientation="'vertical'"
           >
-            <el-icon aria-hidden="true"><House /></el-icon>
-            <span>Dashboard</span>
-          </el-menu-item>
+            <el-menu-item 
+              index="/" 
+              route="/"
+              role="menuitem"
+              :aria-label="'Dashboard'"
+            >
+              <el-icon aria-hidden="true">
+                <House />
+              </el-icon>
+              <span>Dashboard</span>
+            </el-menu-item>
           
-          <el-menu-item 
-            index="/files" 
-            route="/files"
-            role="menuitem"
-            :aria-label="'File Manager'"
-          >
-            <el-icon aria-hidden="true"><FolderOpened /></el-icon>
-            <span>File Manager</span>
-          </el-menu-item>
+            <el-menu-item 
+              index="/files" 
+              route="/files"
+              role="menuitem"
+              :aria-label="'File Manager'"
+            >
+              <el-icon aria-hidden="true">
+                <FolderOpened />
+              </el-icon>
+              <span>File Manager</span>
+            </el-menu-item>
           
-          <el-sub-menu 
-            index="/governance"
-            role="menuitem"
-            :aria-label="'Governance menu'"
-            :aria-expanded="false"
-          >
-            <template #title>
-              <el-icon aria-hidden="true"><Flag /></el-icon>
-              <span>Governance</span>
-            </template>
-            <el-menu-item index="/governance" route="/governance">
+            <el-sub-menu 
+              index="/governance"
+              role="menuitem"
+              :aria-label="'Governance menu'"
+              :aria-expanded="false"
+            >
+              <template #title>
+                <el-icon aria-hidden="true">
+                  <Flag />
+                </el-icon>
+                <span>Governance</span>
+              </template>
+              <el-menu-item
+                index="/governance"
+                route="/governance"
+              >
+                <el-icon><TrendCharts /></el-icon>
+                <span>Overview</span>
+              </el-menu-item>
+              <el-menu-item
+                index="/governance/operators"
+                route="/governance/operators"
+              >
+                <el-icon><UserFilled /></el-icon>
+                <span>Operators</span>
+              </el-menu-item>
+              <el-menu-item
+                index="/governance/proposals"
+                route="/governance/proposals"
+              >
+                <el-icon><DocumentCopy /></el-icon>
+                <span>Proposals</span>
+              </el-menu-item>
+              <el-menu-item
+                index="/governance/voting"
+                route="/governance/voting"
+              >
+                <el-icon><Select /></el-icon>
+                <span>Voting</span>
+              </el-menu-item>
+              <el-menu-item
+                index="/governance/network-health"
+                route="/governance/network-health"
+              >
+                <el-icon><Monitor /></el-icon>
+                <span>Network Health</span>
+              </el-menu-item>
+            </el-sub-menu>
+          
+            <el-sub-menu
+              v-if="authStore.isAdmin"
+              index="/administration"
+            >
+              <template #title>
+                <el-icon><Setting /></el-icon>
+                <span>Administration</span>
+              </template>
+              <el-menu-item
+                index="/administration"
+                route="/administration"
+              >
+                <el-icon><DataAnalysis /></el-icon>
+                <span>Overview</span>
+              </el-menu-item>
+              <el-menu-item
+                index="/administration/users"
+                route="/administration/users"
+              >
+                <el-icon><User /></el-icon>
+                <span>Users</span>
+              </el-menu-item>
+              <el-menu-item
+                index="/administration/operators"
+                route="/administration/operators"
+              >
+                <el-icon><Connection /></el-icon>
+                <span>Operators</span>
+              </el-menu-item>
+              <el-menu-item
+                index="/administration/system"
+                route="/administration/system"
+              >
+                <el-icon><Tools /></el-icon>
+                <span>System</span>
+              </el-menu-item>
+              <el-menu-item
+                index="/administration/audit"
+                route="/administration/audit"
+              >
+                <el-icon><Document /></el-icon>
+                <span>Audit Logs</span>
+              </el-menu-item>
+            </el-sub-menu>
+          
+            <el-menu-item
+              index="/analytics"
+              route="/analytics"
+            >
               <el-icon><TrendCharts /></el-icon>
-              <span>Overview</span>
+              <span>Analytics</span>
             </el-menu-item>
-            <el-menu-item index="/governance/operators" route="/governance/operators">
-              <el-icon><UserFilled /></el-icon>
-              <span>Operators</span>
-            </el-menu-item>
-            <el-menu-item index="/governance/proposals" route="/governance/proposals">
-              <el-icon><DocumentCopy /></el-icon>
-              <span>Proposals</span>
-            </el-menu-item>
-            <el-menu-item index="/governance/voting" route="/governance/voting">
-              <el-icon><Select /></el-icon>
-              <span>Voting</span>
-            </el-menu-item>
-            <el-menu-item index="/governance/network-health" route="/governance/network-health">
-              <el-icon><Monitor /></el-icon>
-              <span>Network Health</span>
-            </el-menu-item>
-          </el-sub-menu>
           
-          <el-sub-menu v-if="authStore.isAdmin" index="/administration">
-            <template #title>
-              <el-icon><Setting /></el-icon>
-              <span>Administration</span>
-            </template>
-            <el-menu-item index="/administration" route="/administration">
-              <el-icon><DataAnalysis /></el-icon>
-              <span>Overview</span>
-            </el-menu-item>
-            <el-menu-item index="/administration/users" route="/administration/users">
-              <el-icon><User /></el-icon>
-              <span>Users</span>
-            </el-menu-item>
-            <el-menu-item index="/administration/operators" route="/administration/operators">
-              <el-icon><Connection /></el-icon>
-              <span>Operators</span>
-            </el-menu-item>
-            <el-menu-item index="/administration/system" route="/administration/system">
+            <el-menu-item
+              index="/settings"
+              route="/settings"
+            >
               <el-icon><Tools /></el-icon>
-              <span>System</span>
+              <span>Settings</span>
             </el-menu-item>
-            <el-menu-item index="/administration/audit" route="/administration/audit">
-              <el-icon><Document /></el-icon>
-              <span>Audit Logs</span>
-            </el-menu-item>
-          </el-sub-menu>
-          
-          <el-menu-item index="/analytics" route="/analytics">
-            <el-icon><TrendCharts /></el-icon>
-            <span>Analytics</span>
-          </el-menu-item>
-          
-          <el-menu-item index="/settings" route="/settings">
-            <el-icon><Tools /></el-icon>
-            <span>Settings</span>
-          </el-menu-item>
-        </el-menu>
+          </el-menu>
         </nav>
         
         <!-- User info (collapsed sidebar) -->
-        <div v-if="sidebarCollapsed" class="sidebar-user-mini">
-          <el-dropdown trigger="click" placement="right">
+        <div
+          v-if="sidebarCollapsed"
+          class="sidebar-user-mini"
+        >
+          <el-dropdown
+            trigger="click"
+            placement="right"
+          >
             <div class="user-avatar-mini">
-              <el-avatar :size="32" :src="authStore.currentUser?.avatar">
+              <el-avatar
+                :size="32"
+                :src="authStore.currentUser?.avatar"
+              >
                 <el-icon><User /></el-icon>
               </el-avatar>
             </div>
@@ -163,7 +228,10 @@
                   <el-icon><Tools /></el-icon>
                   Settings
                 </el-dropdown-item>
-                <el-dropdown-item divided @click="logout">
+                <el-dropdown-item
+                  divided
+                  @click="logout"
+                >
                   <el-icon><SwitchButton /></el-icon>
                   Logout
                 </el-dropdown-item>
@@ -175,18 +243,25 @@
     </el-aside>
     
     <!-- Main Content -->
-    <el-container class="main-container" :class="{ 'mobile-layout': isMobile }">
+    <el-container
+      class="main-container"
+      :class="{ 'mobile-layout': isMobile }"
+    >
       <!-- Desktop Header -->
-      <el-header v-if="!isMobile" class="main-header" role="banner">
+      <el-header
+        v-if="!isMobile"
+        class="main-header"
+        role="banner"
+      >
         <div class="header-left">
           <el-button
             :icon="sidebarCollapsed ? 'Expand' : 'Fold'"
             circle
-            @click="toggleSidebar"
             class="sidebar-toggle"
             :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
             :aria-expanded="!sidebarCollapsed"
             :aria-controls="'sidebar-navigation'"
+            @click="toggleSidebar"
           />
           
           <el-breadcrumb 
@@ -212,38 +287,58 @@
             placeholder="Search files..."
             class="search-input"
             clearable
-            @keyup.enter="performSearch"
             role="searchbox"
             :aria-label="'Search files'"
             :aria-describedby="'search-description'"
+            @keyup.enter="performSearch"
           >
             <template #prefix>
-              <el-icon aria-hidden="true"><Search /></el-icon>
+              <el-icon aria-hidden="true">
+                <Search />
+              </el-icon>
             </template>
           </el-input>
-          <span id="search-description" class="sr-only">
+          <span
+            id="search-description"
+            class="sr-only"
+          >
             Search for files by name. Press Enter to search.
           </span>
           
           <!-- Notifications -->
-          <el-dropdown trigger="click" placement="bottom-end">
+          <el-dropdown
+            trigger="click"
+            placement="bottom-end"
+          >
             <el-button 
               circle
               :aria-label="`Notifications. ${notificationCount} unread notifications`"
               :aria-describedby="'notifications-description'"
             >
-              <el-badge :value="notificationCount" :hidden="notificationCount === 0">
-                <el-icon aria-hidden="true"><Bell /></el-icon>
+              <el-badge
+                :value="notificationCount"
+                :hidden="notificationCount === 0"
+              >
+                <el-icon aria-hidden="true">
+                  <Bell />
+                </el-icon>
               </el-badge>
             </el-button>
-            <span id="notifications-description" class="sr-only">
+            <span
+              id="notifications-description"
+              class="sr-only"
+            >
               Click to view notifications and alerts
             </span>
             <template #dropdown>
               <el-dropdown-menu>
                 <div class="notification-header">
                   <span>Notifications</span>
-                  <el-button text size="small" @click="clearNotifications">
+                  <el-button
+                    text
+                    size="small"
+                    @click="clearNotifications"
+                  >
                     Clear All
                   </el-button>
                 </div>
@@ -257,12 +352,19 @@
                       <component :is="getNotificationIcon(notification.type)" />
                     </el-icon>
                     <div class="notification-content">
-                      <div class="notification-title">{{ notification.title }}</div>
-                      <div class="notification-time">{{ formatTime(notification.timestamp) }}</div>
+                      <div class="notification-title">
+                        {{ notification.title }}
+                      </div>
+                      <div class="notification-time">
+                        {{ formatTime(notification.timestamp) }}
+                      </div>
                     </div>
                   </div>
                 </el-dropdown-item>
-                <el-dropdown-item v-if="notifications.length === 0" disabled>
+                <el-dropdown-item
+                  v-if="notifications.length === 0"
+                  disabled
+                >
                   No new notifications
                 </el-dropdown-item>
               </el-dropdown-menu>
@@ -272,11 +374,11 @@
           <!-- Theme Toggle -->
           <el-button
             circle
-            @click="themeStore.toggleTheme()"
             :icon="themeStore.isDark ? 'Sunny' : 'Moon'"
             :aria-label="themeStore.isDark ? 'Switch to light theme' : 'Switch to dark theme'"
             :aria-pressed="themeStore.isDark.toString()"
             role="switch"
+            @click="themeStore.toggleTheme()"
           />
           
           <!-- Connection Status -->
@@ -294,14 +396,25 @@
           </el-tooltip>
           
           <!-- User Menu -->
-          <el-dropdown v-if="!sidebarCollapsed" trigger="click" placement="bottom-end">
+          <el-dropdown
+            v-if="!sidebarCollapsed"
+            trigger="click"
+            placement="bottom-end"
+          >
             <div class="user-info">
-              <el-avatar :size="32" :src="authStore.currentUser?.avatar">
+              <el-avatar
+                :size="32"
+                :src="authStore.currentUser?.avatar"
+              >
                 <el-icon><User /></el-icon>
               </el-avatar>
               <div class="user-details">
-                <div class="user-name">{{ authStore.currentUser?.name || 'User' }}</div>
-                <div class="user-role">{{ authStore.currentUser?.role || 'Member' }}</div>
+                <div class="user-name">
+                  {{ authStore.currentUser?.name || 'User' }}
+                </div>
+                <div class="user-role">
+                  {{ authStore.currentUser?.role || 'Member' }}
+                </div>
               </div>
             </div>
             <template #dropdown>
@@ -314,7 +427,10 @@
                   <el-icon><Tools /></el-icon>
                   Settings
                 </el-dropdown-item>
-                <el-dropdown-item divided @click="logout">
+                <el-dropdown-item
+                  divided
+                  @click="logout"
+                >
                   <el-icon><SwitchButton /></el-icon>
                   Logout
                 </el-dropdown-item>
@@ -325,7 +441,13 @@
       </el-header>
       
       <!-- Main Content Area -->
-      <el-main class="main-content" :class="{ 'mobile-content': isMobile }" role="main" id="main-content" tabindex="-1">
+      <el-main
+        id="main-content"
+        class="main-content"
+        :class="{ 'mobile-content': isMobile }"
+        role="main"
+        tabindex="-1"
+      >
         <router-view />
       </el-main>
     </el-container>

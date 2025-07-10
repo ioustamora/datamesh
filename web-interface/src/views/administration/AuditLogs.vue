@@ -10,16 +10,39 @@
         <template #header>
           <div class="card-header">
             <h3>Recent Activity</h3>
-            <el-button @click="refreshLogs">Refresh</el-button>
+            <el-button @click="refreshLogs">
+              Refresh
+            </el-button>
           </div>
         </template>
 
-        <el-table :data="logs" style="width: 100%">
-          <el-table-column prop="timestamp" label="Timestamp" width="180" />
-          <el-table-column prop="user" label="User" width="120" />
-          <el-table-column prop="action" label="Action" />
-          <el-table-column prop="resource" label="Resource" />
-          <el-table-column prop="status" label="Status" width="100">
+        <el-table
+          :data="logs"
+          style="width: 100%"
+        >
+          <el-table-column
+            prop="timestamp"
+            label="Timestamp"
+            width="180"
+          />
+          <el-table-column
+            prop="user"
+            label="User"
+            width="120"
+          />
+          <el-table-column
+            prop="action"
+            label="Action"
+          />
+          <el-table-column
+            prop="resource"
+            label="Resource"
+          />
+          <el-table-column
+            prop="status"
+            label="Status"
+            width="100"
+          >
             <template #default="scope">
               <el-tag :type="scope.row.status === 'Success' ? 'success' : 'danger'">
                 {{ scope.row.status }}

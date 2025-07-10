@@ -1,20 +1,33 @@
 <template>
   <div class="governance-container">
     <div class="governance-header">
-      <h1 class="governance-title">Network Governance</h1>
-      <p class="governance-subtitle">Manage the DataMesh network through democratic decision-making and operator oversight</p>
+      <h1 class="governance-title">
+        Network Governance
+      </h1>
+      <p class="governance-subtitle">
+        Manage the DataMesh network through democratic decision-making and operator oversight
+      </p>
     </div>
     
     <div class="governance-content">
       <div class="governance-tabs">
-        <el-tabs v-model="activeTab" @tab-click="handleTabClick">
-          <el-tab-pane label="Overview" name="overview">
+        <el-tabs
+          v-model="activeTab"
+          @tab-click="handleTabClick"
+        >
+          <el-tab-pane
+            label="Overview"
+            name="overview"
+          >
             <div class="overview-section">
               <div class="overview-cards">
                 <el-card class="overview-card">
                   <div class="card-header">
                     <h3>Network Health</h3>
-                    <el-icon class="card-icon" :class="getHealthIconClass(networkHealth.status)">
+                    <el-icon
+                      class="card-icon"
+                      :class="getHealthIconClass(networkHealth.status)"
+                    >
                       <component :is="getHealthIcon(networkHealth.status)" />
                     </el-icon>
                   </div>
@@ -51,7 +64,11 @@
                       <span class="count-label">Active Operators</span>
                     </div>
                     <div class="operator-regions">
-                      <div class="region-item" v-for="region in operatorRegions" :key="region.name">
+                      <div
+                        v-for="region in operatorRegions"
+                        :key="region.name"
+                        class="region-item"
+                      >
                         <span class="region-name">{{ region.name }}</span>
                         <span class="region-count">{{ region.count }}</span>
                       </div>
@@ -72,8 +89,19 @@
                       <span class="count-label">Pending Votes</span>
                     </div>
                     <div class="proposal-actions">
-                      <el-button size="small" @click="goToProposals">View All</el-button>
-                      <el-button size="small" type="primary" @click="createProposal">Create New</el-button>
+                      <el-button
+                        size="small"
+                        @click="goToProposals"
+                      >
+                        View All
+                      </el-button>
+                      <el-button
+                        size="small"
+                        type="primary"
+                        @click="createProposal"
+                      >
+                        Create New
+                      </el-button>
                     </div>
                   </div>
                 </el-card>
@@ -109,15 +137,30 @@
                   <div class="chart-header">
                     <h3>Network Performance</h3>
                     <div class="chart-controls">
-                      <el-select v-model="chartPeriod" size="small">
-                        <el-option label="Last 24 Hours" value="24h" />
-                        <el-option label="Last 7 Days" value="7d" />
-                        <el-option label="Last 30 Days" value="30d" />
+                      <el-select
+                        v-model="chartPeriod"
+                        size="small"
+                      >
+                        <el-option
+                          label="Last 24 Hours"
+                          value="24h"
+                        />
+                        <el-option
+                          label="Last 7 Days"
+                          value="7d"
+                        />
+                        <el-option
+                          label="Last 30 Days"
+                          value="30d"
+                        />
                       </el-select>
                     </div>
                   </div>
                   <div class="chart-content">
-                    <canvas ref="performanceChart" height="200"></canvas>
+                    <canvas
+                      ref="performanceChart"
+                      height="200"
+                    />
                   </div>
                 </el-card>
                 
@@ -138,9 +181,15 @@
                           </el-icon>
                         </div>
                         <div class="activity-content">
-                          <div class="activity-title">{{ activity.title }}</div>
-                          <div class="activity-description">{{ activity.description }}</div>
-                          <div class="activity-time">{{ formatTimeAgo(activity.timestamp) }}</div>
+                          <div class="activity-title">
+                            {{ activity.title }}
+                          </div>
+                          <div class="activity-description">
+                            {{ activity.description }}
+                          </div>
+                          <div class="activity-time">
+                            {{ formatTimeAgo(activity.timestamp) }}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -150,7 +199,10 @@
             </div>
           </el-tab-pane>
           
-          <el-tab-pane label="Operators" name="operators">
+          <el-tab-pane
+            label="Operators"
+            name="operators"
+          >
             <div class="operators-section">
               <div class="operators-header">
                 <h3>Bootstrap Operators</h3>
@@ -159,7 +211,10 @@
                     <el-icon><Refresh /></el-icon>
                     Refresh
                   </el-button>
-                  <el-button type="primary" @click="proposeNewOperator">
+                  <el-button
+                    type="primary"
+                    @click="proposeNewOperator"
+                  >
                     <el-icon><Plus /></el-icon>
                     Propose New Operator
                   </el-button>
@@ -167,36 +222,66 @@
               </div>
               
               <div class="operators-table">
-                <el-table :data="operators" style="width: 100%">
-                  <el-table-column prop="name" label="Operator" min-width="200">
+                <el-table
+                  :data="operators"
+                  style="width: 100%"
+                >
+                  <el-table-column
+                    prop="name"
+                    label="Operator"
+                    min-width="200"
+                  >
                     <template #default="{ row }">
                       <div class="operator-info">
-                        <el-avatar :size="32" :src="row.avatar">
+                        <el-avatar
+                          :size="32"
+                          :src="row.avatar"
+                        >
                           <el-icon><User /></el-icon>
                         </el-avatar>
                         <div class="operator-details">
-                          <div class="operator-name">{{ row.name }}</div>
-                          <div class="operator-id">{{ row.id }}</div>
+                          <div class="operator-name">
+                            {{ row.name }}
+                          </div>
+                          <div class="operator-id">
+                            {{ row.id }}
+                          </div>
                         </div>
                       </div>
                     </template>
                   </el-table-column>
                   
-                  <el-table-column prop="jurisdiction" label="Jurisdiction" width="150" />
+                  <el-table-column
+                    prop="jurisdiction"
+                    label="Jurisdiction"
+                    width="150"
+                  />
                   
-                  <el-table-column prop="stake" label="Stake" width="120">
+                  <el-table-column
+                    prop="stake"
+                    label="Stake"
+                    width="120"
+                  >
                     <template #default="{ row }">
                       {{ formatTokenAmount(row.stake) }} DMT
                     </template>
                   </el-table-column>
                   
-                  <el-table-column prop="votingWeight" label="Voting Weight" width="120">
+                  <el-table-column
+                    prop="votingWeight"
+                    label="Voting Weight"
+                    width="120"
+                  >
                     <template #default="{ row }">
                       {{ (row.votingWeight * 100).toFixed(1) }}%
                     </template>
                   </el-table-column>
                   
-                  <el-table-column prop="reputation" label="Reputation" width="120">
+                  <el-table-column
+                    prop="reputation"
+                    label="Reputation"
+                    width="120"
+                  >
                     <template #default="{ row }">
                       <el-progress
                         :percentage="row.reputation * 100"
@@ -208,7 +293,11 @@
                     </template>
                   </el-table-column>
                   
-                  <el-table-column prop="services" label="Services" width="200">
+                  <el-table-column
+                    prop="services"
+                    label="Services"
+                    width="200"
+                  >
                     <template #default="{ row }">
                       <div class="services-list">
                         <el-tag
@@ -223,7 +312,11 @@
                     </template>
                   </el-table-column>
                   
-                  <el-table-column prop="status" label="Status" width="100">
+                  <el-table-column
+                    prop="status"
+                    label="Status"
+                    width="100"
+                  >
                     <template #default="{ row }">
                       <el-tag :type="getStatusTagType(row.status)">
                         {{ row.status }}
@@ -231,12 +324,21 @@
                     </template>
                   </el-table-column>
                   
-                  <el-table-column label="Actions" width="150">
+                  <el-table-column
+                    label="Actions"
+                    width="150"
+                  >
                     <template #default="{ row }">
-                      <el-button size="small" @click="viewOperator(row)">
+                      <el-button
+                        size="small"
+                        @click="viewOperator(row)"
+                      >
                         <el-icon><View /></el-icon>
                       </el-button>
-                      <el-button size="small" @click="contactOperator(row)">
+                      <el-button
+                        size="small"
+                        @click="contactOperator(row)"
+                      >
                         <el-icon><Message /></el-icon>
                       </el-button>
                       <el-dropdown @command="handleOperatorAction">
@@ -248,7 +350,10 @@
                             <el-dropdown-item :command="{ action: 'report', operator: row }">
                               Report Issue
                             </el-dropdown-item>
-                            <el-dropdown-item :command="{ action: 'challenge', operator: row }" divided>
+                            <el-dropdown-item
+                              :command="{ action: 'challenge', operator: row }"
+                              divided
+                            >
                               Challenge Status
                             </el-dropdown-item>
                           </el-dropdown-menu>
@@ -261,18 +366,40 @@
             </div>
           </el-tab-pane>
           
-          <el-tab-pane label="Proposals" name="proposals">
+          <el-tab-pane
+            label="Proposals"
+            name="proposals"
+          >
             <div class="proposals-section">
               <div class="proposals-header">
                 <h3>Governance Proposals</h3>
                 <div class="proposals-actions">
-                  <el-select v-model="proposalFilter" placeholder="Filter by status" size="small">
-                    <el-option label="All" value="all" />
-                    <el-option label="Active" value="active" />
-                    <el-option label="Passed" value="passed" />
-                    <el-option label="Failed" value="failed" />
+                  <el-select
+                    v-model="proposalFilter"
+                    placeholder="Filter by status"
+                    size="small"
+                  >
+                    <el-option
+                      label="All"
+                      value="all"
+                    />
+                    <el-option
+                      label="Active"
+                      value="active"
+                    />
+                    <el-option
+                      label="Passed"
+                      value="passed"
+                    />
+                    <el-option
+                      label="Failed"
+                      value="failed"
+                    />
                   </el-select>
-                  <el-button type="primary" @click="createProposal">
+                  <el-button
+                    type="primary"
+                    @click="createProposal"
+                  >
                     <el-icon><Plus /></el-icon>
                     Create Proposal
                   </el-button>
@@ -288,7 +415,9 @@
                   <el-card>
                     <div class="proposal-header">
                       <div class="proposal-info">
-                        <h4 class="proposal-title">{{ proposal.title }}</h4>
+                        <h4 class="proposal-title">
+                          {{ proposal.title }}
+                        </h4>
                         <div class="proposal-meta">
                           <span class="proposal-type">{{ proposal.type }}</span>
                           <span class="proposal-author">by {{ proposal.author }}</span>
@@ -303,9 +432,14 @@
                     </div>
                     
                     <div class="proposal-content">
-                      <p class="proposal-description">{{ proposal.description }}</p>
+                      <p class="proposal-description">
+                        {{ proposal.description }}
+                      </p>
                       
-                      <div class="proposal-voting" v-if="proposal.status === 'Active'">
+                      <div
+                        v-if="proposal.status === 'Active'"
+                        class="proposal-voting"
+                      >
                         <div class="voting-progress">
                           <div class="vote-stats">
                             <span class="vote-count">{{ proposal.votesFor }} For</span>
@@ -321,11 +455,17 @@
                         </div>
                         
                         <div class="voting-actions">
-                          <el-button type="success" @click="vote(proposal.id, 'for')">
+                          <el-button
+                            type="success"
+                            @click="vote(proposal.id, 'for')"
+                          >
                             <el-icon><Check /></el-icon>
                             Vote For
                           </el-button>
-                          <el-button type="danger" @click="vote(proposal.id, 'against')">
+                          <el-button
+                            type="danger"
+                            @click="vote(proposal.id, 'against')"
+                          >
                             <el-icon><Close /></el-icon>
                             Vote Against
                           </el-button>
@@ -336,7 +476,10 @@
                         </div>
                       </div>
                       
-                      <div class="proposal-timeline" v-if="proposal.status !== 'Active'">
+                      <div
+                        v-if="proposal.status !== 'Active'"
+                        class="proposal-timeline"
+                      >
                         <div class="timeline-item">
                           <strong>Result:</strong> {{ proposal.result }}
                         </div>
@@ -351,22 +494,37 @@
             </div>
           </el-tab-pane>
           
-          <el-tab-pane label="Voting" name="voting">
+          <el-tab-pane
+            label="Voting"
+            name="voting"
+          >
             <div class="voting-section">
               <div class="voting-header">
                 <h3>My Voting Power</h3>
                 <div class="voting-stats">
                   <div class="stat-card">
-                    <div class="stat-value">{{ tokenData.balance }}</div>
-                    <div class="stat-label">DMT Balance</div>
+                    <div class="stat-value">
+                      {{ tokenData.balance }}
+                    </div>
+                    <div class="stat-label">
+                      DMT Balance
+                    </div>
                   </div>
                   <div class="stat-card">
-                    <div class="stat-value">{{ tokenData.votingPower }}%</div>
-                    <div class="stat-label">Voting Power</div>
+                    <div class="stat-value">
+                      {{ tokenData.votingPower }}%
+                    </div>
+                    <div class="stat-label">
+                      Voting Power
+                    </div>
                   </div>
                   <div class="stat-card">
-                    <div class="stat-value">{{ votingHistory.length }}</div>
-                    <div class="stat-label">Votes Cast</div>
+                    <div class="stat-value">
+                      {{ votingHistory.length }}
+                    </div>
+                    <div class="stat-label">
+                      Votes Cast
+                    </div>
                   </div>
                 </div>
               </div>
@@ -380,9 +538,14 @@
                     class="history-item"
                   >
                     <div class="vote-info">
-                      <div class="vote-proposal">{{ vote.proposalTitle }}</div>
+                      <div class="vote-proposal">
+                        {{ vote.proposalTitle }}
+                      </div>
                       <div class="vote-details">
-                        <span class="vote-choice" :class="vote.choice">{{ vote.choice }}</span>
+                        <span
+                          class="vote-choice"
+                          :class="vote.choice"
+                        >{{ vote.choice }}</span>
                         <span class="vote-power">{{ vote.power }} DMT</span>
                         <span class="vote-date">{{ formatDate(vote.timestamp) }}</span>
                       </div>

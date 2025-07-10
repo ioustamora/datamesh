@@ -1,22 +1,38 @@
 <template>
   <div class="error-boundary">
-    <div v-if="!hasError" class="error-boundary-content">
+    <div
+      v-if="!hasError"
+      class="error-boundary-content"
+    >
       <slot />
     </div>
     
-    <div v-else class="error-boundary-fallback">
+    <div
+      v-else
+      class="error-boundary-fallback"
+    >
       <div class="error-container">
         <div class="error-icon">
-          <el-icon size="48" color="#F56C6C">
+          <el-icon
+            size="48"
+            color="#F56C6C"
+          >
             <Warning />
           </el-icon>
         </div>
         
         <div class="error-content">
-          <h2 class="error-title">Something went wrong</h2>
-          <p class="error-message">{{ errorMessage }}</p>
+          <h2 class="error-title">
+            Something went wrong
+          </h2>
+          <p class="error-message">
+            {{ errorMessage }}
+          </p>
           
-          <div class="error-details" v-if="showDetails">
+          <div
+            v-if="showDetails"
+            class="error-details"
+          >
             <el-collapse v-model="detailsOpen">
               <el-collapse-item name="error-details">
                 <template #title>
@@ -33,7 +49,10 @@
                   <div class="info-item">
                     <strong>Time:</strong> {{ errorInfo.timestamp }}
                   </div>
-                  <div class="info-item" v-if="errorInfo.stack">
+                  <div
+                    v-if="errorInfo.stack"
+                    class="info-item"
+                  >
                     <strong>Stack Trace:</strong>
                     <pre class="stack-trace">{{ errorInfo.stack }}</pre>
                   </div>
@@ -43,7 +62,10 @@
           </div>
           
           <div class="error-actions">
-            <el-button type="primary" @click="retry">
+            <el-button
+              type="primary"
+              @click="retry"
+            >
               <el-icon><RefreshRight /></el-icon>
               Try Again
             </el-button>
@@ -53,7 +75,10 @@
               Go to Dashboard
             </el-button>
             
-            <el-button @click="reportError" v-if="canReport">
+            <el-button
+              v-if="canReport"
+              @click="reportError"
+            >
               <el-icon><Warning /></el-icon>
               Report Issue
             </el-button>

@@ -5,35 +5,38 @@
       <div class="header-actions">
         <el-button 
           type="primary" 
-          @click="$emit('upload-click')"
           :aria-label="'Upload files'"
+          @click="$emit('upload-click')"
         >
           <el-icon><Upload /></el-icon>
           Upload Files
         </el-button>
         
         <el-button 
-          @click="$emit('refresh')"
           :aria-label="'Refresh file list'"
+          @click="$emit('refresh')"
         >
           <el-icon><Refresh /></el-icon>
           Refresh
         </el-button>
         
         <el-button 
-          @click="toggleView"
           :aria-label="`Switch to ${viewMode === 'list' ? 'grid' : 'list'} view`"
+          @click="toggleView"
         >
           <el-icon><Grid v-if="viewMode === 'list'" /><List v-else /></el-icon>
           {{ viewMode === 'list' ? 'Grid View' : 'List View' }}
         </el-button>
         
         <!-- Selection actions -->
-        <div v-if="selectedFiles.length > 0" class="selection-actions">
+        <div
+          v-if="selectedFiles.length > 0"
+          class="selection-actions"
+        >
           <el-button 
             type="warning" 
-            @click="downloadSelected"
             :aria-label="`Download ${selectedFiles.length} selected files`"
+            @click="downloadSelected"
           >
             <el-icon><Download /></el-icon>
             Download ({{ selectedFiles.length }})
@@ -41,8 +44,8 @@
           
           <el-button 
             type="danger" 
-            @click="deleteSelected"
             :aria-label="`Delete ${selectedFiles.length} selected files`"
+            @click="deleteSelected"
           >
             <el-icon><Delete /></el-icon>
             Delete ({{ selectedFiles.length }})
@@ -55,10 +58,10 @@
         <el-input
           v-model="searchQuery"
           placeholder="Search files..."
-          @input="handleSearch"
           clearable
           class="search-input"
           :aria-label="'Search files'"
+          @input="handleSearch"
         >
           <template #prefix>
             <el-icon><Search /></el-icon>
@@ -69,34 +72,67 @@
           v-model="filterType"
           placeholder="File Type"
           clearable
-          @change="handleFilter"
           class="type-filter"
           :aria-label="'Filter by file type'"
+          @change="handleFilter"
         >
-          <el-option label="All Types" value="" />
-          <el-option label="Images" value="image" />
-          <el-option label="Documents" value="document" />
-          <el-option label="Videos" value="video" />
-          <el-option label="Audio" value="audio" />
-          <el-option label="Archives" value="archive" />
-          <el-option label="Code" value="code" />
+          <el-option
+            label="All Types"
+            value=""
+          />
+          <el-option
+            label="Images"
+            value="image"
+          />
+          <el-option
+            label="Documents"
+            value="document"
+          />
+          <el-option
+            label="Videos"
+            value="video"
+          />
+          <el-option
+            label="Audio"
+            value="audio"
+          />
+          <el-option
+            label="Archives"
+            value="archive"
+          />
+          <el-option
+            label="Code"
+            value="code"
+          />
         </el-select>
         
         <el-select
           v-model="sortBy"
-          @change="handleSort"
           class="sort-select"
           :aria-label="'Sort files'"
+          @change="handleSort"
         >
-          <el-option label="Name" value="name" />
-          <el-option label="Size" value="size" />
-          <el-option label="Date" value="date" />
-          <el-option label="Type" value="type" />
+          <el-option
+            label="Name"
+            value="name"
+          />
+          <el-option
+            label="Size"
+            value="size"
+          />
+          <el-option
+            label="Date"
+            value="date"
+          />
+          <el-option
+            label="Type"
+            value="type"
+          />
         </el-select>
         
         <el-button
-          @click="toggleSortOrder"
           :aria-label="`Sort ${sortOrder === 'asc' ? 'descending' : 'ascending'}`"
+          @click="toggleSortOrder"
         >
           <el-icon><Sort /></el-icon>
           {{ sortOrder === 'asc' ? '↑' : '↓' }}
@@ -105,7 +141,11 @@
     </div>
     
     <!-- File count and stats -->
-    <div class="file-stats" role="status" :aria-live="'polite'">
+    <div
+      class="file-stats"
+      role="status"
+      :aria-live="'polite'"
+    >
       <span class="total-files">
         {{ filteredFiles.length }} files
         <span v-if="filteredFiles.length !== totalFiles">({{ totalFiles }} total)</span>
@@ -135,13 +175,13 @@
             'file-item-grid': viewMode === 'grid',
             'file-item-selected': isSelected(file)
           }"
-          @click="toggleSelection(file)"
-          @dblclick="openFile(file)"
-          @contextmenu.prevent="showContextMenu(file, $event)"
           :aria-label="`File: ${file.file_name}, ${formatBytes(file.file_size)}, uploaded ${formatDate(file.uploaded_at)}`"
           role="option"
           :aria-selected="isSelected(file)"
           tabindex="0"
+          @click="toggleSelection(file)"
+          @dblclick="openFile(file)"
+          @contextmenu.prevent="showContextMenu(file, $event)"
           @keydown="handleKeydown($event, file)"
         >
           <!-- List view -->
@@ -149,20 +189,30 @@
             <div class="file-checkbox">
               <el-checkbox
                 :model-value="isSelected(file)"
-                @change="toggleSelection(file)"
                 :aria-label="`Select ${file.file_name}`"
+                @change="toggleSelection(file)"
               />
             </div>
             
             <div class="file-icon-container">
-              <FileIcon :file="file" size="medium" />
-              <div v-if="file.is_shared" class="shared-indicator" title="Shared file">
+              <FileIcon
+                :file="file"
+                size="medium"
+              />
+              <div
+                v-if="file.is_shared"
+                class="shared-indicator"
+                title="Shared file"
+              >
                 <el-icon><Share /></el-icon>
               </div>
             </div>
             
             <div class="file-info">
-              <div class="file-name" :title="file.file_name">
+              <div
+                class="file-name"
+                :title="file.file_name"
+              >
                 {{ file.file_name }}
               </div>
               <div class="file-meta">
@@ -179,32 +229,38 @@
             <div class="file-actions">
               <el-button-group>
                 <el-button 
-                  size="small" 
-                  @click.stop="previewFile(file)"
-                  v-if="canPreview(file)"
+                  v-if="canPreview(file)" 
+                  size="small"
                   :aria-label="`Preview ${file.file_name}`"
+                  @click.stop="previewFile(file)"
                 >
                   <el-icon><View /></el-icon>
                 </el-button>
                 
                 <el-button 
                   size="small" 
-                  @click.stop="downloadFile(file)"
                   :aria-label="`Download ${file.file_name}`"
+                  @click.stop="downloadFile(file)"
                 >
                   <el-icon><Download /></el-icon>
                 </el-button>
                 
                 <el-button 
                   size="small" 
-                  @click.stop="shareFile(file)"
                   :aria-label="`Share ${file.file_name}`"
+                  @click.stop="shareFile(file)"
                 >
                   <el-icon><Share /></el-icon>
                 </el-button>
                 
-                <el-dropdown @command="handleFileAction" trigger="click">
-                  <el-button size="small" :aria-label="`More actions for ${file.file_name}`">
+                <el-dropdown
+                  trigger="click"
+                  @command="handleFileAction"
+                >
+                  <el-button
+                    size="small"
+                    :aria-label="`More actions for ${file.file_name}`"
+                  >
                     <el-icon><More /></el-icon>
                   </el-button>
                   <template #dropdown>
@@ -246,22 +302,35 @@
               <div class="file-card-header">
                 <el-checkbox
                   :model-value="isSelected(file)"
-                  @change="toggleSelection(file)"
                   class="file-checkbox-grid"
                   :aria-label="`Select ${file.file_name}`"
+                  @change="toggleSelection(file)"
                 />
-                <div v-if="file.is_shared" class="shared-indicator" title="Shared file">
+                <div
+                  v-if="file.is_shared"
+                  class="shared-indicator"
+                  title="Shared file"
+                >
                   <el-icon><Share /></el-icon>
                 </div>
               </div>
               
               <div class="file-card-thumbnail">
-                <FileIcon :file="file" size="large" />
-                <FileThumbnail v-if="canPreview(file)" :file="file" />
+                <FileIcon
+                  :file="file"
+                  size="large"
+                />
+                <FileThumbnail
+                  v-if="canPreview(file)"
+                  :file="file"
+                />
               </div>
               
               <div class="file-card-info">
-                <div class="file-name" :title="file.file_name">
+                <div
+                  class="file-name"
+                  :title="file.file_name"
+                >
                   {{ file.file_name }}
                 </div>
                 <div class="file-meta">
@@ -273,24 +342,30 @@
               
               <div class="file-card-actions">
                 <el-button 
-                  size="small" 
-                  @click.stop="previewFile(file)"
-                  v-if="canPreview(file)"
+                  v-if="canPreview(file)" 
+                  size="small"
                   :aria-label="`Preview ${file.file_name}`"
+                  @click.stop="previewFile(file)"
                 >
                   <el-icon><View /></el-icon>
                 </el-button>
                 
                 <el-button 
                   size="small" 
-                  @click.stop="downloadFile(file)"
                   :aria-label="`Download ${file.file_name}`"
+                  @click.stop="downloadFile(file)"
                 >
                   <el-icon><Download /></el-icon>
                 </el-button>
                 
-                <el-dropdown @command="handleFileAction" trigger="click">
-                  <el-button size="small" :aria-label="`More actions for ${file.file_name}`">
+                <el-dropdown
+                  trigger="click"
+                  @command="handleFileAction"
+                >
+                  <el-button
+                    size="small"
+                    :aria-label="`More actions for ${file.file_name}`"
+                  >
                     <el-icon><More /></el-icon>
                   </el-button>
                   <template #dropdown>
@@ -327,7 +402,10 @@
       <template #empty>
         <div class="empty-state">
           <el-empty description="No files found">
-            <el-button type="primary" @click="$emit('upload-click')">
+            <el-button
+              type="primary"
+              @click="$emit('upload-click')"
+            >
               Upload Your First File
             </el-button>
           </el-empty>

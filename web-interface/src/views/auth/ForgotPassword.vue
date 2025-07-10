@@ -2,11 +2,18 @@
   <div class="auth-container">
     <div class="auth-card">
       <div class="auth-header">
-        <h1 class="auth-title">Reset Password</h1>
-        <p class="auth-subtitle">Enter your email address and we'll send you a link to reset your password</p>
+        <h1 class="auth-title">
+          Reset Password
+        </h1>
+        <p class="auth-subtitle">
+          Enter your email address and we'll send you a link to reset your password
+        </p>
       </div>
       
-      <div v-if="!emailSent" class="reset-form">
+      <div
+        v-if="!emailSent"
+        class="reset-form"
+      >
         <el-form
           ref="formRef"
           :model="form"
@@ -14,7 +21,10 @@
           label-position="top"
           @submit.prevent="handleSubmit"
         >
-          <el-form-item label="Email Address" prop="email">
+          <el-form-item
+            label="Email Address"
+            prop="email"
+          >
             <el-input
               v-model="form.email"
               type="email"
@@ -29,9 +39,9 @@
             <el-button
               type="primary"
               size="large"
-              @click="handleSubmit"
               :loading="loading"
               style="width: 100%"
+              @click="handleSubmit"
             >
               Send Reset Link
             </el-button>
@@ -39,14 +49,19 @@
         </el-form>
       </div>
       
-      <div v-else class="reset-success">
+      <div
+        v-else
+        class="reset-success"
+      >
         <div class="success-icon">
           <el-icon class="icon">
             <CircleCheckFilled />
           </el-icon>
         </div>
         
-        <h2 class="success-title">Check Your Email</h2>
+        <h2 class="success-title">
+          Check Your Email
+        </h2>
         <p class="success-message">
           We've sent a password reset link to <strong>{{ form.email }}</strong>
         </p>
@@ -65,14 +80,21 @@
           <p>
             <strong>Didn't receive the email?</strong><br>
             Check your spam folder or 
-            <el-button type="text" @click="resendEmail" :loading="resendLoading">
+            <el-button
+              type="text"
+              :loading="resendLoading"
+              @click="resendEmail"
+            >
               click here to resend
             </el-button>
           </p>
         </div>
         
         <div class="success-actions">
-          <el-button type="primary" @click="goToLogin">
+          <el-button
+            type="primary"
+            @click="goToLogin"
+          >
             Return to Login
           </el-button>
           <el-button @click="resetForm">
@@ -82,11 +104,23 @@
       </div>
       
       <div class="auth-footer">
-        <p>Remember your password? 
-          <router-link to="/login" class="auth-link">Sign in</router-link>
+        <p>
+          Remember your password? 
+          <router-link
+            to="/login"
+            class="auth-link"
+          >
+            Sign in
+          </router-link>
         </p>
-        <p>Don't have an account? 
-          <router-link to="/register" class="auth-link">Sign up</router-link>
+        <p>
+          Don't have an account? 
+          <router-link
+            to="/register"
+            class="auth-link"
+          >
+            Sign up
+          </router-link>
         </p>
       </div>
     </div>

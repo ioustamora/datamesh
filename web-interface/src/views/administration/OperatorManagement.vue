@@ -10,19 +10,43 @@
         <template #header>
           <div class="card-header">
             <h3>System Operators</h3>
-            <el-button type="primary">Add Operator</el-button>
+            <el-button type="primary">
+              Add Operator
+            </el-button>
           </div>
         </template>
 
-        <el-table :data="operators" style="width: 100%">
-          <el-table-column prop="name" label="Name" />
-          <el-table-column prop="type" label="Type" />
-          <el-table-column prop="permissions" label="Permissions" />
-          <el-table-column prop="lastActive" label="Last Active" />
+        <el-table
+          :data="operators"
+          style="width: 100%"
+        >
+          <el-table-column
+            prop="name"
+            label="Name"
+          />
+          <el-table-column
+            prop="type"
+            label="Type"
+          />
+          <el-table-column
+            prop="permissions"
+            label="Permissions"
+          />
+          <el-table-column
+            prop="lastActive"
+            label="Last Active"
+          />
           <el-table-column label="Actions">
             <template #default="scope">
-              <el-button size="small">Edit</el-button>
-              <el-button size="small" type="danger">Remove</el-button>
+              <el-button size="small">
+                Edit
+              </el-button>
+              <el-button
+                size="small"
+                type="danger"
+              >
+                Remove
+              </el-button>
             </template>
           </el-table-column>
         </el-table>

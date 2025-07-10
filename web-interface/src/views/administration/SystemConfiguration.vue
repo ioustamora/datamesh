@@ -11,7 +11,10 @@
           <h3>System Settings</h3>
         </template>
 
-        <el-form :model="config" label-width="200px">
+        <el-form
+          :model="config"
+          label-width="200px"
+        >
           <el-form-item label="Max File Size">
             <el-input v-model="config.maxFileSize" />
           </el-form-item>
@@ -25,8 +28,15 @@
             <el-switch v-model="config.autoBackup" />
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" @click="saveConfig">Save Settings</el-button>
-            <el-button @click="resetConfig">Reset to Default</el-button>
+            <el-button
+              type="primary"
+              @click="saveConfig"
+            >
+              Save Settings
+            </el-button>
+            <el-button @click="resetConfig">
+              Reset to Default
+            </el-button>
           </el-form-item>
         </el-form>
       </el-card>

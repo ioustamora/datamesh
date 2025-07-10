@@ -3,12 +3,17 @@
     <div class="auth-container">
       <div class="auth-header">
         <div class="auth-logo">
-          <el-icon size="40" color="#409EFF">
+          <el-icon
+            size="40"
+            color="#409EFF"
+          >
             <DataBoard />
           </el-icon>
           <h1>DataMesh</h1>
         </div>
-        <p class="auth-subtitle">Distributed Storage System</p>
+        <p class="auth-subtitle">
+          Distributed Storage System
+        </p>
       </div>
       
       <div class="auth-content">
@@ -18,15 +23,24 @@
       <div class="auth-footer">
         <p>&copy; 2024 DataMesh. All rights reserved.</p>
         <div class="auth-links">
-          <a href="#" @click.prevent>Privacy Policy</a>
-          <a href="#" @click.prevent>Terms of Service</a>
-          <a href="#" @click.prevent>Help</a>
+          <a
+            href="#"
+            @click.prevent
+          >Privacy Policy</a>
+          <a
+            href="#"
+            @click.prevent
+          >Terms of Service</a>
+          <a
+            href="#"
+            @click.prevent
+          >Help</a>
         </div>
       </div>
     </div>
     
     <div class="auth-background">
-      <div class="auth-pattern"></div>
+      <div class="auth-pattern" />
     </div>
   </div>
 </template>

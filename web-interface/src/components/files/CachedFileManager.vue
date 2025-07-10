@@ -1,8 +1,14 @@
 <template>
   <div class="cached-file-manager">
     <!-- Cache status indicator -->
-    <div class="cache-status" v-if="showCacheStatus">
-      <el-tag :type="fromCache ? 'success' : 'info'" size="small">
+    <div
+      v-if="showCacheStatus"
+      class="cache-status"
+    >
+      <el-tag
+        :type="fromCache ? 'success' : 'info'"
+        size="small"
+      >
         {{ fromCache ? (fresh ? 'Cache Hit (Fresh)' : 'Cache Hit (Stale)') : 'Network Request' }}
       </el-tag>
     </div>
@@ -12,23 +18,33 @@
       <el-input
         v-model="searchQuery"
         placeholder="Search files with intelligent caching..."
-        @keyup.enter="performSearch"
         clearable
         size="large"
         :loading="searchLoading"
+        @keyup.enter="performSearch"
       >
         <template #prefix>
           <el-icon><Search /></el-icon>
         </template>
         <template #append>
-          <el-button @click="performSearch" :loading="searchLoading">
+          <el-button
+            :loading="searchLoading"
+            @click="performSearch"
+          >
             Search
           </el-button>
         </template>
       </el-input>
       
-      <div v-if="searchError" class="search-error">
-        <el-alert :title="searchError.message" type="error" :closable="false" />
+      <div
+        v-if="searchError"
+        class="search-error"
+      >
+        <el-alert
+          :title="searchError.message"
+          type="error"
+          :closable="false"
+        />
       </div>
     </div>
 
@@ -39,7 +55,10 @@
           <div class="card-header">
             <h3>Files</h3>
             <div class="header-actions">
-              <el-button @click="refreshData" :loading="loading">
+              <el-button
+                :loading="loading"
+                @click="refreshData"
+              >
                 <el-icon><Refresh /></el-icon>
                 Refresh
               </el-button>
@@ -52,16 +71,33 @@
         </template>
 
         <!-- Loading state -->
-        <div v-if="loading" class="loading-container">
-          <el-skeleton :rows="5" animated />
+        <div
+          v-if="loading"
+          class="loading-container"
+        >
+          <el-skeleton
+            :rows="5"
+            animated
+          />
         </div>
 
         <!-- Error state -->
-        <div v-else-if="error" class="error-container">
-          <el-alert :title="error.message" type="error" show-icon>
+        <div
+          v-else-if="error"
+          class="error-container"
+        >
+          <el-alert
+            :title="error.message"
+            type="error"
+            show-icon
+          >
             <template #default>
               <p>Failed to load files. Please try again.</p>
-              <el-button @click="fetchData" type="primary" size="small">
+              <el-button
+                type="primary"
+                size="small"
+                @click="fetchData"
+              >
                 Retry
               </el-button>
             </template>
@@ -69,7 +105,10 @@
         </div>
 
         <!-- File list -->
-        <div v-else class="file-list">
+        <div
+          v-else
+          class="file-list"
+        >
           <div
             v-for="file in data"
             :key="file.file_key"
@@ -77,10 +116,15 @@
             @click="selectFile(file)"
           >
             <div class="file-icon">
-              <FileIcon :file="file" size="medium" />
+              <FileIcon
+                :file="file"
+                size="medium"
+              />
             </div>
             <div class="file-info">
-              <div class="file-name">{{ file.file_name }}</div>
+              <div class="file-name">
+                {{ file.file_name }}
+              </div>
               <div class="file-meta">
                 <span class="file-size">{{ formatBytes(file.file_size) }}</span>
                 <span class="file-date">{{ formatDate(file.uploaded_at) }}</span>
@@ -92,7 +136,10 @@
           </div>
 
           <!-- Empty state -->
-          <div v-if="data.length === 0" class="empty-state">
+          <div
+            v-if="data.length === 0"
+            class="empty-state"
+          >
             <el-empty description="No files found" />
           </div>
         </div>
@@ -113,7 +160,10 @@
     </div>
 
     <!-- Cache statistics -->
-    <div v-if="showCacheStats" class="cache-stats">
+    <div
+      v-if="showCacheStats"
+      class="cache-stats"
+    >
       <el-card>
         <template #header>
           <h4>Cache Statistics</h4>

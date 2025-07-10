@@ -3,15 +3,22 @@
     <div class="error-container">
       <div class="error-illustration">
         <div class="lock-icon">
-          <el-icon size="80" color="#F56C6C">
+          <el-icon
+            size="80"
+            color="#F56C6C"
+          >
             <Lock />
           </el-icon>
         </div>
-        <div class="error-code">403</div>
+        <div class="error-code">
+          403
+        </div>
       </div>
       
       <div class="error-content">
-        <h1 class="error-title">Access Forbidden</h1>
+        <h1 class="error-title">
+          Access Forbidden
+        </h1>
         <p class="error-message">
           You don't have permission to access this resource. This could be because:
         </p>
@@ -24,17 +31,27 @@
         </ul>
         
         <div class="error-actions">
-          <el-button type="primary" @click="goBack" size="large">
+          <el-button
+            type="primary"
+            size="large"
+            @click="goBack"
+          >
             <el-icon><ArrowLeft /></el-icon>
             Go Back
           </el-button>
           
-          <el-button @click="goHome" size="large">
+          <el-button
+            size="large"
+            @click="goHome"
+          >
             <el-icon><House /></el-icon>
             Dashboard
           </el-button>
           
-          <el-button @click="reLogin" size="large">
+          <el-button
+            size="large"
+            @click="reLogin"
+          >
             <el-icon><User /></el-icon>
             Re-login
           </el-button>
@@ -43,7 +60,12 @@
         <div class="error-help">
           <p>
             If you believe this is an error, please 
-            <el-link type="primary" @click="contactSupport">contact support</el-link> 
+            <el-link
+              type="primary"
+              @click="contactSupport"
+            >
+              contact support
+            </el-link> 
             or check your account permissions.
           </p>
         </div>
@@ -57,7 +79,10 @@
       width="500px"
       :show-close="true"
     >
-      <el-form :model="supportForm" label-position="top">
+      <el-form
+        :model="supportForm"
+        label-position="top"
+      >
         <el-form-item label="Email">
           <el-input
             v-model="supportForm.email"
@@ -94,8 +119,14 @@
       
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="showSupportDialog = false">Cancel</el-button>
-          <el-button type="primary" @click="submitSupportRequest" :loading="submittingSupport">
+          <el-button @click="showSupportDialog = false">
+            Cancel
+          </el-button>
+          <el-button
+            type="primary"
+            :loading="submittingSupport"
+            @click="submitSupportRequest"
+          >
             Send Request
           </el-button>
         </div>

@@ -1,8 +1,38 @@
 <template>
   <div class="dashboard">
     <div class="dashboard-header">
-      <h1>Dashboard</h1>
-      <p>Welcome back, {{ authStore.currentUser?.name || 'User' }}!</p>
+      <div class="header-content">
+        <div class="welcome-section">
+          <h1>Dashboard</h1>
+          <p>Welcome back, {{ authStore.currentUser?.name || 'User' }}!</p>
+        </div>
+        <div class="header-actions">
+          <el-tooltip content="Refresh all data (Ctrl+R)">
+            <el-button
+              :loading="isRefreshing"
+              @click="refreshDashboard"
+            >
+              <el-icon><Refresh /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="Settings">
+            <el-button @click="$router.push('/settings')">
+              <el-icon><Setting /></el-icon>
+            </el-button>
+          </el-tooltip>
+        </div>
+      </div>
+      
+      <!-- Breadcrumb navigation -->
+      <el-breadcrumb
+        separator="/"
+        class="breadcrumb"
+      >
+        <el-breadcrumb-item :to="{ path: '/' }">
+          Home
+        </el-breadcrumb-item>
+        <el-breadcrumb-item>Dashboard</el-breadcrumb-item>
+      </el-breadcrumb>
     </div>
     
     <!-- Quick Stats -->
@@ -10,7 +40,10 @@
       <el-card class="stat-card">
         <div class="stat-content">
           <div class="stat-icon">
-            <el-icon size="32" color="#409EFF">
+            <el-icon
+              size="32"
+              color="#409EFF"
+            >
               <Files />
             </el-icon>
           </div>
@@ -24,7 +57,10 @@
       <el-card class="stat-card">
         <div class="stat-content">
           <div class="stat-icon">
-            <el-icon size="32" color="#67C23A">
+            <el-icon
+              size="32"
+              color="#67C23A"
+            >
               <Coin />
             </el-icon>
           </div>
@@ -38,7 +74,10 @@
       <el-card class="stat-card">
         <div class="stat-content">
           <div class="stat-icon">
-            <el-icon size="32" color="#E6A23C">
+            <el-icon
+              size="32"
+              color="#E6A23C"
+            >
               <Connection />
             </el-icon>
           </div>
@@ -52,7 +91,10 @@
       <el-card class="stat-card">
         <div class="stat-content">
           <div class="stat-icon">
-            <el-icon size="32" color="#F56C6C">
+            <el-icon
+              size="32"
+              color="#F56C6C"
+            >
               <TrendCharts />
             </el-icon>
           </div>
@@ -71,25 +113,44 @@
         <template #header>
           <div class="card-header">
             <h3>Recent Files</h3>
-            <el-button type="primary" text @click="$router.push('/files')">
+            <el-button
+              type="primary"
+              text
+              @click="$router.push('/files')"
+            >
               View All
             </el-button>
           </div>
         </template>
         
-        <div v-if="filesStore.isLoading" class="loading-container">
-          <el-skeleton :rows="3" animated />
+        <div
+          v-if="filesStore.isLoading"
+          class="loading-container"
+        >
+          <el-skeleton
+            :rows="3"
+            animated
+          />
         </div>
         
-        <div v-else-if="recentFiles.length === 0" class="empty-state">
+        <div
+          v-else-if="recentFiles.length === 0"
+          class="empty-state"
+        >
           <el-empty description="No files uploaded yet">
-            <el-button type="primary" @click="$router.push('/files')">
+            <el-button
+              type="primary"
+              @click="$router.push('/files')"
+            >
               Upload Files
             </el-button>
           </el-empty>
         </div>
         
-        <div v-else class="file-list">
+        <div
+          v-else
+          class="file-list"
+        >
           <div
             v-for="file in recentFiles.slice(0, 5)"
             :key="file.file_key"
@@ -102,13 +163,19 @@
               </el-icon>
             </div>
             <div class="file-info">
-              <div class="file-name">{{ file.file_name }}</div>
+              <div class="file-name">
+                {{ file.file_name }}
+              </div>
               <div class="file-meta">
                 {{ formatBytes(file.file_size) }} • {{ formatTime(file.uploaded_at) }}
               </div>
             </div>
             <div class="file-actions">
-              <el-button size="small" circle @click.stop="downloadFile(file)">
+              <el-button
+                size="small"
+                circle
+                @click.stop="downloadFile(file)"
+              >
                 <el-icon><Download /></el-icon>
               </el-button>
             </div>
@@ -121,7 +188,11 @@
         <template #header>
           <div class="card-header">
             <h3>System Health</h3>
-            <el-button type="primary" text @click="$router.push('/governance/network-health')">
+            <el-button
+              type="primary"
+              text
+              @click="$router.push('/governance/network-health')"
+            >
               View Details
             </el-button>
           </div>
@@ -129,7 +200,9 @@
         
         <div class="health-metrics">
           <div class="health-item">
-            <div class="health-label">Network Status</div>
+            <div class="health-label">
+              Network Status
+            </div>
             <el-tag
               :type="governanceStore.isNetworkHealthy ? 'success' : 'danger'"
               size="large"
@@ -139,7 +212,9 @@
           </div>
           
           <div class="health-item">
-            <div class="health-label">Consensus</div>
+            <div class="health-label">
+              Consensus
+            </div>
             <el-tag
               :type="governanceStore.canReachConsensus ? 'success' : 'warning'"
               size="large"
@@ -149,14 +224,18 @@
           </div>
           
           <div class="health-item">
-            <div class="health-label">Operators Online</div>
+            <div class="health-label">
+              Operators Online
+            </div>
             <div class="health-value">
               {{ governanceStore.networkHealth.online_operators }}/{{ governanceStore.networkHealth.total_operators }}
             </div>
           </div>
           
           <div class="health-item">
-            <div class="health-label">Governance Weight</div>
+            <div class="health-label">
+              Governance Weight
+            </div>
             <el-progress
               :percentage="Math.round((governanceStore.onlineGovernanceWeight / governanceStore.totalGovernanceWeight) * 100)"
               :stroke-width="8"
@@ -176,8 +255,8 @@
           <el-button
             type="primary"
             size="large"
-            @click="$router.push('/files')"
             class="action-button"
+            @click="$router.push('/files')"
           >
             <el-icon><Upload /></el-icon>
             Upload Files
@@ -186,8 +265,8 @@
           <el-button
             type="success"
             size="large"
-            @click="$router.push('/governance')"
             class="action-button"
+            @click="$router.push('/governance')"
           >
             <el-icon><Flag /></el-icon>
             Governance
@@ -196,8 +275,8 @@
           <el-button
             type="info"
             size="large"
-            @click="$router.push('/analytics')"
             class="action-button"
+            @click="$router.push('/analytics')"
           >
             <el-icon><TrendCharts /></el-icon>
             Analytics
@@ -207,8 +286,8 @@
             v-if="authStore.isAdmin"
             type="warning"
             size="large"
-            @click="$router.push('/administration')"
             class="action-button"
+            @click="$router.push('/administration')"
           >
             <el-icon><Setting /></el-icon>
             Administration
@@ -231,8 +310,12 @@
             :icon="activity.icon"
           >
             <div class="activity-content">
-              <div class="activity-title">{{ activity.title }}</div>
-              <div class="activity-description">{{ activity.description }}</div>
+              <div class="activity-title">
+                {{ activity.title }}
+              </div>
+              <div class="activity-description">
+                {{ activity.description }}
+              </div>
             </div>
           </el-timeline-item>
           
@@ -242,13 +325,86 @@
             type="info"
           >
             <div class="activity-content">
-              <div class="activity-title">Welcome to DataMesh</div>
-              <div class="activity-description">Start by uploading some files or exploring the governance system.</div>
+              <div class="activity-title">
+                Welcome to DataMesh
+              </div>
+              <div class="activity-description">
+                Start by uploading some files or exploring the governance system.
+              </div>
             </div>
           </el-timeline-item>
         </el-timeline>
       </el-card>
     </div>
+    
+    <!-- Onboarding Dialog for New Users -->
+    <el-dialog
+      v-model="showOnboarding"
+      title="Welcome to DataMesh!"
+      width="600px"
+      :close-on-click-modal="false"
+    >
+      <div class="onboarding-content">
+        <div class="onboarding-step">
+          <el-icon
+            class="step-icon"
+            size="48"
+            color="#409EFF"
+          >
+            <Upload />
+          </el-icon>
+          <h3>Upload Your First File</h3>
+          <p>Start by uploading files to the distributed storage network. Your files are automatically encrypted and distributed across multiple nodes for maximum security and availability.</p>
+          <el-button
+            type="primary"
+            @click="$router.push('/files'); showOnboarding = false"
+          >
+            Go to File Manager
+          </el-button>
+        </div>
+        
+        <div class="onboarding-step">
+          <el-icon
+            class="step-icon"
+            size="48"
+            color="#67C23A"
+          >
+            <Flag />
+          </el-icon>
+          <h3>Explore Governance</h3>
+          <p>Participate in network governance by reviewing operator proposals and contributing to the decentralized decision-making process.</p>
+          <el-button @click="$router.push('/governance'); showOnboarding = false">
+            View Governance
+          </el-button>
+        </div>
+        
+        <div class="onboarding-step">
+          <el-icon
+            class="step-icon"
+            size="48"
+            color="#E6A23C"
+          >
+            <TrendCharts />
+          </el-icon>
+          <h3>Monitor Analytics</h3>
+          <p>Track your storage usage, bandwidth consumption, and network participation through detailed analytics and reports.</p>
+          <el-button @click="$router.push('/analytics'); showOnboarding = false">
+            View Analytics
+          </el-button>
+        </div>
+      </div>
+      
+      <template #footer>
+        <div class="onboarding-footer">
+          <el-checkbox v-model="dontShowAgain">
+            Don't show this again
+          </el-checkbox>
+          <el-button @click="closeOnboarding">
+            Skip Tour
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -260,9 +416,21 @@ import { useGovernanceStore } from '../store/governance'
 import { useWebSocketStore } from '../store/websocket'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
+import { Refresh, Setting, Upload, Flag, TrendCharts, Files, Coin, Connection, Download } from '@element-plus/icons-vue'
 
 export default {
   name: 'Dashboard',
+  components: {
+    Refresh,
+    Setting,
+    Upload,
+    Flag,
+    TrendCharts,
+    Files,
+    Coin,
+    Connection,
+    Download
+  },
   setup() {
     const authStore = useAuthStore()
     const filesStore = useFilesStore()
@@ -272,6 +440,9 @@ export default {
     // State
     const recentActivity = ref([])
     const refreshInterval = ref(null)
+    const isRefreshing = ref(false)
+    const showOnboarding = ref(false)
+    const dontShowAgain = ref(false)
     
     // Computed
     const recentFiles = computed(() => filesStore.getRecentFiles.slice(0, 5))
@@ -390,6 +561,24 @@ export default {
         ])
       } catch (error) {
         console.error('Failed to load dashboard data:', error)
+        ElMessage.error('Failed to load dashboard data')
+      }
+    }
+    
+    const refreshDashboard = async () => {
+      isRefreshing.value = true
+      try {
+        await loadDashboardData()
+        ElMessage.success('Dashboard refreshed')
+      } finally {
+        isRefreshing.value = false
+      }
+    }
+    
+    const closeOnboarding = () => {
+      showOnboarding.value = false
+      if (dontShowAgain.value) {
+        localStorage.setItem('datamesh_skip_onboarding', 'true')
       }
     }
     
@@ -477,11 +666,34 @@ export default {
       }
     }
     
+    // Check if user is new (no files uploaded)
+    const isNewUser = computed(() => {
+      return filesStore.stats.total_files === 0
+    })
+    
+    // Keyboard shortcuts
+    const handleKeydown = (event) => {
+      if (event.ctrlKey || event.metaKey) {
+        switch (event.key) {
+          case 'r':
+            event.preventDefault()
+            refreshDashboard()
+            break
+        }
+      }
+    }
+    
     // Lifecycle
     onMounted(async () => {
       await loadDashboardData()
       setupWebSocketListeners()
       startAutoRefresh()
+      document.addEventListener('keydown', handleKeydown)
+      
+      // Show onboarding for new users
+      if (isNewUser.value && !localStorage.getItem('datamesh_skip_onboarding')) {
+        showOnboarding.value = true
+      }
     })
     
     onUnmounted(() => {
@@ -493,6 +705,9 @@ export default {
       
       // Clear activity data
       recentActivity.value = []
+      
+      // Remove keyboard listener
+      document.removeEventListener('keydown', handleKeydown)
     })
     
     return {
@@ -513,7 +728,15 @@ export default {
       formatTime,
       getFileIcon,
       getFileIconClass,
-      downloadFile
+      downloadFile,
+      
+      // Dashboard improvements
+      isRefreshing,
+      refreshDashboard,
+      showOnboarding,
+      dontShowAgain,
+      closeOnboarding,
+      isNewUser
     }
   }
 }
@@ -529,14 +752,31 @@ export default {
   margin-bottom: 24px;
 }
 
-.dashboard-header h1 {
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.welcome-section h1 {
   margin: 0 0 8px 0;
   color: var(--el-text-color-primary);
 }
 
-.dashboard-header p {
+.welcome-section p {
   margin: 0;
   color: var(--el-text-color-secondary);
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.breadcrumb {
+  border-top: 1px solid var(--el-border-color-lighter);
+  padding-top: 12px;
 }
 
 .stats-grid {
@@ -709,6 +949,52 @@ export default {
 .activity-description {
   font-size: 14px;
   color: var(--el-text-color-secondary);
+}
+
+/* Onboarding styles */
+.onboarding-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.onboarding-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 20px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.onboarding-step:hover {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.step-icon {
+  margin-bottom: 16px;
+}
+
+.onboarding-step h3 {
+  margin: 0 0 12px 0;
+  color: var(--el-text-color-primary);
+}
+
+.onboarding-step p {
+  margin: 0 0 16px 0;
+  color: var(--el-text-color-secondary);
+  line-height: 1.6;
+}
+
+.onboarding-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 /* Mobile responsive */

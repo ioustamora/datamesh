@@ -1,7 +1,27 @@
 <template>
-  <div id="app" :class="{ 'dark': isDark }">
-    <el-config-provider :locale="locale" :size="componentSize">
-      <router-view />
+  <div
+    id="app"
+    :class="{ 'dark': isDark }"
+    role="application"
+    :lang="currentLocale"
+  >
+    <el-config-provider
+      :locale="locale"
+      :size="componentSize"
+    >
+      <!-- Skip to main content link for accessibility -->
+      <a
+        href="#main-content"
+        class="skip-link"
+        @click="skipToMain"
+      >
+        Skip to main content
+      </a>
+      
+      <router-view
+        id="main-content"
+        role="main"
+      />
     </el-config-provider>
     
     <!-- Global notification container -->
@@ -16,7 +36,7 @@
 </template>
 
 <script>
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useThemeStore } from './store/theme'
 import { useWebSocketStore } from './store/websocket'
 import { useLoadingStore } from './store/loading'
@@ -46,6 +66,16 @@ export default {
     // Component configuration
     const locale = en
     const componentSize = 'default'
+    const currentLocale = ref('en')
+    
+    // Accessibility methods
+    const skipToMain = () => {
+      const mainContent = document.getElementById('main-content')
+      if (mainContent) {
+        mainContent.focus()
+        mainContent.scrollIntoView()
+      }
+    }
     
     // Lifecycle hooks
     onMounted(() => {
@@ -89,7 +119,9 @@ export default {
       isDark,
       isLoading,
       locale,
-      componentSize
+      componentSize,
+      currentLocale,
+      skipToMain
     }
   }
 }
@@ -116,6 +148,48 @@ html, body {
   height: 100vh;
   width: 100%;
   overflow: hidden;
+}
+
+/* Accessibility: Skip to main content link */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 6px;
+  background: var(--el-color-primary);
+  color: white;
+  padding: 8px;
+  text-decoration: none;
+  border-radius: 0 0 4px 4px;
+  z-index: 9999;
+  transition: top 0.3s ease;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+/* Focus indicators for better accessibility */
+*:focus {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .el-card {
+    border: 2px solid var(--el-border-color-darker);
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Dark theme overrides */

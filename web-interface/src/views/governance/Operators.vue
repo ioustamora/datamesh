@@ -17,22 +17,51 @@
           </div>
         </template>
 
-        <el-table :data="operators" style="width: 100%">
-          <el-table-column prop="name" label="Name" />
-          <el-table-column prop="address" label="Address" />
-          <el-table-column prop="status" label="Status">
+        <el-table
+          :data="operators"
+          style="width: 100%"
+        >
+          <el-table-column
+            prop="name"
+            label="Name"
+          />
+          <el-table-column
+            prop="address"
+            label="Address"
+          />
+          <el-table-column
+            prop="status"
+            label="Status"
+          >
             <template #default="scope">
               <el-tag :type="getStatusType(scope.row.status)">
                 {{ scope.row.status }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="stake" label="Stake" />
-          <el-table-column prop="uptime" label="Uptime" />
+          <el-table-column
+            prop="stake"
+            label="Stake"
+          />
+          <el-table-column
+            prop="uptime"
+            label="Uptime"
+          />
           <el-table-column label="Actions">
             <template #default="scope">
-              <el-button size="small" @click="viewOperator(scope.row)">View</el-button>
-              <el-button size="small" type="warning" @click="editOperator(scope.row)">Edit</el-button>
+              <el-button
+                size="small"
+                @click="viewOperator(scope.row)"
+              >
+                View
+              </el-button>
+              <el-button
+                size="small"
+                type="warning"
+                @click="editOperator(scope.row)"
+              >
+                Edit
+              </el-button>
             </template>
           </el-table-column>
         </el-table>

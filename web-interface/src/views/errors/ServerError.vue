@@ -8,14 +8,21 @@
       </div>
       
       <div class="error-content">
-        <h1 class="error-title">500</h1>
-        <h2 class="error-subtitle">Server Error</h2>
+        <h1 class="error-title">
+          500
+        </h1>
+        <h2 class="error-subtitle">
+          Server Error
+        </h2>
         <p class="error-message">
           Something went wrong on our end. Our team has been notified and is working on a fix.
         </p>
         
         <div class="error-actions">
-          <el-button type="primary" @click="retry">
+          <el-button
+            type="primary"
+            @click="retry"
+          >
             <el-icon><Refresh /></el-icon>
             Try Again
           </el-button>
@@ -29,7 +36,10 @@
           </el-button>
         </div>
         
-        <div class="error-details" v-if="showDetails">
+        <div
+          v-if="showDetails"
+          class="error-details"
+        >
           <h3>Error Details:</h3>
           <div class="error-code">
             <strong>Error Code:</strong> {{ errorCode }}
@@ -37,7 +47,10 @@
           <div class="error-timestamp">
             <strong>Timestamp:</strong> {{ errorTimestamp }}
           </div>
-          <div class="error-id" v-if="errorId">
+          <div
+            v-if="errorId"
+            class="error-id"
+          >
             <strong>Error ID:</strong> {{ errorId }}
           </div>
         </div>

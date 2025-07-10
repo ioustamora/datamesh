@@ -18,12 +18,20 @@
         </template>
 
         <div class="proposals-list">
-          <div v-for="proposal in proposals" :key="proposal.id" class="proposal-item">
+          <div
+            v-for="proposal in proposals"
+            :key="proposal.id"
+            class="proposal-item"
+          >
             <div class="proposal-header">
               <h4>{{ proposal.title }}</h4>
-              <el-tag :type="getProposalType(proposal.status)">{{ proposal.status }}</el-tag>
+              <el-tag :type="getProposalType(proposal.status)">
+                {{ proposal.status }}
+              </el-tag>
             </div>
-            <p class="proposal-description">{{ proposal.description }}</p>
+            <p class="proposal-description">
+              {{ proposal.description }}
+            </p>
             <div class="proposal-meta">
               <span>Voting ends: {{ formatDate(proposal.endDate) }}</span>
               <span>Votes: {{ proposal.votes }}</span>

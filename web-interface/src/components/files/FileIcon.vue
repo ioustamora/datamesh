@@ -1,9 +1,15 @@
 <template>
-  <div class="file-icon" :class="[sizeClass, iconClass]">
+  <div
+    class="file-icon"
+    :class="[sizeClass, iconClass]"
+  >
     <el-icon :size="iconSize">
       <component :is="iconComponent" />
     </el-icon>
-    <div v-if="showExtension && fileExtension" class="file-extension">
+    <div
+      v-if="showExtension && fileExtension"
+      class="file-extension"
+    >
       {{ fileExtension }}
     </div>
   </div>

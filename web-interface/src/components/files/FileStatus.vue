@@ -10,7 +10,10 @@
     </el-tag>
     
     <!-- Progress indicator for uploads/downloads -->
-    <div v-if="showProgress" class="status-progress">
+    <div
+      v-if="showProgress"
+      class="status-progress"
+    >
       <el-progress
         :percentage="progressPercentage"
         :status="progressStatus"
@@ -20,19 +23,35 @@
     </div>
     
     <!-- Additional status indicators -->
-    <div v-if="file.is_encrypted" class="status-indicator encrypted" title="File is encrypted">
+    <div
+      v-if="file.is_encrypted"
+      class="status-indicator encrypted"
+      title="File is encrypted"
+    >
       <el-icon><Lock /></el-icon>
     </div>
     
-    <div v-if="file.is_shared" class="status-indicator shared" title="File is shared">
+    <div
+      v-if="file.is_shared"
+      class="status-indicator shared"
+      title="File is shared"
+    >
       <el-icon><Share /></el-icon>
     </div>
     
-    <div v-if="file.has_versions" class="status-indicator versioned" title="File has multiple versions">
+    <div
+      v-if="file.has_versions"
+      class="status-indicator versioned"
+      title="File has multiple versions"
+    >
       <el-icon><Clock /></el-icon>
     </div>
     
-    <div v-if="file.is_favorite" class="status-indicator favorite" title="File is favorited">
+    <div
+      v-if="file.is_favorite"
+      class="status-indicator favorite"
+      title="File is favorited"
+    >
       <el-icon><Star /></el-icon>
     </div>
   </div>

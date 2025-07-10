@@ -2,8 +2,12 @@
   <div class="auth-container">
     <div class="auth-card">
       <div class="auth-header">
-        <h1 class="auth-title">Create Account</h1>
-        <p class="auth-subtitle">Join the DataMesh distributed storage network</p>
+        <h1 class="auth-title">
+          Create Account
+        </h1>
+        <p class="auth-subtitle">
+          Join the DataMesh distributed storage network
+        </p>
       </div>
       
       <el-form
@@ -13,7 +17,10 @@
         label-position="top"
         @submit.prevent="handleSubmit"
       >
-        <el-form-item label="Email Address" prop="email">
+        <el-form-item
+          label="Email Address"
+          prop="email"
+        >
           <el-input
             v-model="form.email"
             type="email"
@@ -23,7 +30,10 @@
           />
         </el-form-item>
         
-        <el-form-item label="Password" prop="password">
+        <el-form-item
+          label="Password"
+          prop="password"
+        >
           <el-input
             v-model="form.password"
             type="password"
@@ -32,37 +42,62 @@
             :prefix-icon="Lock"
             show-password
           />
-          <div class="password-strength" v-if="form.password">
+          <div
+            v-if="form.password"
+            class="password-strength"
+          >
             <div class="strength-bar">
               <div 
                 class="strength-fill" 
                 :style="{ width: passwordStrength.percentage + '%' }"
                 :class="passwordStrength.class"
-              ></div>
+              />
             </div>
             <div class="strength-info">
-              <div class="strength-text">{{ passwordStrength.text }}</div>
+              <div class="strength-text">
+                {{ passwordStrength.text }}
+              </div>
               <div class="strength-details">
-                <div class="entropy">Entropy: {{ passwordStrength.entropy }} bits</div>
-                <div class="crack-time">Crack time: {{ passwordStrength.crackTime }}</div>
+                <div class="entropy">
+                  Entropy: {{ passwordStrength.entropy }} bits
+                </div>
+                <div class="crack-time">
+                  Crack time: {{ passwordStrength.crackTime }}
+                </div>
               </div>
             </div>
             
             <!-- Password Requirements -->
-            <div class="password-requirements" v-if="passwordStrength.suggestions.length > 0">
-              <div class="requirements-title">Suggestions:</div>
+            <div
+              v-if="passwordStrength.suggestions.length > 0"
+              class="password-requirements"
+            >
+              <div class="requirements-title">
+                Suggestions:
+              </div>
               <ul class="requirements-list">
-                <li v-for="suggestion in passwordStrength.suggestions" :key="suggestion">
+                <li
+                  v-for="suggestion in passwordStrength.suggestions"
+                  :key="suggestion"
+                >
                   {{ suggestion }}
                 </li>
               </ul>
             </div>
             
             <!-- Validation Errors -->
-            <div class="password-errors" v-if="passwordStrength.errors.length > 0">
-              <div class="errors-title">Issues:</div>
+            <div
+              v-if="passwordStrength.errors.length > 0"
+              class="password-errors"
+            >
+              <div class="errors-title">
+                Issues:
+              </div>
               <ul class="errors-list">
-                <li v-for="error in passwordStrength.errors" :key="error">
+                <li
+                  v-for="error in passwordStrength.errors"
+                  :key="error"
+                >
                   {{ error }}
                 </li>
               </ul>
@@ -70,7 +105,10 @@
           </div>
         </el-form-item>
         
-        <el-form-item label="Confirm Password" prop="confirmPassword">
+        <el-form-item
+          label="Confirm Password"
+          prop="confirmPassword"
+        >
           <el-input
             v-model="form.confirmPassword"
             type="password"
@@ -81,8 +119,15 @@
           />
         </el-form-item>
         
-        <el-form-item label="Account Type" prop="accountType">
-          <el-select v-model="form.accountType" placeholder="Select account type" size="large">
+        <el-form-item
+          label="Account Type"
+          prop="accountType"
+        >
+          <el-select
+            v-model="form.accountType"
+            placeholder="Select account type"
+            size="large"
+          >
             <el-option
               v-for="type in accountTypes"
               :key="type.value"
@@ -94,32 +139,56 @@
                   <span class="option-name">{{ type.label }}</span>
                   <span class="option-price">{{ type.price }}</span>
                 </div>
-                <div class="option-description">{{ type.description }}</div>
+                <div class="option-description">
+                  {{ type.description }}
+                </div>
               </div>
             </el-option>
           </el-select>
         </el-form-item>
         
-        <div class="account-type-details" v-if="selectedAccountType">
+        <div
+          v-if="selectedAccountType"
+          class="account-type-details"
+        >
           <h4>{{ selectedAccountType.label }} Features:</h4>
           <ul>
-            <li v-for="feature in selectedAccountType.features" :key="feature">
+            <li
+              v-for="feature in selectedAccountType.features"
+              :key="feature"
+            >
               {{ feature }}
             </li>
           </ul>
         </div>
         
         <el-form-item prop="agreeToTerms">
-          <el-checkbox v-model="form.agreeToTerms" size="large">
+          <el-checkbox
+            v-model="form.agreeToTerms"
+            size="large"
+          >
             I agree to the 
-            <el-link type="primary" @click="showTerms">Terms of Service</el-link> 
+            <el-link
+              type="primary"
+              @click="showTerms"
+            >
+              Terms of Service
+            </el-link> 
             and 
-            <el-link type="primary" @click="showPrivacy">Privacy Policy</el-link>
+            <el-link
+              type="primary"
+              @click="showPrivacy"
+            >
+              Privacy Policy
+            </el-link>
           </el-checkbox>
         </el-form-item>
         
         <el-form-item prop="marketingConsent">
-          <el-checkbox v-model="form.marketingConsent" size="large">
+          <el-checkbox
+            v-model="form.marketingConsent"
+            size="large"
+          >
             I would like to receive updates and marketing communications
           </el-checkbox>
         </el-form-item>
@@ -128,9 +197,9 @@
           <el-button
             type="primary"
             size="large"
-            @click="handleSubmit"
             :loading="loading"
             style="width: 100%"
+            @click="handleSubmit"
           >
             Create Account
           </el-button>
@@ -138,14 +207,24 @@
       </el-form>
       
       <div class="auth-footer">
-        <p>Already have an account? 
-          <router-link to="/login" class="auth-link">Sign in</router-link>
+        <p>
+          Already have an account? 
+          <router-link
+            to="/login"
+            class="auth-link"
+          >
+            Sign in
+          </router-link>
         </p>
       </div>
     </div>
     
     <!-- Terms of Service Dialog -->
-    <el-dialog v-model="showTermsDialog" title="Terms of Service" width="70%">
+    <el-dialog
+      v-model="showTermsDialog"
+      title="Terms of Service"
+      width="70%"
+    >
       <div class="terms-content">
         <h3>1. Acceptance of Terms</h3>
         <p>By creating an account with DataMesh, you agree to be bound by these Terms of Service and our Privacy Policy.</p>
@@ -172,12 +251,18 @@
       </div>
       
       <template #footer>
-        <el-button @click="showTermsDialog = false">Close</el-button>
+        <el-button @click="showTermsDialog = false">
+          Close
+        </el-button>
       </template>
     </el-dialog>
     
     <!-- Privacy Policy Dialog -->
-    <el-dialog v-model="showPrivacyDialog" title="Privacy Policy" width="70%">
+    <el-dialog
+      v-model="showPrivacyDialog"
+      title="Privacy Policy"
+      width="70%"
+    >
       <div class="privacy-content">
         <h3>1. Information We Collect</h3>
         <p>We collect minimal information necessary to provide our services:</p>
@@ -215,7 +300,9 @@
       </div>
       
       <template #footer>
-        <el-button @click="showPrivacyDialog = false">Close</el-button>
+        <el-button @click="showPrivacyDialog = false">
+          Close
+        </el-button>
       </template>
     </el-dialog>
   </div>

@@ -1,28 +1,38 @@
 <template>
   <div class="mobile-navigation">
     <!-- Mobile Header -->
-    <div class="mobile-header" role="banner">
+    <div
+      class="mobile-header"
+      role="banner"
+    >
       <div class="mobile-header-content">
         <!-- Menu Toggle -->
         <el-button
           class="mobile-menu-toggle"
-          @click="toggleMobileMenu"
           :aria-label="mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'"
           :aria-expanded="mobileMenuOpen"
           :aria-controls="'mobile-menu'"
+          @click="toggleMobileMenu"
         >
-          <el-icon v-if="!mobileMenuOpen"><Menu /></el-icon>
-          <el-icon v-else><Close /></el-icon>
+          <el-icon v-if="!mobileMenuOpen">
+            <Menu />
+          </el-icon>
+          <el-icon v-else>
+            <Close />
+          </el-icon>
         </el-button>
 
         <!-- Logo -->
         <router-link 
           to="/" 
           class="mobile-logo"
-          @click="closeMobileMenu"
           aria-label="DataMesh home"
+          @click="closeMobileMenu"
         >
-          <el-icon size="24" color="#409EFF">
+          <el-icon
+            size="24"
+            color="#409EFF"
+          >
             <DataBoard />
           </el-icon>
           <span class="logo-text">DataMesh</span>
@@ -33,10 +43,10 @@
           <!-- Search Toggle -->
           <el-button
             circle
-            @click="toggleMobileSearch"
             :aria-label="mobileSearchOpen ? 'Close search' : 'Open search'"
             :aria-expanded="mobileSearchOpen"
             class="mobile-search-toggle"
+            @click="toggleMobileSearch"
           >
             <el-icon><Search /></el-icon>
           </el-button>
@@ -52,7 +62,10 @@
               :aria-label="`Notifications. ${notificationCount} unread`"
               class="mobile-notifications"
             >
-              <el-badge :value="notificationCount" :hidden="notificationCount === 0">
+              <el-badge
+                :value="notificationCount"
+                :hidden="notificationCount === 0"
+              >
                 <el-icon><Bell /></el-icon>
               </el-badge>
             </el-button>
@@ -63,8 +76,8 @@
                   <el-button 
                     text 
                     size="small" 
-                    @click="clearAllNotifications"
                     :disabled="notificationCount === 0"
+                    @click="clearAllNotifications"
                   >
                     Clear All
                   </el-button>
@@ -80,11 +93,18 @@
                       <component :is="getNotificationIcon(notification.type)" />
                     </el-icon>
                     <div class="notification-content">
-                      <div class="notification-title">{{ notification.title }}</div>
-                      <div class="notification-time">{{ formatTime(notification.timestamp) }}</div>
+                      <div class="notification-title">
+                        {{ notification.title }}
+                      </div>
+                      <div class="notification-time">
+                        {{ formatTime(notification.timestamp) }}
+                      </div>
                     </div>
                   </div>
-                  <div v-if="notifications.length === 0" class="no-notifications">
+                  <div
+                    v-if="notifications.length === 0"
+                    class="no-notifications"
+                  >
                     No new notifications
                   </div>
                 </div>
@@ -99,35 +119,58 @@
             @visible-change="handleUserMenuVisibility"
           >
             <div class="mobile-user-menu">
-              <el-avatar :size="32" :src="currentUser?.avatar">
+              <el-avatar
+                :size="32"
+                :src="currentUser?.avatar"
+              >
                 <el-icon><User /></el-icon>
               </el-avatar>
             </div>
             <template #dropdown>
               <div class="mobile-user-panel">
                 <div class="user-info">
-                  <el-avatar :size="48" :src="currentUser?.avatar">
+                  <el-avatar
+                    :size="48"
+                    :src="currentUser?.avatar"
+                  >
                     <el-icon><User /></el-icon>
                   </el-avatar>
                   <div class="user-details">
-                    <div class="user-name">{{ currentUser?.name || 'User' }}</div>
-                    <div class="user-role">{{ currentUser?.role || 'Member' }}</div>
+                    <div class="user-name">
+                      {{ currentUser?.name || 'User' }}
+                    </div>
+                    <div class="user-role">
+                      {{ currentUser?.role || 'Member' }}
+                    </div>
                   </div>
                 </div>
                 <div class="user-actions">
-                  <el-button @click="goToProfile" class="user-action-btn">
+                  <el-button
+                    class="user-action-btn"
+                    @click="goToProfile"
+                  >
                     <el-icon><User /></el-icon>
                     Profile
                   </el-button>
-                  <el-button @click="goToSettings" class="user-action-btn">
+                  <el-button
+                    class="user-action-btn"
+                    @click="goToSettings"
+                  >
                     <el-icon><Setting /></el-icon>
                     Settings
                   </el-button>
-                  <el-button @click="toggleTheme" class="user-action-btn">
+                  <el-button
+                    class="user-action-btn"
+                    @click="toggleTheme"
+                  >
                     <el-icon><component :is="themeIcon" /></el-icon>
                     {{ themeText }}
                   </el-button>
-                  <el-button @click="handleLogout" type="danger" class="user-action-btn">
+                  <el-button
+                    type="danger"
+                    class="user-action-btn"
+                    @click="handleLogout"
+                  >
                     <el-icon><SwitchButton /></el-icon>
                     Logout
                   </el-button>
@@ -140,15 +183,18 @@
 
       <!-- Mobile Search Bar -->
       <transition name="search-slide">
-        <div v-if="mobileSearchOpen" class="mobile-search-bar">
+        <div
+          v-if="mobileSearchOpen"
+          class="mobile-search-bar"
+        >
           <el-input
             ref="mobileSearchInput"
             v-model="searchQuery"
             placeholder="Search files..."
-            @keyup.enter="performSearch"
-            @blur="handleSearchBlur"
             class="mobile-search-input"
             size="large"
+            @keyup.enter="performSearch"
+            @blur="handleSearchBlur"
           >
             <template #prefix>
               <el-icon><Search /></el-icon>
@@ -156,8 +202,8 @@
             <template #suffix>
               <el-button 
                 text 
-                @click="closeMobileSearch"
                 aria-label="Close search"
+                @click="closeMobileSearch"
               >
                 <el-icon><Close /></el-icon>
               </el-button>
@@ -172,8 +218,8 @@
       <div
         v-if="mobileMenuOpen"
         class="mobile-menu-overlay"
-        @click="closeMobileMenu"
         aria-hidden="true"
+        @click="closeMobileMenu"
       />
     </transition>
 
@@ -189,13 +235,15 @@
         <div class="mobile-menu-content">
           <!-- Main Navigation -->
           <div class="mobile-menu-section">
-            <h3 class="mobile-menu-title">Navigation</h3>
+            <h3 class="mobile-menu-title">
+              Navigation
+            </h3>
             <div class="mobile-menu-items">
               <router-link
                 to="/"
                 class="mobile-menu-item"
-                @click="closeMobileMenu"
                 :class="{ active: $route.path === '/' }"
+                @click="closeMobileMenu"
               >
                 <el-icon><House /></el-icon>
                 <span>Dashboard</span>
@@ -204,8 +252,8 @@
               <router-link
                 to="/files"
                 class="mobile-menu-item"
-                @click="closeMobileMenu"
                 :class="{ active: $route.path === '/files' }"
+                @click="closeMobileMenu"
               >
                 <el-icon><FolderOpened /></el-icon>
                 <span>File Manager</span>
@@ -214,17 +262,23 @@
               <div class="mobile-menu-group">
                 <div 
                   class="mobile-menu-group-title"
-                  @click="toggleGovernanceSubmenu"
                   :aria-expanded="governanceSubmenuOpen"
+                  @click="toggleGovernanceSubmenu"
                 >
                   <el-icon><Flag /></el-icon>
                   <span>Governance</span>
-                  <el-icon class="submenu-arrow" :class="{ open: governanceSubmenuOpen }">
+                  <el-icon
+                    class="submenu-arrow"
+                    :class="{ open: governanceSubmenuOpen }"
+                  >
                     <ArrowDown />
                   </el-icon>
                 </div>
                 <transition name="submenu-slide">
-                  <div v-if="governanceSubmenuOpen" class="mobile-submenu">
+                  <div
+                    v-if="governanceSubmenuOpen"
+                    class="mobile-submenu"
+                  >
                     <router-link
                       to="/governance"
                       class="mobile-submenu-item"
@@ -257,8 +311,8 @@
                 v-if="isAdmin"
                 to="/administration"
                 class="mobile-menu-item"
-                @click="closeMobileMenu"
                 :class="{ active: $route.path.startsWith('/administration') }"
+                @click="closeMobileMenu"
               >
                 <el-icon><Setting /></el-icon>
                 <span>Administration</span>
@@ -267,8 +321,8 @@
               <router-link
                 to="/analytics"
                 class="mobile-menu-item"
-                @click="closeMobileMenu"
                 :class="{ active: $route.path === '/analytics' }"
+                @click="closeMobileMenu"
               >
                 <el-icon><TrendCharts /></el-icon>
                 <span>Analytics</span>
@@ -278,13 +332,22 @@
 
           <!-- Quick Actions -->
           <div class="mobile-menu-section">
-            <h3 class="mobile-menu-title">Quick Actions</h3>
+            <h3 class="mobile-menu-title">
+              Quick Actions
+            </h3>
             <div class="mobile-quick-actions">
-              <el-button type="primary" @click="handleUpload" class="mobile-action-btn">
+              <el-button
+                type="primary"
+                class="mobile-action-btn"
+                @click="handleUpload"
+              >
                 <el-icon><Upload /></el-icon>
                 Upload Files
               </el-button>
-              <el-button @click="handleRefresh" class="mobile-action-btn">
+              <el-button
+                class="mobile-action-btn"
+                @click="handleRefresh"
+              >
                 <el-icon><Refresh /></el-icon>
                 Refresh
               </el-button>
@@ -305,13 +368,25 @@
     </transition>
 
     <!-- Mobile Bottom Navigation -->
-    <div class="mobile-bottom-nav" role="navigation" aria-label="Bottom navigation">
-      <router-link to="/" class="bottom-nav-item" :class="{ active: $route.path === '/' }">
+    <div
+      class="mobile-bottom-nav"
+      role="navigation"
+      aria-label="Bottom navigation"
+    >
+      <router-link
+        to="/"
+        class="bottom-nav-item"
+        :class="{ active: $route.path === '/' }"
+      >
         <el-icon><House /></el-icon>
         <span>Dashboard</span>
       </router-link>
       
-      <router-link to="/files" class="bottom-nav-item" :class="{ active: $route.path === '/files' }">
+      <router-link
+        to="/files"
+        class="bottom-nav-item"
+        :class="{ active: $route.path === '/files' }"
+      >
         <el-icon><FolderOpened /></el-icon>
         <span>Files</span>
       </router-link>
@@ -321,20 +396,28 @@
           type="primary" 
           circle 
           size="large" 
-          @click="handleUpload"
           class="mobile-fab"
           aria-label="Upload files"
+          @click="handleUpload"
         >
           <el-icon><Plus /></el-icon>
         </el-button>
       </div>
       
-      <router-link to="/governance" class="bottom-nav-item" :class="{ active: $route.path.startsWith('/governance') }">
+      <router-link
+        to="/governance"
+        class="bottom-nav-item"
+        :class="{ active: $route.path.startsWith('/governance') }"
+      >
         <el-icon><Flag /></el-icon>
         <span>Governance</span>
       </router-link>
       
-      <router-link to="/analytics" class="bottom-nav-item" :class="{ active: $route.path === '/analytics' }">
+      <router-link
+        to="/analytics"
+        class="bottom-nav-item"
+        :class="{ active: $route.path === '/analytics' }"
+      >
         <el-icon><TrendCharts /></el-icon>
         <span>Analytics</span>
       </router-link>
