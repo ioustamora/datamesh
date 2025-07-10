@@ -41,8 +41,8 @@ impl Default for KeyRotationConfig {
 /// A versioned encryption key with metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersionedKey {
-    /// The secret key
-    pub key: SecretKey,
+    /// The secret key (raw bytes for serialization compatibility)
+    pub key_bytes: Vec<u8>,
     /// Key version identifier
     pub version: u64,
     /// When this key was created
@@ -54,10 +54,28 @@ pub struct VersionedKey {
 }
 
 impl VersionedKey {
+    /// Create a new versioned key from SecretKey
+    pub fn from_secret_key(key: SecretKey, version: u64) -> Self {
+        Self {
+            key_bytes: key.serialize(),
+            version,
+            created_at: Utc::now(),
+            expires_at: None,
+            is_current: false,
+        }
+    }
+    
+    /// Convert back to SecretKey
+    pub fn to_secret_key(&self) -> Result<SecretKey, Box<dyn std::error::Error>> {
+        SecretKey::parse(&self.key_bytes)
+            .map_err(|e| format!("Failed to parse secret key: {:?}", e).into())
+    }
+
     /// Create a new versioned key
     pub fn new(version: u64) -> Self {
+        let key = SecretKey::random(&mut OsRng);
         Self {
-            key: SecretKey::random(&mut OsRng),
+            key_bytes: key.serialize(),
             version,
             created_at: Utc::now(),
             expires_at: None,

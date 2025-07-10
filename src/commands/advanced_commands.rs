@@ -336,3 +336,4 @@ async fn handle_restore_command(
 
     Ok(())
 }
+*/

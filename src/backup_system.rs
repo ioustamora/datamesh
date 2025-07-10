@@ -541,18 +541,19 @@ impl BackupSystem {
         );
 
         // Use existing file storage system
+        let backup_tags_option = Some(backup_tags);
         crate::file_storage::handle_put_command(
             &*self.cli,
             &*self.key_manager,
-            file_path,
+            &file_path.to_path_buf(),
             &None,
             &Some(backup_name),
-            &Some(backup_tags),
+            &backup_tags_option,
         ).await.map_err(|e| DfsError::Backup(format!("Failed to store backup: {}", e)))?;
 
         // Get file size
         let file_size = file_path.metadata()
-            .map_err(|e| DfsError::Io(e.to_string()))?
+            .map_err(|e| DfsError::Storage(e.to_string()))?
             .len();
 
         // Calculate checksum
@@ -752,7 +753,7 @@ impl BackupSystem {
 
         // Create destination directory
         std::fs::create_dir_all(&options.destination)
-            .map_err(|e| DfsError::Io(format!("Failed to create destination directory: {}", e)))?;
+            .map_err(|e| DfsError::Storage(format!("Failed to create destination directory: {}", e)))?;
 
         // Restore files using existing restore functionality
         let config = self.get_backup_config(metadata.config_id)
@@ -1024,7 +1025,13 @@ impl BackupSystem {
             }
         }
 
-        info!("Disaster recovery completed: {} - {}", result.status as i32, result.details);
+        let status_code = match result.status {
+            RecoveryStatus::InProgress => 0,
+            RecoveryStatus::Completed => 1,
+            RecoveryStatus::PartialSuccess => 2,
+            RecoveryStatus::Failed => 3,
+        };
+        info!("Disaster recovery completed: {} - {}", status_code, result.details);
         Ok(result)
     }
 
