@@ -15,7 +15,7 @@ use chrono::{DateTime, Utc};
 use libp2p::{PeerId, Multiaddr, Swarm};
 use serde::{Deserialize, Serialize, Deserializer, Serializer};
 use tokio::time::{sleep, interval};
-use tracing::{info, warn, error, debug};
+use tracing::{info, warn, debug};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 

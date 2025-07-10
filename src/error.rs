@@ -28,6 +28,10 @@ pub enum DfsError {
     Import(String),
     /// Authentication and authorization errors
     Authentication(String),
+    /// Configuration errors
+    Config(String),
+    /// Backup operation errors
+    Backup(String),
     /// Generic errors
     Generic(String),
 }
@@ -80,6 +84,8 @@ impl fmt::Display for DfsError {
             DfsError::Export(e) => write!(f, "Export error: {}", e),
             DfsError::Import(e) => write!(f, "Import error: {}", e),
             DfsError::Authentication(e) => write!(f, "Authentication error: {}", e),
+            DfsError::Config(e) => write!(f, "Configuration error: {}", e),
+            DfsError::Backup(e) => write!(f, "Backup error: {}", e),
             DfsError::Generic(e) => write!(f, "Error: {}", e),
         }
     }

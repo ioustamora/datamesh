@@ -9,7 +9,7 @@ use aes_gcm::aead::Aead;
 use argon2::{Argon2, password_hash::{PasswordHasher, SaltString, PasswordHash, PasswordVerifier}};
 use chrono::{DateTime, Utc};
 use ecies::SecretKey;
-use rand::RngCore;
+use crate::secure_random;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -57,9 +57,9 @@ impl EncryptedKeyManager {
         let mut integrity_nonce = vec![0u8; 12];
         
         // Generate random salt and nonces
-        rand::thread_rng().fill_bytes(&mut salt);
-        rand::thread_rng().fill_bytes(&mut nonce);
-        rand::thread_rng().fill_bytes(&mut integrity_nonce);
+        secure_random::fill_secure_bytes(&mut salt);
+        secure_random::fill_secure_bytes(&mut nonce);
+        secure_random::fill_secure_bytes(&mut integrity_nonce);
         
         // Hash password with Argon2
         let argon2 = Argon2::default();
@@ -323,7 +323,7 @@ impl EncryptedKeyManager {
                 2 => {
                     // Random data
                     let mut random_data = vec![0u8; file_size];
-                    rand::thread_rng().fill_bytes(&mut random_data);
+                    secure_random::fill_secure_bytes(&mut random_data);
                     random_data
                 }
                 _ => unreachable!(),
@@ -360,7 +360,7 @@ impl EncryptedKeyManager {
                 // Secure overwrite backup files too
                 if let Ok(metadata) = fs::metadata(backup_file) {
                     let size = metadata.len() as usize;
-                    let random_data: Vec<u8> = (0..size).map(|_| rand::random()).collect();
+                    let random_data = secure_random::generate_secure_bytes(size);
                     let _ = fs::write(backup_file, &random_data);
                 }
                 let _ = fs::remove_file(backup_file);
@@ -403,7 +403,7 @@ mod tests {
         let keys_dir = temp_dir.path();
         
         // Create a test key
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut OsRng);
         let password = "test_password_123";
         
         // Create encrypted manager
@@ -425,7 +425,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let keys_dir = temp_dir.path();
         
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut OsRng);
         let password = "correct_password";
         
         let encrypted_manager = EncryptedKeyManager::new(&secret_key, "test_key".to_string(), password).unwrap();
@@ -441,7 +441,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let keys_dir = temp_dir.path();
         
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut OsRng);
         let old_password = "old_password";
         let new_password = "new_password";
         
@@ -466,7 +466,7 @@ mod tests {
         let keys_dir = temp_dir.path();
         
         // Create a legacy key
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut OsRng);
         let legacy_manager = KeyManager::new(secret_key, "legacy_key".to_string());
         legacy_manager.save_to_file(keys_dir).unwrap();
         

@@ -5,10 +5,9 @@
 /// and governance.
 
 use std::sync::Arc;
-use std::time::Duration;
 use anyhow::Result;
 use tokio::sync::RwLock;
-use tracing::{info, error};
+use tracing::info;
 
 use crate::load_balancer::{LoadBalancer, LoadBalancingStrategy, AutoScalingConfig};
 use crate::failover::{FailoverManager, FailoverConfig};

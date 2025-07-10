@@ -319,10 +319,10 @@ pub async fn handle_get_command(
 /// Concurrent file retrieval using ConcurrentChunkManager with Smart Caching
 async fn attempt_concurrent_file_retrieval(
     cli: &Cli,
-    key_manager: &KeyManager,
+    _key_manager: &KeyManager,
     key: &str,
     output_path: &PathBuf,
-    private_key: &Option<String>,
+    _private_key: &Option<String>,
     config: &Config,
 ) -> DfsResult<()> {
     use std::sync::Arc;
@@ -751,7 +751,7 @@ fn reconstruct_file(
 
 /// Handle info command for a specific file
 pub async fn handle_info_command(
-    key_manager: &KeyManager,
+    _key_manager: &KeyManager,
     identifier: &str,
 ) -> DfsResult<()> {
     // Get database connection
@@ -774,7 +774,7 @@ pub async fn handle_info_command(
 }
 
 /// Handle stats command for storage statistics
-pub async fn handle_stats_command(key_manager: &KeyManager) -> DfsResult<()> {
+pub async fn handle_stats_command(_key_manager: &KeyManager) -> DfsResult<()> {
     let db_path = database::get_default_db_path()?;
     let db = database::DatabaseManager::new(&db_path)?;
     let stats = db.get_stats()?;

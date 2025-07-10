@@ -10,7 +10,7 @@ use tokio::sync::RwLock;
 use tokio::time::{interval, sleep};
 use tracing::{info, warn, error, debug};
 use serde::{Deserialize, Serialize};
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use libp2p::PeerId;
 
 use crate::network_diagnostics::NetworkDiagnostics;

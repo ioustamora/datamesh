@@ -1,13 +1,12 @@
-use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::num::NonZeroUsize;
 use tokio::sync::RwLock;
-use tokio::time::{interval, Interval};
+use tokio::time::interval;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use sled::{Db, IVec};
+use sled::Db;
 use lru::LruCache;
 use libp2p::kad::{store::RecordStore, Record, RecordKey};
 use libp2p::PeerId;

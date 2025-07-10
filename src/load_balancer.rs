@@ -7,11 +7,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tokio::time::{interval, sleep};
-use tracing::{info, warn, error, debug};
+use tokio::time::interval;
+use tracing::{info, error};
 use serde::{Deserialize, Serialize};
-use anyhow::{Result, anyhow};
-use libp2p::PeerId;
+use anyhow::Result;
 
 use crate::network_diagnostics::NetworkDiagnostics;
 use crate::performance::PerformanceMonitor;

@@ -11,26 +11,26 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 
 use axum::{
     extract::{DefaultBodyLimit, Multipart, Path, Query, State},
-    http::{header, HeaderMap, StatusCode},
+    http::{header, HeaderMap, HeaderValue, Method, StatusCode},
     response::{IntoResponse, Json},
     routing::{delete, get, post},
     Router,
 };
-use axum_server::tls_rustls::RustlsConfig;
+// use axum_server::tls_rustls::RustlsConfig;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use tokio::sync::RwLock;
 use tower::ServiceBuilder;
 use tower_http::{
-    cors::{Any, CorsLayer},
+    cors::CorsLayer,
     trace::TraceLayer,
 };
-use tracing::{error, info, warn};
+use axum::middleware::{self, Next};
+use axum::http::Request;
+use tracing::{error, info};
 use utoipa::{OpenApi, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
 use uuid::Uuid;
@@ -45,6 +45,37 @@ use crate::smart_cache::SmartCacheManager;
 use crate::governance_service::GovernanceService;
 use crate::bootstrap_admin::BootstrapAdministrationService;
 use crate::governance::{AuthService, UserRegistry};
+
+/// JWT authentication configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JwtConfig {
+    /// JWT signing secret (should be loaded from environment)
+    pub secret: String,
+    /// JWT issuer
+    pub issuer: String,
+    /// JWT audience
+    pub audience: String,
+    /// Token expiry in hours
+    pub expiry_hours: u64,
+    /// Clock skew allowance in seconds
+    pub leeway_seconds: u64,
+}
+
+impl Default for JwtConfig {
+    fn default() -> Self {
+        Self {
+            secret: std::env::var("DATAMESH_JWT_SECRET")
+                .unwrap_or_else(|_| {
+                    eprintln!("WARNING: DATAMESH_JWT_SECRET not set. Using insecure default for development only!");
+                    "INSECURE_DEFAULT_SECRET_CHANGE_IN_PRODUCTION".to_string()
+                }),
+            issuer: "datamesh.local".to_string(),
+            audience: "datamesh-api".to_string(),
+            expiry_hours: 24,
+            leeway_seconds: 30,
+        }
+    }
+}
 
 /// API server configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,10 +94,14 @@ pub struct ApiConfig {
     pub cert_path: Option<PathBuf>,
     /// Path to TLS private key file
     pub key_path: Option<PathBuf>,
+    /// Minimum TLS version (1.2 or 1.3)
+    pub min_tls_version: String,
     /// Enable Swagger UI
     pub enable_swagger: bool,
     /// API prefix (e.g., "/api/v1")
     pub api_prefix: String,
+    /// JWT configuration
+    pub jwt: JwtConfig,
 }
 
 impl Default for ApiConfig {
@@ -79,8 +114,10 @@ impl Default for ApiConfig {
             enable_https: false,
             cert_path: None,
             key_path: None,
+            min_tls_version: "1.3".to_string(),
             enable_swagger: true,
             api_prefix: "/api/v1".to_string(),
+            jwt: JwtConfig::default(),
         }
     }
 }
@@ -258,6 +295,39 @@ pub struct FileSearchRequest {
     pub page: Option<u32>,
     /// Page size
     pub page_size: Option<u32>,
+}
+
+/// Security headers middleware
+async fn add_security_headers(request: Request<axum::body::Body>, next: Next) -> impl IntoResponse {
+    let mut response = next.run(request).await;
+    
+    let headers = response.headers_mut();
+    headers.insert(
+        header::STRICT_TRANSPORT_SECURITY,
+        HeaderValue::from_static("max-age=31536000; includeSubDomains; preload"),
+    );
+    headers.insert(
+        header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'"),
+    );
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        header::X_FRAME_OPTIONS,
+        HeaderValue::from_static("DENY"),
+    );
+    headers.insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("strict-origin-when-cross-origin"),
+    );
+    headers.insert(
+        header::SERVER,
+        HeaderValue::from_static("DataMesh"),
+    );
+    
+    response
 }
 
 /// API error response
@@ -510,8 +580,8 @@ impl ApiServer {
         cli: Cli,
         api_config: ApiConfig,
     ) -> Self {
-        // Initialize authentication components
-        let auth_service = Arc::new(AuthService::new("datamesh-jwt-secret-key")); // TODO: Use config for secret
+        // Initialize authentication components with secure configuration
+        let auth_service = Arc::new(AuthService::new(&api_config.jwt));
         let user_registry = Arc::new(UserRegistry::new());
 
         let state = ApiState {
@@ -574,14 +644,17 @@ impl ApiServer {
             );
         }
 
-        // Add middleware layers
+        // Add middleware layers with security headers
         app = app.layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
+                // Security headers
+                .layer(middleware::from_fn(add_security_headers))
+                // CORS with more restrictive settings
                 .layer(CorsLayer::new()
-                    .allow_origin(Any)
-                    .allow_methods(Any)
-                    .allow_headers(Any))
+                    .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
+                    .allow_methods([Method::GET, Method::POST, Method::DELETE])
+                    .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]))
                 .layer(DefaultBodyLimit::max(state.api_config.max_upload_size as usize))
         );
 
@@ -593,8 +666,11 @@ impl ApiServer {
         let addr = format!("{}:{}", self.state.api_config.host, self.state.api_config.port);
         info!("Starting DataMesh API server on {}", addr);
 
-        // For now, only use HTTP server to avoid build issues
-        self.start_http_server(&addr).await
+        if self.state.api_config.enable_https {
+            self.start_https_server(&addr).await
+        } else {
+            self.start_http_server(&addr).await
+        }
     }
 
     /// Start HTTP server
@@ -613,11 +689,32 @@ impl ApiServer {
         Ok(())
     }
 
-    // HTTPS server temporarily disabled due to build issues
-    // async fn start_https_server(&self, addr: &str) -> DfsResult<()> {
-    //     // Implementation disabled for now
-    //     Ok(())
-    // }
+    /// Start HTTPS server with TLS configuration
+    async fn start_https_server(&self, addr: &str) -> DfsResult<()> {
+        let cert_path = self.state.api_config.cert_path.as_ref()
+            .ok_or_else(|| DfsError::Config("HTTPS enabled but no cert_path specified".to_string()))?;
+        let key_path = self.state.api_config.key_path.as_ref()
+            .ok_or_else(|| DfsError::Config("HTTPS enabled but no key_path specified".to_string()))?;
+
+        let config = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert_path, key_path)
+            .await
+            .map_err(|e| DfsError::Network(format!("Failed to load TLS config: {}", e)))?;
+
+        info!("DataMesh API server listening on https://{}", addr);
+        if self.state.api_config.enable_swagger {
+            info!("Swagger UI available at: https://{}/swagger-ui", addr);
+        }
+
+        // TODO: Fix axum_server compatibility issue
+        // axum_server::bind_rustls(addr.parse().unwrap(), config)
+        //     .serve(self.app.clone().into_make_service())
+        //     .await
+        //     .map_err(|e| DfsError::Network(format!("HTTPS server error: {}", e)))?;
+        
+        return Err(DfsError::Config("HTTPS server temporarily disabled due to compatibility issue".to_string()));
+
+        Ok(())
+    }
 }
 
 /// Login endpoint

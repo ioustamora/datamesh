@@ -4,6 +4,9 @@
 /// storage system, including key management, file storage, networking, and
 /// database operations.
 
+pub mod secure_random;
+pub mod secure_transport;
+pub mod key_rotation;
 pub mod key_manager;
 pub mod encrypted_key_manager;
 pub mod audit_logger;
@@ -41,8 +44,10 @@ pub mod performance_optimizer;
 pub mod billing_system;
 pub mod datamesh_core;
 pub mod advanced_commands;
+pub mod backup_system;
 
 pub use key_manager::KeyManager;
 pub use database::DatabaseManager;
 pub use error::{DfsError, DfsResult};
 pub use performance::PerformanceMonitor;
+pub use backup_system::{BackupSystem, BackupConfig, BackupType, BackupDestination, RestoreOptions};

@@ -61,7 +61,7 @@ impl MyBehaviour {
 /// # Returns
 ///
 /// A configured libp2p Swarm ready for network operations
-pub async fn create_swarm_and_connect(cli: &Cli, config: &Config) -> Result<Swarm<MyBehaviour>, Box<dyn Error>> {
+pub async fn create_swarm_and_connect(cli: &Cli, _config: &Config) -> Result<Swarm<MyBehaviour>, Box<dyn Error>> {
     let local_key = identity::Keypair::generate_ed25519();
     let local_peer_id = PeerId::from(local_key.public());
     println!("Local peer id: {:?}", local_peer_id);
@@ -202,7 +202,7 @@ pub async fn create_swarm_and_connect_multi_bootstrap(cli: &Cli, config: &Config
 /// # Returns
 ///
 /// Result indicating success or failure
-pub async fn start_bootstrap_node(port: u16, config: &Config) -> Result<(), Box<dyn Error>> {
+pub async fn start_bootstrap_node(port: u16, _config: &Config) -> Result<(), Box<dyn Error>> {
     let local_key = identity::Keypair::generate_ed25519();
     let local_peer_id = PeerId::from(local_key.public());
     

@@ -10,17 +10,15 @@
 /// - Integration with concurrent chunk operations
 
 use std::collections::{HashMap, VecDeque};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 use std::sync::Arc;
 use std::num::NonZeroUsize;
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use lru::LruCache;
 use tokio::sync::{RwLock, Mutex};
-use tracing::{info, warn, debug, error};
+use tracing::{info, warn, debug};
 use serde::{Serialize, Deserialize};
-
-use crate::file_storage::StoredFile;
 use crate::concurrent_chunks::ConcurrentChunkManager;
 
 /// Configuration for the smart cache system
@@ -571,7 +569,7 @@ impl SmartCacheManager {
     }
 
     /// Calculate cache priority for a file
-    async fn calculate_cache_priority(&self, file_key: &str, file_size: u64) -> CachePriority {
+    async fn calculate_cache_priority(&self, file_key: &str, _file_size: u64) -> CachePriority {
         let patterns = self.access_patterns.lock().await;
         let frequency = patterns.get_access_frequency(file_key);
         let prediction = patterns.predict_future_access(file_key);

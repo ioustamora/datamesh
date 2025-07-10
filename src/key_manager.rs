@@ -15,7 +15,8 @@
 use anyhow::Result;
 use chrono::{DateTime, Local};
 use ecies::{PublicKey, SecretKey};
-use rand::RngCore;
+use rand::rngs::OsRng;
+use crate::secure_random;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::fs;
@@ -225,7 +226,7 @@ impl KeyManager {
                     2 => {
                         // Random data
                         let mut random_data = vec![0u8; file_size];
-                        rand::thread_rng().fill_bytes(&mut random_data);
+                        secure_random::fill_secure_bytes(&mut random_data);
                         random_data
                     }
                     _ => unreachable!(),
@@ -340,7 +341,7 @@ pub async fn setup_key_management_with_mode(cli: &Cli, mode: KeySelectionMode) -
             Err(e) => {
                 if matches!(mode, KeySelectionMode::NonInteractive) {
                     // In non-interactive mode, generate a new key if the specified one doesn't exist
-                    let secret_key = SecretKey::random(&mut rand::thread_rng());
+                    let secret_key = SecretKey::random(&mut OsRng);
                     let key_manager = KeyManager::new(secret_key, key_name.clone());
                     key_manager.save_to_file(&keys_dir)?;
                     return Ok(key_manager);
@@ -381,7 +382,7 @@ pub async fn setup_key_management_with_mode(cli: &Cli, mode: KeySelectionMode) -
         if !matches!(mode, KeySelectionMode::NonInteractive) {
             println!("Generating new ECIES key pair...");
         }
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut OsRng);
         let key_manager = KeyManager::new(secret_key, key_name);
         
         key_manager.save_to_file(&keys_dir)?;
@@ -447,7 +448,7 @@ pub async fn setup_key_management_with_mode(cli: &Cli, mode: KeySelectionMode) -
                 let key_name = if key_name.is_empty() { default_name } else { key_name };
                 
                 println!("Generating new ECIES key pair...");
-                let secret_key = SecretKey::random(&mut rand::thread_rng());
+                let secret_key = SecretKey::random(&mut OsRng);
                 let key_manager = KeyManager::new(secret_key, key_name);
                 
                 key_manager.save_to_file(&keys_dir)?;
@@ -472,7 +473,7 @@ mod tests {
         let keys_dir = temp_dir.path();
         
         // Test key creation
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut OsRng);
         let key_manager = KeyManager::new(secret_key, "test_key".to_string());
         
         // Test saving
@@ -508,7 +509,7 @@ mod tests {
 
     #[test]
     fn test_public_key_parsing() {
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut OsRng);
         let public_key = PublicKey::from_secret_key(&secret_key);
         let public_key_hex = hex::encode(public_key.serialize());
         
@@ -528,7 +529,7 @@ mod tests {
 
     #[test]
     fn test_get_encryption_key() {
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut OsRng);
         let key_manager = KeyManager::new(secret_key, "test".to_string());
         
         // Test with no specific public key (should use default)

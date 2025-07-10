@@ -16,11 +16,10 @@ use anyhow::{Result, anyhow};
 use libp2p::{PeerId, Swarm};
 use libp2p::kad::{Record, RecordKey, Quorum, Event as KademliaEvent, GetRecordOk, QueryResult};
 use libp2p::swarm::SwarmEvent;
-use tokio::sync::{Semaphore, RwLock, mpsc};
+use tokio::sync::{Semaphore, RwLock};
 use tokio::time::timeout;
-// use futures::future::select_ok; // No longer needed
 use futures::{FutureExt, StreamExt};
-use tracing::{info, warn, error, debug};
+use tracing::{info, debug};
 
 use crate::network::{MyBehaviour, MyBehaviourEvent};
 use crate::file_storage::StoredFile;

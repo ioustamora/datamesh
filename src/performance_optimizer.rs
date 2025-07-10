@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use tokio::time::interval;
-use tracing::{info, warn, error, debug};
+use tracing::{info, error, debug};
 use serde::{Deserialize, Serialize};
 use anyhow::{Result, anyhow};
 

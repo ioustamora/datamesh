@@ -6,7 +6,7 @@
 use std::sync::Arc;
 use anyhow::Result;
 use tokio::time::{sleep, Duration};
-use crate::datamesh_core::{DataMeshCore, DataMeshConfig};
+use crate::datamesh_core::DataMeshCore;
 use crate::database::DatabaseManager;
 use crate::performance::PerformanceMonitor;
 use crate::network_diagnostics::NetworkDiagnostics;

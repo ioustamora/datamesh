@@ -33,6 +33,8 @@ pub struct AuthClaims {
     pub email: String,    // User email
     pub exp: usize,       // Expiration time
     pub iat: usize,       // Issued at
+    pub iss: String,      // Issuer
+    pub aud: String,      // Audience
     pub role: String,     // User role (user, admin, operator)
 }
 
@@ -407,24 +409,45 @@ pub struct AuthService {
     encoding_key: EncodingKey,
     decoding_key: DecodingKey,
     validation: Validation,
+    jwt_config: crate::api_server::JwtConfig,
 }
 
 impl AuthService {
-    pub fn new(secret: &str) -> Self {
+    pub fn new(jwt_config: &crate::api_server::JwtConfig) -> Self {
+        // Validate secret strength (minimum 32 bytes for HS256)
+        if jwt_config.secret.len() < 32 {
+            panic!("JWT secret must be at least 32 characters long for security");
+        }
+        
         let mut validation = Validation::new(Algorithm::HS256);
-        validation.leeway = 60; // 1 minute leeway for clock skew
+        validation.leeway = jwt_config.leeway_seconds;
+        validation.set_issuer(&[jwt_config.issuer.clone()]);
+        validation.set_audience(&[jwt_config.audience.clone()]);
         
         Self {
-            encoding_key: EncodingKey::from_secret(secret.as_ref()),
-            decoding_key: DecodingKey::from_secret(secret.as_ref()),
+            encoding_key: EncodingKey::from_secret(jwt_config.secret.as_ref()),
+            decoding_key: DecodingKey::from_secret(jwt_config.secret.as_ref()),
             validation,
+            jwt_config: jwt_config.clone(),
         }
+    }
+    
+    /// Legacy constructor for backward compatibility
+    pub fn new_with_secret(secret: &str) -> Self {
+        let jwt_config = crate::api_server::JwtConfig {
+            secret: secret.to_string(),
+            issuer: "datamesh.local".to_string(),
+            audience: "datamesh-api".to_string(),
+            expiry_hours: 24,
+            leeway_seconds: 60,
+        };
+        Self::new(&jwt_config)
     }
 
     /// Generate JWT token for authenticated user
     pub fn generate_token(&self, user: &UserAccount) -> DfsResult<String> {
         let now = Utc::now();
-        let exp = now + Duration::hours(24); // Token valid for 24 hours
+        let exp = now + Duration::hours(self.jwt_config.expiry_hours as i64);
 
         let role = match user.account_type {
             AccountType::Free { .. } | AccountType::Premium { .. } => "user",
@@ -436,6 +459,8 @@ impl AuthService {
             email: user.email.clone(),
             exp: exp.timestamp() as usize,
             iat: now.timestamp() as usize,
+            iss: self.jwt_config.issuer.clone(),
+            aud: self.jwt_config.audience.clone(),
             role: role.to_string(),
         };
 
