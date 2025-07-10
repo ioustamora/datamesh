@@ -8,7 +8,7 @@
       
       <div v-if="!emailSent" class="reset-form">
         <el-form
-          ref="resetForm"
+          ref="formRef"
           :model="form"
           :rules="rules"
           label-position="top"
@@ -110,7 +110,7 @@ export default {
     const router = useRouter()
     const authStore = useAuthStore()
     
-    const resetForm = ref()
+    const formRef = ref()
     const loading = ref(false)
     const resendLoading = ref(false)
     const emailSent = ref(false)
@@ -128,7 +128,7 @@ export default {
     
     const handleSubmit = async () => {
       try {
-        const valid = await resetForm.value.validate()
+        const valid = await formRef.value.validate()
         if (!valid) return
         
         loading.value = true
@@ -170,7 +170,7 @@ export default {
     }
     
     return {
-      resetForm,
+      formRef,
       form,
       rules,
       loading,

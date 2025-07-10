@@ -25,7 +25,7 @@ import ConnectionStatus from './components/common/ConnectionStatus.vue'
 import LoadingOverlay from './components/common/LoadingOverlay.vue'
 
 // Import Element Plus locale
-import en from 'element-plus/lib/locale/lang/en'
+import en from 'element-plus/es/locale/lang/en'
 
 export default {
   name: 'App',

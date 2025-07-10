@@ -1,16 +1,39 @@
 <template>
-  <div class="main-layout">
-    <!-- Sidebar -->
+  <div class="main-layout" role="application" aria-label="DataMesh Application">
+    <!-- Mobile Navigation -->
+    <MobileNavigation
+      v-if="isMobile"
+      :notifications="notifications"
+      :connection-status="webSocket.connectionStatus.value"
+      @upload-click="handleMobileUpload"
+      @refresh-click="handleMobileRefresh"
+      @search="handleMobileSearch"
+      @notification-click="handleMobileNotificationClick"
+      @clear-notifications="handleMobileClearNotifications"
+    />
+    
+    <!-- Desktop Sidebar -->
     <el-aside
+      v-if="!isMobile"
       :width="sidebarCollapsed ? '64px' : '240px'"
       class="sidebar"
       :class="{ 'sidebar-collapsed': sidebarCollapsed }"
+      role="navigation"
+      :aria-label="sidebarCollapsed ? 'Collapsed navigation menu' : 'Main navigation menu'"
+      :aria-expanded="!sidebarCollapsed"
     >
       <div class="sidebar-content">
         <!-- Logo -->
         <div class="sidebar-header">
-          <div class="logo" @click="$router.push('/')">
-            <el-icon size="28" color="#409EFF">
+          <div 
+            class="logo" 
+            @click="$router.push('/')"
+            @keydown="handleLogoKeydown"
+            role="button"
+            tabindex="0"
+            :aria-label="'DataMesh home, navigate to dashboard'"
+          >
+            <el-icon size="28" color="#409EFF" aria-hidden="true">
               <DataBoard />
             </el-icon>
             <span v-if="!sidebarCollapsed" class="logo-text">DataMesh</span>
@@ -18,26 +41,47 @@
         </div>
         
         <!-- Navigation Menu -->
+        <nav 
+          role="navigation" 
+          :aria-label="'Main navigation'"
+        >
         <el-menu
           :default-active="activeMenu"
           :collapse="sidebarCollapsed"
           :unique-opened="true"
           class="sidebar-menu"
           router
+          role="menubar"
+          :aria-orientation="'vertical'"
         >
-          <el-menu-item index="/" route="/">
-            <el-icon><House /></el-icon>
+          <el-menu-item 
+            index="/" 
+            route="/"
+            role="menuitem"
+            :aria-label="'Dashboard'"
+          >
+            <el-icon aria-hidden="true"><House /></el-icon>
             <span>Dashboard</span>
           </el-menu-item>
           
-          <el-menu-item index="/files" route="/files">
-            <el-icon><FolderOpened /></el-icon>
+          <el-menu-item 
+            index="/files" 
+            route="/files"
+            role="menuitem"
+            :aria-label="'File Manager'"
+          >
+            <el-icon aria-hidden="true"><FolderOpened /></el-icon>
             <span>File Manager</span>
           </el-menu-item>
           
-          <el-sub-menu index="/governance">
+          <el-sub-menu 
+            index="/governance"
+            role="menuitem"
+            :aria-label="'Governance menu'"
+            :aria-expanded="false"
+          >
             <template #title>
-              <el-icon><Flag /></el-icon>
+              <el-icon aria-hidden="true"><Flag /></el-icon>
               <span>Governance</span>
             </template>
             <el-menu-item index="/governance" route="/governance">
@@ -99,6 +143,7 @@
             <span>Settings</span>
           </el-menu-item>
         </el-menu>
+        </nav>
         
         <!-- User info (collapsed sidebar) -->
         <div v-if="sidebarCollapsed" class="sidebar-user-mini">
@@ -130,18 +175,26 @@
     </el-aside>
     
     <!-- Main Content -->
-    <el-container class="main-container">
-      <!-- Header -->
-      <el-header class="main-header">
+    <el-container class="main-container" :class="{ 'mobile-layout': isMobile }">
+      <!-- Desktop Header -->
+      <el-header v-if="!isMobile" class="main-header" role="banner">
         <div class="header-left">
           <el-button
             :icon="sidebarCollapsed ? 'Expand' : 'Fold'"
             circle
             @click="toggleSidebar"
             class="sidebar-toggle"
+            :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+            :aria-expanded="!sidebarCollapsed"
+            :aria-controls="'sidebar-navigation'"
           />
           
-          <el-breadcrumb separator="/" class="breadcrumb">
+          <el-breadcrumb 
+            separator="/" 
+            class="breadcrumb"
+            role="navigation"
+            aria-label="Breadcrumb navigation"
+          >
             <el-breadcrumb-item
               v-for="item in breadcrumbItems"
               :key="item.path"
@@ -160,19 +213,32 @@
             class="search-input"
             clearable
             @keyup.enter="performSearch"
+            role="searchbox"
+            :aria-label="'Search files'"
+            :aria-describedby="'search-description'"
           >
             <template #prefix>
-              <el-icon><Search /></el-icon>
+              <el-icon aria-hidden="true"><Search /></el-icon>
             </template>
           </el-input>
+          <span id="search-description" class="sr-only">
+            Search for files by name. Press Enter to search.
+          </span>
           
           <!-- Notifications -->
           <el-dropdown trigger="click" placement="bottom-end">
-            <el-button circle>
+            <el-button 
+              circle
+              :aria-label="`Notifications. ${notificationCount} unread notifications`"
+              :aria-describedby="'notifications-description'"
+            >
               <el-badge :value="notificationCount" :hidden="notificationCount === 0">
-                <el-icon><Bell /></el-icon>
+                <el-icon aria-hidden="true"><Bell /></el-icon>
               </el-badge>
             </el-button>
+            <span id="notifications-description" class="sr-only">
+              Click to view notifications and alerts
+            </span>
             <template #dropdown>
               <el-dropdown-menu>
                 <div class="notification-header">
@@ -208,6 +274,9 @@
             circle
             @click="themeStore.toggleTheme()"
             :icon="themeStore.isDark ? 'Sunny' : 'Moon'"
+            :aria-label="themeStore.isDark ? 'Switch to light theme' : 'Switch to dark theme'"
+            :aria-pressed="themeStore.isDark.toString()"
+            role="switch"
           />
           
           <!-- Connection Status -->
@@ -256,7 +325,7 @@
       </el-header>
       
       <!-- Main Content Area -->
-      <el-main class="main-content">
+      <el-main class="main-content" :class="{ 'mobile-content': isMobile }" role="main" id="main-content" tabindex="-1">
         <router-view />
       </el-main>
     </el-container>
@@ -270,6 +339,8 @@ import { useAuthStore } from '../../store/auth'
 import { useThemeStore } from '../../store/theme'
 import { useWebSocket, useInterval } from '../../composables/useWebSocket'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { a11y } from '../../utils/accessibility'
+import MobileNavigation from './MobileNavigation.vue'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 
@@ -277,6 +348,9 @@ dayjs.extend(relativeTime)
 
 export default {
   name: 'MainLayout',
+  components: {
+    MobileNavigation
+  },
   setup() {
     const route = useRoute()
     const router = useRouter()
@@ -289,6 +363,7 @@ export default {
     const sidebarCollapsed = ref(localStorage.getItem('datamesh_sidebar_collapsed') === 'true')
     const searchQuery = ref('')
     const notifications = ref([])
+    const isMobile = ref(false)
     
     // Computed
     const activeMenu = computed(() => route.path)
@@ -420,6 +495,48 @@ export default {
       return dayjs(timestamp).fromNow()
     }
     
+    // Mobile detection and handling
+    const checkMobile = () => {
+      isMobile.value = window.innerWidth <= 768
+    }
+    
+    const handleMobileUpload = () => {
+      // Handle mobile upload action
+      router.push('/files?action=upload')
+    }
+    
+    const handleMobileRefresh = () => {
+      // Refresh current page data
+      window.location.reload()
+    }
+    
+    const handleMobileSearch = (query) => {
+      searchQuery.value = query
+      performSearch()
+    }
+    
+    const handleMobileNotificationClick = (notification) => {
+      handleNotificationClick(notification)
+    }
+    
+    const handleMobileClearNotifications = () => {
+      clearNotifications()
+    }
+    
+    // Accessibility methods
+    const handleLogoKeydown = (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        router.push('/')
+        a11y.screenReader.announce('Navigating to dashboard')
+      }
+    }
+    
+    const announceNavigation = (routeName) => {
+      const routeTitle = route.meta?.title || routeName
+      a11y.screenReader.announceNavigation(routeTitle)
+    }
+    
     const addNotification = (notification) => {
       notifications.value.unshift({
         id: Date.now(),
@@ -477,6 +594,17 @@ export default {
       })
     }
     
+    // Watch for route changes to announce navigation
+    watch(() => route.path, (newPath) => {
+      // Clear search on route change
+      searchQuery.value = ''
+      
+      // Announce navigation to screen readers
+      setTimeout(() => {
+        announceNavigation(newPath)
+      }, 100)
+    })
+    
     // Lifecycle
     onMounted(() => {
       handleWebSocketEvents()
@@ -484,12 +612,33 @@ export default {
       // Subscribe to system updates
       webSocket.subscribeToSystemUpdates()
       webSocket.subscribeToGovernanceUpdates()
+      
+      // Set up keyboard navigation for sidebar
+      const sidebar = document.querySelector('.sidebar-menu')
+      if (sidebar) {
+        a11y.keyboardNav.addNavigation(sidebar, {
+          selector: '.el-menu-item, .el-sub-menu__title',
+          orientation: 'vertical',
+          onNavigate: (element) => {
+            const text = element.textContent?.trim()
+            if (text) {
+              a11y.screenReader.announce(`Focused on ${text}`)
+            }
+          }
+        })
+      }
+      
+      // Set up mobile detection
+      checkMobile()
+      window.addEventListener('resize', checkMobile)
     })
     
     onUnmounted(() => {
       // Cleanup is handled automatically by composables
       // Clear any remaining notifications
       notifications.value = []
+      // Remove resize listener
+      window.removeEventListener('resize', checkMobile)
     })
     
     // Watch for route changes to update breadcrumbs
@@ -508,6 +657,7 @@ export default {
       sidebarCollapsed,
       searchQuery,
       notifications,
+      isMobile,
       
       // Computed
       activeMenu,
@@ -525,7 +675,16 @@ export default {
       clearNotifications,
       getNotificationIcon,
       getNotificationColor,
-      formatTime
+      formatTime,
+      handleLogoKeydown,
+      announceNavigation,
+      
+      // Mobile handlers
+      handleMobileUpload,
+      handleMobileRefresh,
+      handleMobileSearch,
+      handleMobileNotificationClick,
+      handleMobileClearNotifications
     }
   }
 }
@@ -696,6 +855,58 @@ export default {
   color: var(--el-text-color-secondary);
 }
 
+/* Accessibility improvements */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Focus indicators */
+.logo:focus,
+.sidebar-toggle:focus,
+.el-menu-item:focus,
+.el-sub-menu__title:focus {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .sidebar {
+    border-right-width: 2px;
+  }
+  
+  .main-header {
+    border-bottom-width: 2px;
+  }
+  
+  .el-menu-item,
+  .el-sub-menu__title {
+    border: 1px solid transparent;
+  }
+  
+  .el-menu-item:focus,
+  .el-sub-menu__title:focus {
+    border-color: var(--el-color-primary);
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .logo,
+  .el-menu-item {
+    transition: none;
+  }
+}
+
 .main-content {
   flex: 1;
   padding: 24px;
@@ -703,36 +914,41 @@ export default {
   overflow-y: auto;
 }
 
-/* Mobile responsive */
+/* Mobile layout adjustments */
+.main-container.mobile-layout {
+  margin-top: 56px; /* Account for mobile header */
+  margin-bottom: 80px; /* Account for mobile bottom nav */
+  height: calc(100vh - 136px); /* Full height minus header and bottom nav */
+}
+
+.main-content.mobile-content {
+  padding: 16px;
+  padding-bottom: 24px; /* Extra padding for FAB clearance */
+}
+
+/* Hide desktop elements on mobile */
 @media (max-width: 768px) {
-  .main-layout {
-    flex-direction: column;
+  .sidebar {
+    display: none !important;
   }
   
-  .sidebar {
-    width: 100% !important;
-    height: auto;
-    order: 2;
+  .main-header {
+    display: none !important;
+  }
+  
+  .main-layout {
+    height: 100vh;
+    overflow: hidden;
   }
   
   .main-container {
-    order: 1;
-  }
-  
-  .search-input {
-    width: 200px;
+    height: 100vh;
+    overflow: hidden;
   }
   
   .main-content {
-    padding: 16px;
-  }
-  
-  .header-right {
-    gap: 8px;
-  }
-  
-  .user-details {
-    display: none;
+    overflow-y: auto;
+    height: 100%;
   }
 }
 </style>

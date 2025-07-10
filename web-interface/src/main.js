@@ -9,6 +9,7 @@ import App from './App.vue'
 import router from './router'
 import { useThemeStore } from './store/theme'
 import errorHandlerPlugin from './plugins/errorHandler'
+import cachePlugin from './plugins/cache'
 
 // Create Vue app
 const app = createApp(App)
@@ -18,6 +19,7 @@ app.use(createPinia())
 app.use(router)
 app.use(ElementPlus)
 app.use(errorHandlerPlugin)
+app.use(cachePlugin)
 
 // Register Element Plus icons
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {

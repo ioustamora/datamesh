@@ -185,7 +185,7 @@
             <el-card class="security-card">
               <h3>Two-Factor Authentication</h3>
               <p>Add an extra layer of security to your account</p>
-              <div class="2fa-status">
+              <div class="twofa-status">
                 <el-tag v-if="securityData.twoFactorEnabled" type="success">
                   Enabled
                 </el-tag>
@@ -930,7 +930,7 @@ export default {
   color: var(--el-text-color-regular);
 }
 
-.2fa-status {
+.twofa-status {
   display: flex;
   align-items: center;
 }

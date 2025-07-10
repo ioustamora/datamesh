@@ -259,7 +259,6 @@ import {
   Document,
   Picture,
   VideoPlay,
-  Headphones,
   Folder,
   Files
 } from '@element-plus/icons-vue'
@@ -281,7 +280,6 @@ export default {
     Document,
     Picture,
     VideoPlay,
-    Headphones,
     Folder,
     Files
   },

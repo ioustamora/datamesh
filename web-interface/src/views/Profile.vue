@@ -362,7 +362,6 @@ import {
   Picture,
   Document,
   VideoPlay,
-  Headphones,
   Folder,
   Warning,
   InfoFilled
@@ -388,7 +387,6 @@ export default {
     Picture,
     Document,
     VideoPlay,
-    Headphones,
     Folder,
     Warning,
     InfoFilled
