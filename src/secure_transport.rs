@@ -48,8 +48,8 @@ impl SecureTransportConfig {
 
     /// Add an allowed peer key for certificate pinning
     pub fn add_allowed_peer(&mut self, peer_key: String) {
-        self.allowed_peer_keys.insert(peer_key);
         info!("Added allowed peer key: {}", peer_key);
+        self.allowed_peer_keys.insert(peer_key);
     }
 
     /// Remove an allowed peer key
@@ -79,7 +79,8 @@ impl SecureTransportConfig {
 
     /// Create a configured Noise transport with security enhancements
     pub fn create_noise_config(&self, keypair: &identity::Keypair) -> noise::Config {
-        let config = noise::Config::new(keypair);
+        let config = noise::Config::new(keypair)
+            .expect("Failed to create noise config");
         
         // Additional security configurations would go here
         // For now, we return the basic config as libp2p handles most security
@@ -151,10 +152,11 @@ impl PeerConnectionTracker {
     pub fn remove_connection(&mut self, peer_id: &PeerId) {
         if let Some(count) = self.connections.get_mut(peer_id) {
             *count = count.saturating_sub(1);
-            if *count == 0 {
+            let connection_count = *count;
+            if connection_count == 0 {
                 self.connections.remove(peer_id);
             }
-            info!("Peer {} now has {} connections", peer_id, count);
+            info!("Peer {} now has {} connections", peer_id, connection_count);
         }
     }
 

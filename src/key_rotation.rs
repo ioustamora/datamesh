@@ -57,7 +57,7 @@ impl VersionedKey {
     /// Create a new versioned key from SecretKey
     pub fn from_secret_key(key: SecretKey, version: u64) -> Self {
         Self {
-            key_bytes: key.serialize(),
+            key_bytes: key.serialize().to_vec(),
             version,
             created_at: Utc::now(),
             expires_at: None,
@@ -67,7 +67,9 @@ impl VersionedKey {
     
     /// Convert back to SecretKey
     pub fn to_secret_key(&self) -> Result<SecretKey, Box<dyn std::error::Error>> {
-        SecretKey::parse(&self.key_bytes)
+        let key_array: [u8; 32] = self.key_bytes.clone().try_into()
+            .map_err(|_| "Invalid key length")?;
+        SecretKey::parse(&key_array)
             .map_err(|e| format!("Failed to parse secret key: {:?}", e).into())
     }
 
@@ -75,7 +77,7 @@ impl VersionedKey {
     pub fn new(version: u64) -> Self {
         let key = SecretKey::random(&mut OsRng);
         Self {
-            key_bytes: key.serialize(),
+            key_bytes: key.serialize().to_vec(),
             version,
             created_at: Utc::now(),
             expires_at: None,
@@ -312,13 +314,13 @@ impl RotatingKeyManager {
     pub fn get_encryption_key(&self) -> DfsResult<(SecretKey, u64)> {
         let manager = self.rotation_manager.read().unwrap();
         let versioned_key = manager.get_current_key()?;
-        Ok((versioned_key.key, versioned_key.version))
+        Ok((versioned_key.to_secret_key().map_err(|e| crate::error::DfsError::KeyManagement(e.to_string()))?, versioned_key.version))
     }
 
     /// Get a decryption key by version
     pub fn get_decryption_key(&self, version: u64) -> Option<SecretKey> {
         let manager = self.rotation_manager.read().unwrap();
-        manager.get_key_by_version(version).map(|k| k.key)
+        manager.get_key_by_version(version).and_then(|k| k.to_secret_key().ok())
     }
 
     /// Manually rotate keys

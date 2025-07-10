@@ -22,13 +22,14 @@ pub struct PutCommand {
 #[async_trait::async_trait]
 impl CommandHandler for PutCommand {
     async fn execute(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
+        let tags_str = self.tags.as_ref().map(|tags| tags.join(","));
         file_storage::handle_put_command(
             &context.cli,
             &context.key_manager,
             &self.path,
             &self.public_key,
             &self.name,
-            &self.tags,
+            &tags_str,
         ).await
         .map_err(|e| Box::new(e) as Box<dyn Error>)
     }
@@ -74,10 +75,11 @@ pub struct ListCommand {
 #[async_trait::async_trait]
 impl CommandHandler for ListCommand {
     async fn execute(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
+        let tags_str = self.tags.as_ref().map(|tags| tags.join(","));
         file_storage::handle_list_command(
             &context.key_manager,
             &self.public_key,
-            &self.tags,
+            &tags_str,
         ).await
         .map_err(|e| Box::new(e) as Box<dyn Error>)
     }
