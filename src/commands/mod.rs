@@ -61,7 +61,7 @@ pub fn create_command_handler(command: &Commands) -> Box<dyn CommandHandler> {
                 path: path.clone(),
                 public_key: public_key.clone(),
                 name: name.clone(),
-                tags: tags.clone(),
+                tags: tags.as_ref().map(|t| vec![t.clone()]),
             })
         }
         Commands::Get { identifier, output_path, private_key } => {
@@ -74,7 +74,7 @@ pub fn create_command_handler(command: &Commands) -> Box<dyn CommandHandler> {
         Commands::List { public_key, tags } => {
             Box::new(file_commands::ListCommand {
                 public_key: public_key.clone(),
-                tags: tags.clone(),
+                tags: tags.as_ref().map(|t| vec![t.clone()]),
             })
         }
         Commands::Info { identifier } => {
@@ -90,24 +90,24 @@ pub fn create_command_handler(command: &Commands) -> Box<dyn CommandHandler> {
         Commands::Peers { detailed, format } => {
             Box::new(network_commands::PeersCommand {
                 detailed: *detailed,
-                format: format.clone(),
+                format: Some(format!("{:?}", format)),
             })
         }
         Commands::Health { continuous, interval } => {
             Box::new(network_commands::HealthCommand {
                 continuous: *continuous,
-                interval: *interval,
+                interval: Some(*interval),
             })
         }
         Commands::Network { depth, visualize } => {
             Box::new(network_commands::NetworkCommand {
-                depth: *depth,
+                depth: Some(*depth),
                 visualize: *visualize,
             })
         }
         Commands::Discover { timeout, bootstrap_all } => {
             Box::new(network_commands::DiscoverCommand {
-                timeout: *timeout,
+                timeout: Some(*timeout),
                 bootstrap_all: *bootstrap_all,
             })
         }
@@ -120,7 +120,7 @@ pub fn create_command_handler(command: &Commands) -> Box<dyn CommandHandler> {
         Commands::Bandwidth { test_peer, duration } => {
             Box::new(network_commands::BandwidthCommand {
                 test_peer: test_peer.clone(),
-                duration: *duration,
+                duration: Some(*duration),
             })
         }
         
@@ -132,15 +132,15 @@ pub fn create_command_handler(command: &Commands) -> Box<dyn CommandHandler> {
         }
         Commands::Interactive { bootstrap_peer, bootstrap_addr, port } => {
             Box::new(service_commands::InteractiveCommand {
-                bootstrap_peer: *bootstrap_peer,
-                bootstrap_addr: bootstrap_addr.clone(),
+                bootstrap_peer: bootstrap_peer.is_some(),
+                bootstrap_addr: bootstrap_addr.as_ref().map(|addr| addr.to_string()),
                 port: *port,
             })
         }
         Commands::Service { bootstrap_peer, bootstrap_addr, port, timeout } => {
             Box::new(service_commands::ServiceCommand {
-                bootstrap_peer: *bootstrap_peer,
-                bootstrap_addr: bootstrap_addr.clone(),
+                bootstrap_peer: bootstrap_peer.is_some(),
+                bootstrap_addr: bootstrap_addr.as_ref().map(|addr| addr.to_string()),
                 port: *port,
                 timeout: *timeout,
             })

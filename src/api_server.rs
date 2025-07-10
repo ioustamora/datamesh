@@ -44,6 +44,7 @@ use crate::key_manager::KeyManager;
 use crate::smart_cache::SmartCacheManager;
 use crate::governance_service::GovernanceService;
 use crate::bootstrap_admin::BootstrapAdministrationService;
+use crate::governance::{AuthService, UserRegistry};
 
 /// API server configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,8 +93,83 @@ pub struct ApiState {
     pub cache_manager: Arc<SmartCacheManager>,
     pub governance_service: Arc<GovernanceService>,
     pub bootstrap_admin: Arc<BootstrapAdministrationService>,
+    pub auth_service: Arc<AuthService>,
+    pub user_registry: Arc<UserRegistry>,
     pub cli: Cli,
     pub api_config: ApiConfig,
+}
+
+/// Extract user ID from Authorization header
+async fn extract_user_id(headers: &HeaderMap, state: &ApiState) -> Result<crate::governance::UserId, ApiError> {
+    let auth_header = headers
+        .get(header::AUTHORIZATION)
+        .ok_or_else(|| ApiError::Unauthorized("Missing authorization header".to_string()))?
+        .to_str()
+        .map_err(|_| ApiError::Unauthorized("Invalid authorization header format".to_string()))?;
+
+    // Extract Bearer token
+    let token = auth_header
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| ApiError::Unauthorized("Invalid authorization scheme".to_string()))?;
+
+    state.auth_service.get_user_id_from_token(token)
+        .map_err(|e| ApiError::Unauthorized(format!("Invalid token: {}", e)))
+}
+
+/// Verify user authentication and get user account
+async fn authenticate_user(headers: &HeaderMap, state: &ApiState) -> Result<crate::governance::UserAccount, ApiError> {
+    let user_id = extract_user_id(headers, state).await?;
+    
+    state.user_registry.get_user(&user_id)
+        .ok_or_else(|| ApiError::Unauthorized("User not found".to_string()))
+}
+
+/// Login request
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct LoginRequest {
+    /// User email
+    pub email: String,
+    /// User password
+    pub password: String,
+}
+
+/// Registration request
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct RegisterRequest {
+    /// User email
+    pub email: String,
+    /// User password
+    pub password: String,
+    /// User public key
+    pub public_key: String,
+}
+
+/// Authentication response
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AuthResponse {
+    /// JWT access token
+    pub access_token: String,
+    /// Token type (always "Bearer")
+    pub token_type: String,
+    /// Token expiration in seconds
+    pub expires_in: u64,
+    /// User information
+    pub user: UserInfo,
+}
+
+/// User information
+#[derive(Debug, Serialize, ToSchema)]
+pub struct UserInfo {
+    /// User ID
+    pub user_id: String,
+    /// User email
+    pub email: String,
+    /// Account type
+    pub account_type: String,
+    /// Registration date
+    pub registration_date: DateTime<Utc>,
+    /// Verification status
+    pub verification_status: String,
 }
 
 /// File upload request
@@ -434,12 +510,18 @@ impl ApiServer {
         cli: Cli,
         api_config: ApiConfig,
     ) -> Self {
+        // Initialize authentication components
+        let auth_service = Arc::new(AuthService::new("datamesh-jwt-secret-key")); // TODO: Use config for secret
+        let user_registry = Arc::new(UserRegistry::new());
+
         let state = ApiState {
             config,
             key_manager,
             cache_manager,
             governance_service,
             bootstrap_admin,
+            auth_service,
+            user_registry,
             cli,
             api_config: api_config.clone(),
         };
@@ -455,6 +537,9 @@ impl ApiServer {
 
         // API routes
         let api_routes = Router::new()
+            // Authentication endpoints
+            .route("/auth/login", post(login))
+            .route("/auth/register", post(register))
             // .route("/files", post(upload_file))
             // .route("/files/:file_key", get(download_file))
             .route("/files/:file_key", delete(delete_file))
@@ -535,6 +620,115 @@ impl ApiServer {
     // }
 }
 
+/// Login endpoint
+#[utoipa::path(
+    post,
+    path = "/auth/login",
+    request_body = LoginRequest,
+    responses(
+        (status = 200, description = "Login successful", body = AuthResponse),
+        (status = 401, description = "Invalid credentials", body = ApiErrorResponse),
+        (status = 400, description = "Bad request", body = ApiErrorResponse)
+    ),
+    tag = "auth"
+)]
+async fn login(
+    State(state): State<ApiState>,
+    Json(request): Json<LoginRequest>,
+) -> Result<Json<AuthResponse>, ApiError> {
+    let user = state.user_registry
+        .authenticate_user(&request.email, &request.password)
+        .map_err(|e| ApiError::Unauthorized(format!("Authentication failed: {}", e)))?;
+
+    let token = state.auth_service
+        .generate_token(&user)
+        .map_err(|e| ApiError::InternalServerError(format!("Token generation failed: {}", e)))?;
+
+    let account_type = match user.account_type {
+        crate::governance::AccountType::Free { .. } => "free",
+        crate::governance::AccountType::Premium { .. } => "premium",
+        crate::governance::AccountType::Enterprise { .. } => "enterprise",
+    };
+
+    let verification_status = match user.verification_status {
+        crate::governance::VerificationStatus::Unverified => "unverified",
+        crate::governance::VerificationStatus::EmailVerified => "email_verified",
+        crate::governance::VerificationStatus::IdentityVerified => "identity_verified",
+    };
+
+    let response = AuthResponse {
+        access_token: token,
+        token_type: "Bearer".to_string(),
+        expires_in: 24 * 3600, // 24 hours
+        user: UserInfo {
+            user_id: user.user_id.to_string(),
+            email: user.email,
+            account_type: account_type.to_string(),
+            registration_date: user.registration_date,
+            verification_status: verification_status.to_string(),
+        },
+    };
+
+    Ok(Json(response))
+}
+
+/// Registration endpoint
+#[utoipa::path(
+    post,
+    path = "/auth/register",
+    request_body = RegisterRequest,
+    responses(
+        (status = 200, description = "Registration successful", body = AuthResponse),
+        (status = 400, description = "Registration failed", body = ApiErrorResponse),
+        (status = 409, description = "Email already exists", body = ApiErrorResponse)
+    ),
+    tag = "auth"
+)]
+async fn register(
+    State(state): State<ApiState>,
+    Json(request): Json<RegisterRequest>,
+) -> Result<Json<AuthResponse>, ApiError> {
+    let user = state.user_registry
+        .register_user(request.email, request.password, request.public_key)
+        .map_err(|e| match e {
+            crate::error::DfsError::Authentication(msg) if msg.contains("already registered") => {
+                ApiError::Conflict("Email already registered".to_string())
+            }
+            _ => ApiError::BadRequest(format!("Registration failed: {}", e))
+        })?;
+
+    let token = state.auth_service
+        .generate_token(&user)
+        .map_err(|e| ApiError::InternalServerError(format!("Token generation failed: {}", e)))?;
+
+    let account_type = match user.account_type {
+        crate::governance::AccountType::Free { .. } => "free",
+        crate::governance::AccountType::Premium { .. } => "premium",
+        crate::governance::AccountType::Enterprise { .. } => "enterprise",
+    };
+
+    let verification_status = match user.verification_status {
+        crate::governance::VerificationStatus::Unverified => "unverified",
+        crate::governance::VerificationStatus::EmailVerified => "email_verified",
+        crate::governance::VerificationStatus::IdentityVerified => "identity_verified",
+    };
+
+    let response = AuthResponse {
+        access_token: token,
+        token_type: "Bearer".to_string(),
+        expires_in: 24 * 3600, // 24 hours
+        user: UserInfo {
+            user_id: user.user_id.to_string(),
+            email: user.email,
+            account_type: account_type.to_string(),
+            registration_date: user.registration_date,
+            verification_status: verification_status.to_string(),
+        },
+    };
+
+    Ok(Json(response))
+}
+
 /// Upload a file
 #[utoipa::path(
     post,
@@ -550,6 +744,7 @@ impl ApiServer {
 )]
 async fn upload_file(
     State(state): State<ApiState>,
+    headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<Json<FileUploadResponse>, ApiError> {
     let mut file_data: Option<Bytes> = None;
@@ -594,11 +789,23 @@ async fn upload_file(
 
     let original_name = file_name.unwrap_or_else(|| "unnamed_file".to_string());
 
-    // Governance validation - check if governance is enabled
+    // Authenticate user and check quotas
+    let user = authenticate_user(&headers, &state).await?;
+    
+    // Check storage quota if governance is enabled
     if state.governance_service.is_enabled() {
-        // TODO: Implement proper user authentication and quota checking
-        // For now, we'll skip governance validation in the simplified implementation
-        tracing::info!("Governance validation would be performed here");
+        // Get resource manager from governance service
+        if let Some(resource_manager) = &state.governance_service.user_resource_manager {
+            resource_manager
+                .check_storage_quota(&user.user_id, file_data.len() as u64)
+                .map_err(|e| ApiError::BadRequest(format!("Quota exceeded: {:?}", e)))?;
+            
+            resource_manager
+                .check_rate_limit(&user.user_id)
+                .map_err(|e| ApiError::TooManyRequests(format!("Rate limit exceeded: {:?}", e)))?;
+        }
+        
+        tracing::info!("User {} authenticated and quota checked", user.email);
     }
 
     // Write file to temporary location
@@ -981,21 +1188,30 @@ async fn health_check() -> Result<Json<serde_json::Value>, ApiError> {
 pub enum ApiError {
     #[error("Bad request: {0}")]
     BadRequest(String),
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
     #[error("Not found: {0}")]
     NotFound(String),
+    #[error("Conflict: {0}")]
+    Conflict(String),
     #[error("Internal server error: {0}")]
     InternalServerError(String),
-    #[error("Too many requests")]
-    TooManyRequests,
+    #[error("Too many requests: {0}")]
+    TooManyRequests(String),
 }
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
         let (status, error_message) = match self {
             ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
+            ApiError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
+            ApiError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg),
             ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+            ApiError::Conflict(msg) => (StatusCode::CONFLICT, msg),
             ApiError::InternalServerError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
-            ApiError::TooManyRequests => (StatusCode::TOO_MANY_REQUESTS, "Too many requests".to_string()),
+            ApiError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg),
         };
 
         let body = Json(ApiErrorResponse {
@@ -1317,10 +1533,17 @@ async fn update_service_heartbeat(
 )]
 async fn execute_admin_action(
     State(state): State<ApiState>,
+    headers: HeaderMap,
     Json(request): Json<ApiAdminActionRequest>,
 ) -> Result<Json<ApiAdminActionResponse>, ApiError> {
-    // TODO: Get operator ID from authentication
-    let operator_id = uuid::Uuid::new_v4(); // Placeholder
+    // Authenticate admin user
+    let user = authenticate_user(&headers, &state).await?;
+    
+    // Verify admin privileges (check if user is an operator or admin)
+    let operator_id = match user.account_type {
+        crate::governance::AccountType::Enterprise { .. } => user.user_id,
+        _ => return Err(ApiError::Forbidden("Admin access required".to_string())),
+    };
     
     use crate::bootstrap_admin::{AdminActionType, AdminTarget};
     

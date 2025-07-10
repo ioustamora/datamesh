@@ -559,7 +559,7 @@ async fn attempt_file_retrieval(
 
     loop {
         // Check if we've exceeded our timeout
-        if start_time.elapsed() > retrieval_timeout.into() {
+        if start_time.elapsed() > retrieval_timeout {
             let elapsed = start_time.elapsed().as_secs();
             println!("File retrieval timed out after {}s", elapsed);
             return Err(DfsError::Network(format!("File retrieval timed out after {}s - file may not be available in the network", elapsed)));
@@ -755,7 +755,8 @@ pub async fn handle_info_command(
     identifier: &str,
 ) -> DfsResult<()> {
     // Get database connection
-    let db = database::DatabaseManager::new()?;
+    let db_path = database::get_default_db_path()?;
+    let db = database::DatabaseManager::new(&db_path)?;
     
     // Find file by name or key
     let stored_file = if identifier.len() == 64 {
@@ -774,7 +775,8 @@ pub async fn handle_info_command(
 
 /// Handle stats command for storage statistics
 pub async fn handle_stats_command(key_manager: &KeyManager) -> DfsResult<()> {
-    let db = database::DatabaseManager::new()?;
+    let db_path = database::get_default_db_path()?;
+    let db = database::DatabaseManager::new(&db_path)?;
     let stats = db.get_stats()?;
     
     ui::print_database_stats(&stats);

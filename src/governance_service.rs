@@ -11,11 +11,15 @@
 /// Simplified governance service for compilation
 pub struct GovernanceService {
     enabled: bool,
+    pub user_resource_manager: Option<std::sync::Arc<crate::governance::UserResourceManager>>,
 }
 
 impl GovernanceService {
     pub fn new() -> Self {
-        Self { enabled: false }
+        Self { 
+            enabled: false,
+            user_resource_manager: None,
+        }
     }
     
     pub fn is_enabled(&self) -> bool {

@@ -18,17 +18,30 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use uuid::Uuid;
 use crate::error::DfsResult;
+use jsonwebtoken::{encode, decode, Header, Algorithm, Validation, EncodingKey, DecodingKey};
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier, password_hash::{rand_core::OsRng, SaltString}};
 
 // ===== User Authentication & Management =====
 
 /// User identification type
 pub type UserId = Uuid;
 
+/// JWT claims for user authentication
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AuthClaims {
+    pub sub: String,      // Subject (user ID)
+    pub email: String,    // User email
+    pub exp: usize,       // Expiration time
+    pub iat: usize,       // Issued at
+    pub role: String,     // User role (user, admin, operator)
+}
+
 /// User account in the DataMesh network
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserAccount {
     pub user_id: UserId,
     pub email: String,
+    pub password_hash: String,
     pub public_key: String,
     pub account_type: AccountType,
     pub registration_date: DateTime<Utc>,
@@ -65,8 +78,7 @@ pub enum AccountType {
 pub enum VerificationStatus {
     Unverified,
     EmailVerified,
-    PhoneVerified,
-    KYCVerified,
+    IdentityVerified,
 }
 
 /// Abuse flag for content moderation
@@ -290,7 +302,7 @@ impl UserRegistry {
         }
     }
 
-    pub fn register_user(&self, email: String, public_key: String) -> DfsResult<UserAccount> {
+    pub fn register_user(&self, email: String, password: String, public_key: String) -> DfsResult<UserAccount> {
         let mut users = self.users.write().unwrap();
         let mut email_index = self.email_index.write().unwrap();
 
@@ -299,10 +311,14 @@ impl UserRegistry {
             return Err(crate::error::DfsError::Authentication("Email already registered".to_string()));
         }
 
+        // Hash password
+        let password_hash = self.hash_password(&password)?;
+
         let user_id = Uuid::new_v4();
         let user_account = UserAccount {
             user_id,
             email: email.clone(),
+            password_hash,
             public_key,
             account_type: AccountType::Free {
                 storage_gb: 5,
@@ -321,6 +337,43 @@ impl UserRegistry {
         email_index.insert(email, user_id);
 
         Ok(user_account)
+    }
+
+    /// Authenticate user with email and password
+    pub fn authenticate_user(&self, email: &str, password: &str) -> DfsResult<UserAccount> {
+        let user = self.get_user_by_email(email)
+            .ok_or_else(|| crate::error::DfsError::Authentication("Invalid credentials".to_string()))?;
+
+        if self.verify_password(password, &user.password_hash)? {
+            // Update last activity
+            let mut updated_user = user.clone();
+            updated_user.last_activity = Utc::now();
+            self.update_user(updated_user.clone())?;
+            Ok(updated_user)
+        } else {
+            Err(crate::error::DfsError::Authentication("Invalid credentials".to_string()))
+        }
+    }
+
+    /// Hash a password using Argon2
+    fn hash_password(&self, password: &str) -> DfsResult<String> {
+        let salt = SaltString::generate(&mut OsRng);
+        let argon2 = Argon2::default();
+        
+        argon2
+            .hash_password(password.as_bytes(), &salt)
+            .map(|hash| hash.to_string())
+            .map_err(|e| crate::error::DfsError::Authentication(format!("Password hashing failed: {}", e)))
+    }
+
+    /// Verify a password against its hash
+    fn verify_password(&self, password: &str, hash: &str) -> DfsResult<bool> {
+        let parsed_hash = PasswordHash::new(hash)
+            .map_err(|e| crate::error::DfsError::Authentication(format!("Invalid password hash: {}", e)))?;
+        
+        Ok(Argon2::default()
+            .verify_password(password.as_bytes(), &parsed_hash)
+            .is_ok())
     }
 
     pub fn get_user(&self, user_id: &UserId) -> Option<UserAccount> {
@@ -346,6 +399,62 @@ impl UserRegistry {
     pub fn list_users(&self) -> Vec<UserAccount> {
         let users = self.users.read().unwrap();
         users.values().cloned().collect()
+    }
+}
+
+/// JWT authentication service
+pub struct AuthService {
+    encoding_key: EncodingKey,
+    decoding_key: DecodingKey,
+    validation: Validation,
+}
+
+impl AuthService {
+    pub fn new(secret: &str) -> Self {
+        let mut validation = Validation::new(Algorithm::HS256);
+        validation.leeway = 60; // 1 minute leeway for clock skew
+        
+        Self {
+            encoding_key: EncodingKey::from_secret(secret.as_ref()),
+            decoding_key: DecodingKey::from_secret(secret.as_ref()),
+            validation,
+        }
+    }
+
+    /// Generate JWT token for authenticated user
+    pub fn generate_token(&self, user: &UserAccount) -> DfsResult<String> {
+        let now = Utc::now();
+        let exp = now + Duration::hours(24); // Token valid for 24 hours
+
+        let role = match user.account_type {
+            AccountType::Free { .. } | AccountType::Premium { .. } => "user",
+            AccountType::Enterprise { .. } => "enterprise",
+        };
+
+        let claims = AuthClaims {
+            sub: user.user_id.to_string(),
+            email: user.email.clone(),
+            exp: exp.timestamp() as usize,
+            iat: now.timestamp() as usize,
+            role: role.to_string(),
+        };
+
+        encode(&Header::default(), &claims, &self.encoding_key)
+            .map_err(|e| crate::error::DfsError::Authentication(format!("Token generation failed: {}", e)))
+    }
+
+    /// Validate and decode JWT token
+    pub fn validate_token(&self, token: &str) -> DfsResult<AuthClaims> {
+        decode::<AuthClaims>(token, &self.decoding_key, &self.validation)
+            .map(|data| data.claims)
+            .map_err(|e| crate::error::DfsError::Authentication(format!("Token validation failed: {}", e)))
+    }
+
+    /// Extract user ID from token
+    pub fn get_user_id_from_token(&self, token: &str) -> DfsResult<UserId> {
+        let claims = self.validate_token(token)?;
+        Uuid::parse_str(&claims.sub)
+            .map_err(|e| crate::error::DfsError::Authentication(format!("Invalid user ID in token: {}", e)))
     }
 }
 
