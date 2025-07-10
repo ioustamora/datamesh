@@ -84,11 +84,7 @@ impl CommandHandler for MetricsCommand {
                 println!("{}", "─".repeat(70));
                 
                 for metric in &recent_metrics {
-                    let duration_str = if let Some(duration) = metric.duration {
-                        format!("{:.2}ms", duration.as_secs_f64() * 1000.0)
-                    } else {
-                        "pending".to_string()
-                    };
+                    let duration_str = format!("{:.2}ms", metric.duration_ms);
                     let success_str = if metric.success { "✓" } else { "✗" };
                     let bytes_str = if let Some(bytes) = metric.bytes_processed {
                         format!("{}", bytes)

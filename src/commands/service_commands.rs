@@ -54,16 +54,22 @@ impl CommandHandler for InteractiveCommand {
             None
         };
         
-        // Extract KeyManager from Arc - this is a temporary workaround
-        let key_manager = (**context.key_manager).clone();
+        // Clone the necessary data to avoid borrowing issues
+        let cli = context.cli.clone();
+        let key_manager = (*context.key_manager).clone();
+        let port = self.port;
         
-        interactive::run_interactive_mode(
-            &context.cli,
+        // Execute directly without spawn_blocking to avoid Send issues
+        match interactive::run_interactive_mode(
+            &cli,
             key_manager,
             bootstrap_peer,
             bootstrap_addr,
-            self.port,
-        ).await
+            port,
+        ).await {
+            Ok(()) => Ok(()),
+            Err(e) => Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())) as Box<dyn Error>),
+        }
     }
     
     fn command_name(&self) -> &'static str {
@@ -99,17 +105,24 @@ impl CommandHandler for ServiceCommand {
             None
         };
         
-        // Extract KeyManager from Arc - this is a temporary workaround
-        let key_manager = (**context.key_manager).clone();
+        // Clone the necessary data to avoid borrowing issues
+        let cli = context.cli.clone();
+        let key_manager = (*context.key_manager).clone();
+        let port = self.port;
+        let timeout = self.timeout;
         
-        interactive::run_service_mode(
-            &context.cli,
+        // Execute directly without spawn_blocking to avoid Send issues
+        match interactive::run_service_mode(
+            &cli,
             key_manager,
             bootstrap_peer,
             bootstrap_addr,
-            self.port,
-            self.timeout,
-        ).await
+            port,
+            timeout,
+        ).await {
+            Ok(()) => Ok(()),
+            Err(e) => Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())) as Box<dyn Error>),
+        }
     }
     
     fn command_name(&self) -> &'static str {
