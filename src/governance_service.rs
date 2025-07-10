@@ -7,8 +7,6 @@
 
 // Temporarily simplified implementation for compilation
 
-use crate::error::{DfsResult, DfsError};
-use serde::{Deserialize, Serialize};
 
 /// Simplified governance service for compilation
 pub struct GovernanceService {

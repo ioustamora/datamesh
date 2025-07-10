@@ -8,7 +8,6 @@
 
 use std::path::{Path, PathBuf};
 use anyhow::{Result, Context};
-use tokio::task::JoinSet;
 use crate::database::{DatabaseManager, FileEntry};
 use crate::key_manager::KeyManager;
 use crate::file_storage;

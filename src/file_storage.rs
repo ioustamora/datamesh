@@ -15,7 +15,6 @@ use std::sync::Arc;
 use std::path::PathBuf;
 use std::fs;
 
-use anyhow::Result;
 use chrono::{DateTime, Local};
 use ecies::{decrypt, encrypt, SecretKey};
 use futures::StreamExt;
@@ -30,7 +29,7 @@ use crate::config::Config;
 use crate::database::DatabaseManager;
 use crate::error::{DfsError, DfsResult};
 use crate::key_manager::{KeyManager, get_encryption_key};
-use crate::network::{MyBehaviour, create_swarm_and_connect_multi_bootstrap};
+use crate::network::create_swarm_and_connect_multi_bootstrap;
 use crate::concurrent_chunks::ConcurrentChunkManager;
 use crate::database;
 use crate::ui;

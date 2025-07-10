@@ -32,9 +32,461 @@ use crate::database::{self, DatabaseManager};
 use crate::ui;
 use crate::error_handling;
 use crate::network_diagnostics;
+// Essential UX enhancement functions are defined inline below
 
 /// Number of data shards for Reed-Solomon erasure coding
 const DATA_SHARDS: usize = 4;
+
+/// Simple Levenshtein distance implementation for typo suggestions
+fn levenshtein_distance(s1: &str, s2: &str) -> usize {
+    let len1 = s1.len();
+    let len2 = s2.len();
+    let mut matrix = vec![vec![0; len2 + 1]; len1 + 1];
+    
+    for i in 0..=len1 {
+        matrix[i][0] = i;
+    }
+    for j in 0..=len2 {
+        matrix[0][j] = j;
+    }
+    
+    for (i, c1) in s1.chars().enumerate() {
+        for (j, c2) in s2.chars().enumerate() {
+            let cost = if c1 == c2 { 0 } else { 1 };
+            matrix[i + 1][j + 1] = (matrix[i][j + 1] + 1)
+                .min(matrix[i + 1][j] + 1)
+                .min(matrix[i][j] + cost);
+        }
+    }
+    
+    matrix[len1][len2]
+}
+
+/// Parsed command structure
+#[derive(Debug, Default)]
+struct ParsedCommand {
+    command: String,
+    args: Vec<String>,
+    flags: HashMap<String, String>,
+    errors: Vec<String>,
+    suggestions: Vec<String>,
+}
+
+/// Smart command parser with validation and suggestions
+fn parse_command_smart(input: &str, valid_commands: &[&str]) -> ParsedCommand {
+    let mut parsed = ParsedCommand::default();
+    
+    let parts: Vec<&str> = input.trim().split_whitespace().collect();
+    
+    if parts.is_empty() {
+        parsed.errors.push("Empty command".to_string());
+        return parsed;
+    }
+    
+    parsed.command = parts[0].to_string();
+    
+    // Validate command exists
+    if !valid_commands.contains(&parsed.command.as_str()) {
+        let suggestions = suggest_similar_commands(&parsed.command, valid_commands);
+        if !suggestions.is_empty() {
+            parsed.errors.push(format!("Unknown command '{}'. Did you mean: {}?", 
+                parsed.command, suggestions.join(", ")));
+            parsed.suggestions = suggestions;
+        } else {
+            parsed.errors.push(format!("Unknown command '{}'. Type 'help' for available commands.", parsed.command));
+        }
+        return parsed;
+    }
+    
+    // Parse arguments and flags
+    let mut i = 1;
+    while i < parts.len() {
+        if parts[i].starts_with("--") {
+            if i + 1 < parts.len() && !parts[i + 1].starts_with("--") {
+                parsed.flags.insert(parts[i][2..].to_string(), parts[i + 1].to_string());
+                i += 2;
+            } else {
+                parsed.flags.insert(parts[i][2..].to_string(), "true".to_string());
+                i += 1;
+            }
+        } else {
+            parsed.args.push(parts[i].to_string());
+            i += 1;
+        }
+    }
+    
+    // Validate command-specific requirements
+    validate_command_requirements(&mut parsed);
+    
+    parsed
+}
+
+/// Suggest similar commands based on Levenshtein distance
+fn suggest_similar_commands(input: &str, valid_commands: &[&str]) -> Vec<String> {
+    valid_commands.iter()
+        .filter(|cmd| levenshtein_distance(cmd, input) <= 2)
+        .map(|s| s.to_string())
+        .collect()
+}
+
+/// Validate command-specific requirements
+fn validate_command_requirements(parsed: &mut ParsedCommand) {
+    match parsed.command.as_str() {
+        "put" => {
+            if parsed.args.is_empty() {
+                parsed.errors.push("Put command requires a file path".to_string());
+                parsed.suggestions.push("Usage: put <file> [--name <alias>] [--tags <tag1,tag2>]".to_string());
+            } else if !std::path::Path::new(&parsed.args[0]).exists() {
+                parsed.errors.push(format!("File '{}' does not exist", parsed.args[0]));
+                parsed.suggestions.push("Check the file path and ensure the file exists".to_string());
+            }
+        }
+        "get" => {
+            if parsed.args.len() < 2 {
+                parsed.errors.push("Get command requires file identifier and output path".to_string());
+                parsed.suggestions.push("Usage: get <name_or_key> <output_path>".to_string());
+            }
+        }
+        "info" => {
+            if parsed.args.is_empty() {
+                parsed.errors.push("Info command requires a file identifier".to_string());
+                parsed.suggestions.push("Usage: info <name_or_key>".to_string());
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Enhanced interactive welcome message
+fn print_interactive_welcome_enhanced(peer_id: &str, public_key: &str) {
+    use colored::*;
+    ui::print_header("🚀 DataMesh Interactive Console");
+    
+    ui::print_key_value("Peer ID", &format!("{}...", &peer_id[..16]));
+    ui::print_key_value("Public Key", &format!("{}...", &public_key[..16]));
+    
+    ui::print_section("🗂️ File Operations");
+    println!("  {} - Store files with encryption", "put <file>".green().bold());
+    println!("  {} - Retrieve files by name/key", "get <name> <output>".green().bold());
+    println!("  {} - Browse your stored files", "list".green().bold());
+    
+    ui::print_section("📊 Information & Status");
+    println!("  {} - Show file details", "info <name>".cyan().bold());
+    println!("  {} - Storage statistics", "stats".cyan().bold());
+    println!("  {} - Network connection status", "status".cyan().bold());
+    println!("  {} - List encryption keys", "keys".cyan().bold());
+    
+    ui::print_section("🌐 Network Diagnostics");
+    println!("  {} - Connected peers", "peers".blue().bold());
+    println!("  {} - Network health check", "health".blue().bold());
+    println!("  {} - Topology analysis", "network".blue().bold());
+    println!("  {} - Discover new peers", "discover".blue().bold());
+    
+    ui::print_section("🔧 Advanced Features");
+    println!("  {} - Interactive command builder", "wizard".yellow().bold());
+    println!("  {} - Command examples", "examples".yellow().bold());
+    println!("  {} - Session summary", "summary".yellow().bold());
+    
+    ui::print_section("💡 Quick Tips");
+    println!("  • Use shortcuts: ls=list, s=status, p=peers, q=quit");
+    println!("  • Type 'help <command>' for detailed usage");
+    println!("  • Type 'examples' to see common workflows");
+    println!("  • Type 'wizard' for guided command building");
+    
+    ui::print_separator();
+}
+
+/// Enhanced help system with contextual information
+fn print_interactive_help_enhanced() {
+    use colored::*;
+    ui::print_header("🆘 DataMesh Help System");
+    
+    ui::print_section("🗂️ File Operations");
+    println!("  {} - Store files with encryption", "put <file>".green().bold());
+    println!("  {} - Retrieve files by name/key", "get <name> <output>".green().bold());
+    println!("  {} - Browse your stored files", "list".green().bold());
+    
+    ui::print_section("📊 Information & Status");
+    println!("  {} - Show file details", "info <name>".cyan().bold());
+    println!("  {} - Storage statistics", "stats".cyan().bold());
+    println!("  {} - Network connection status", "status".cyan().bold());
+    println!("  {} - List encryption keys", "keys".cyan().bold());
+    
+    ui::print_section("🌐 Network Diagnostics");
+    println!("  {} - Connected peers", "peers".blue().bold());
+    println!("  {} - Network health check", "health".blue().bold());
+    println!("  {} - Topology analysis", "network".blue().bold());
+    println!("  {} - Discover new peers", "discover".blue().bold());
+    println!("  {} - File distribution analysis", "distribution".blue().bold());
+    println!("  {} - Bandwidth testing", "bandwidth".blue().bold());
+    
+    ui::print_section("🔧 Utilities");
+    println!("  {} - Interactive command builder", "wizard".yellow().bold());
+    println!("  {} - Command examples", "examples".yellow().bold());
+    println!("  {} - Session summary", "summary".yellow().bold());
+    
+    println!("\n💡 Type 'help <command>' for detailed usage");
+    println!("🚀 Type 'examples' to see common workflows");
+    println!("🎯 Type 'wizard' for guided command building");
+}
+
+/// Show contextual help for specific commands
+fn show_contextual_help(command: &str) {
+    match command {
+        "put" => {
+            ui::print_section("📤 File Upload Help");
+            ui::print_list_item("Basic usage: put <file>", None);
+            ui::print_list_item("With alias: put <file> --name my-file", None);
+            ui::print_list_item("With tags: put <file> --tags work,important", None);
+            ui::print_list_item("Specific encryption: put <file> --public-key <hex>", None);
+            println!("💡 Tip: Use relative paths for better organization");
+            println!("📝 Example: put ./documents/report.pdf --name quarterly-report --tags work,2024");
+        }
+        "get" => {
+            ui::print_section("📥 File Download Help");
+            ui::print_list_item("By name: get my-file ./output.txt", None);
+            ui::print_list_item("By key: get 1a2b3c4d ./output.txt", None);
+            ui::print_list_item("Specific key: get my-file ./output.txt --private-key my-key", None);
+            println!("💡 Tip: Use 'list' to see available files first");
+            println!("📝 Example: get quarterly-report ./downloads/report.pdf");
+        }
+        "list" => {
+            ui::print_section("📋 File Listing Help");
+            ui::print_list_item("All files: list", None);
+            ui::print_list_item("By tags: list --tags work", None);
+            ui::print_list_item("Specific key: list --public-key <hex>", None);
+            println!("💡 Tip: Use tags to organize your files");
+            println!("📝 Example: list --tags work,important");
+        }
+        "info" => {
+            ui::print_section("ℹ️ File Information Help");
+            ui::print_list_item("By name: info my-file", None);
+            ui::print_list_item("By key: info 1a2b3c4d", None);
+            println!("💡 Tip: Shows file health, size, and metadata");
+            println!("📝 Example: info quarterly-report");
+        }
+        "status" => {
+            ui::print_section("📊 Network Status Help");
+            ui::print_list_item("Shows peer connections and network health", None);
+            ui::print_list_item("Displays listening addresses", None);
+            println!("💡 Tip: Use this to check connectivity issues");
+        }
+        "peers" => {
+            ui::print_section("👥 Peer Management Help");
+            ui::print_list_item("Basic: peers", None);
+            ui::print_list_item("Detailed: peers --detailed", None);
+            println!("💡 Tip: Shows connection quality and reputation");
+        }
+        "health" => {
+            ui::print_section("🏥 Network Health Help");
+            ui::print_list_item("One-time check: health", None);
+            ui::print_list_item("Continuous: health --continuous", None);
+            ui::print_list_item("Custom interval: health --continuous --interval 10", None);
+            println!("💡 Tip: Use continuous mode for monitoring");
+        }
+        _ => {
+            ui::print_info("Type 'help <command>' for specific command help");
+            ui::print_info("Available commands: put, get, list, info, stats, status, peers, health, network, discover");
+        }
+    }
+}
+
+/// Display common workflow examples
+fn print_command_examples() {
+    ui::print_header("📚 Common Workflows");
+    
+    ui::print_section("🚀 Getting Started");
+    ui::print_list_item("Check network status:", Some(&[
+        "status",
+        "peers"
+    ]));
+    
+    ui::print_list_item("Store your first file:", Some(&[
+        "put document.pdf --name my-document --tags work,important",
+        "list",
+        "info my-document"
+    ]));
+    
+    ui::print_section("📁 File Management");
+    ui::print_list_item("Organize with tags:", Some(&[
+        "put report.pdf --name q1-report --tags quarterly,2024,finance",
+        "put presentation.pptx --name q1-presentation --tags quarterly,2024,marketing",
+        "list --tags quarterly"
+    ]));
+    
+    ui::print_list_item("Retrieve files:", Some(&[
+        "list --tags work",
+        "get my-document ./downloads/document.pdf",
+        "info my-document"
+    ]));
+    
+    ui::print_section("🌐 Network Diagnostics");
+    ui::print_list_item("Monitor network health:", Some(&[
+        "status",
+        "peers --detailed",
+        "health --continuous --interval 5",
+        "network --depth 2"
+    ]));
+    
+    println!("\n💡 Use 'wizard' for guided command building");
+    println!("🆘 Use 'help <command>' for detailed command help");
+}
+
+/// Start the interactive command wizard
+fn start_command_wizard() {
+    use colored::*;
+    ui::print_header("🧙 DataMesh Command Wizard");
+    
+    ui::print_section("What would you like to do?");
+    println!("1. {} - Store a file", "Upload".green().bold());
+    println!("2. {} - Find and download a file", "Download".green().bold());
+    println!("3. {} - Check network status", "Monitor".cyan().bold());
+    println!("4. {} - Search for files", "Search".blue().bold());
+    println!("5. {} - Manage storage", "Maintenance".yellow().bold());
+    
+    ui::print_info("🎯 Copy and paste these commands at the prompt:");
+    ui::print_list_item("Upload: put <your-file> --name <friendly-name> --tags <tag1,tag2>", None);
+    ui::print_list_item("Download: get <file-name> <output-path>", None);
+    ui::print_list_item("Monitor: status", None);
+    ui::print_list_item("Search: list --tags <tag>", None);
+    ui::print_list_item("Maintenance: stats", None);
+}
+
+/// Valid commands for interactive mode
+const VALID_COMMANDS: &[&str] = &[
+    "put", "get", "list", "info", "stats", "status", 
+    "peers", "health", "network", "discover", "distribution",
+    "bandwidth", "keys", "help", "quit", "exit", "wizard", "examples"
+];
+
+/// Interactive session state
+struct InteractiveSession {
+    history: Vec<String>,
+    shortcuts: HashMap<String, String>,
+    last_command: Option<String>,
+    session_stats: SessionStats,
+}
+
+/// Session statistics
+#[derive(Default)]
+struct SessionStats {
+    commands_executed: usize,
+    files_uploaded: usize,
+    files_downloaded: usize,
+    errors_encountered: usize,
+}
+
+
+/// Command completer for suggestions
+struct CommandCompleter {
+    commands: Vec<String>,
+    context_help: HashMap<String, Vec<String>>,
+}
+
+impl CommandCompleter {
+    fn new() -> Self {
+        let commands = VALID_COMMANDS.iter().map(|s| s.to_string()).collect();
+        
+        let mut context_help = HashMap::new();
+        context_help.insert("put".to_string(), vec![
+            "--name <alias>".to_string(),
+            "--tags <tag1,tag2>".to_string(),
+            "--public-key <hex>".to_string()
+        ]);
+        context_help.insert("get".to_string(), vec![
+            "--private-key <name>".to_string()
+        ]);
+        context_help.insert("list".to_string(), vec![
+            "--tags <tag>".to_string(),
+            "--public-key <hex>".to_string()
+        ]);
+        
+        Self { commands, context_help }
+    }
+    
+    fn suggest_similar_commands(&self, input: &str) -> Vec<String> {
+        self.commands.iter()
+            .filter(|cmd| levenshtein_distance(cmd, input) <= 2)
+            .cloned()
+            .collect()
+    }
+}
+
+impl InteractiveSession {
+    fn new() -> Self {
+        let mut session = Self {
+            history: Vec::new(),
+            shortcuts: HashMap::new(),
+            last_command: None,
+            session_stats: SessionStats::default(),
+        };
+        session.add_shortcuts();
+        session
+    }
+    
+    fn add_shortcuts(&mut self) {
+        // Unix-like shortcuts
+        self.shortcuts.insert("ls".to_string(), "list".to_string());
+        self.shortcuts.insert("ll".to_string(), "list --detailed".to_string());
+        self.shortcuts.insert("pwd".to_string(), "status".to_string());
+        self.shortcuts.insert("q".to_string(), "quit".to_string());
+        self.shortcuts.insert("?".to_string(), "help".to_string());
+        
+        // DataMesh-specific shortcuts
+        self.shortcuts.insert("s".to_string(), "status".to_string());
+        self.shortcuts.insert("p".to_string(), "peers".to_string());
+        self.shortcuts.insert("h".to_string(), "health".to_string());
+        
+        // Repeat last command
+        self.shortcuts.insert("".to_string(), "".to_string()); // Special case for !!
+    }
+    
+    fn resolve_command(&mut self, input: &str) -> String {
+        if input == "!!" {
+            self.last_command.clone().unwrap_or_else(|| "help".to_string())
+        } else {
+            self.shortcuts.get(input).cloned().unwrap_or_else(|| input.to_string())
+        }
+    }
+    
+    fn add_to_history(&mut self, command: &str) {
+        self.history.push(command.to_string());
+        self.last_command = Some(command.to_string());
+        
+        // Limit history size
+        if self.history.len() > 100 {
+            self.history.remove(0);
+        }
+    }
+    
+    fn increment_stat(&mut self, stat: &str) {
+        self.session_stats.commands_executed += 1;
+        match stat {
+            "upload" => self.session_stats.files_uploaded += 1,
+            "download" => self.session_stats.files_downloaded += 1,
+            "error" => self.session_stats.errors_encountered += 1,
+            _ => {},
+        }
+    }
+    
+    fn show_session_summary(&self) {
+        ui::print_section("📊 Session Summary");
+        ui::print_key_value("Commands Executed", &self.session_stats.commands_executed.to_string());
+        ui::print_key_value("Files Uploaded", &self.session_stats.files_uploaded.to_string());
+        ui::print_key_value("Files Downloaded", &self.session_stats.files_downloaded.to_string());
+        
+        if self.session_stats.errors_encountered > 0 {
+            ui::print_key_value("Errors Encountered", &self.session_stats.errors_encountered.to_string());
+        }
+        
+        if !self.history.is_empty() {
+            println!("\n🕒 Recent Commands:");
+            for (i, cmd) in self.history.iter().rev().take(5).enumerate() {
+                println!("  {}. {}", i + 1, cmd);
+            }
+        }
+    }
+}
 
 /// Run the interactive console mode
 ///
@@ -77,8 +529,12 @@ pub async fn run_interactive_mode(
     let db_path = database::get_default_db_path()?;
     let db = DatabaseManager::new(&db_path)?;
     
+    // Initialize interactive session
+    let mut session = InteractiveSession::new();
+    let completer = CommandCompleter::new();
+    
     // Display enhanced welcome message
-    ui::print_interactive_welcome(
+    print_interactive_welcome_enhanced(
         &swarm.local_peer_id().to_string(),
         &key_manager.key_info.public_key_hex
     );
@@ -114,20 +570,42 @@ pub async fn run_interactive_mode(
             line = lines.next_line() => {
                 match line? {
                     Some(input) => {
-                        let parts: Vec<&str> = input.trim().split_whitespace().collect();
-                        if parts.is_empty() {
+                        let input = input.trim();
+                        if input.is_empty() {
                             continue;
                         }
                         
-                        match parts[0] {
+                        // Resolve shortcuts and parse command
+                        let resolved_input = session.resolve_command(input);
+                        let parsed = parse_command_smart(&resolved_input, VALID_COMMANDS);
+                        
+                        // Handle parsing errors
+                        if !parsed.errors.is_empty() {
+                            for error in &parsed.errors {
+                                ui::print_error(error);
+                            }
+                            if !parsed.suggestions.is_empty() {
+                                ui::print_info("💡 Suggestions:");
+                                for suggestion in &parsed.suggestions {
+                                    ui::print_list_item(suggestion, None);
+                                }
+                            }
+                            continue;
+                        }
+                        
+                        // Add to history
+                        session.add_to_history(&resolved_input);
+                        session.increment_stat("command");
+                        
+                        match parsed.command.as_str() {
                             "put" => {
-                                if parts.len() < 2 {
+                                if parsed.args.is_empty() {
                                     ui::print_error("Usage: put <file> [--name <alias>] [--tags <tag1,tag2>] [--public-key <hex>]");
                                     ui::print_info("Example: put document.pdf --name my-document --tags work,important");
                                     continue;
                                 }
                                 
-                                let file_path = PathBuf::from(parts[1]);
+                                let file_path = PathBuf::from(&parsed.args[0]);
                                 if !file_path.exists() {
                                     ui::print_error(&format!("File not found: {}", file_path.display()));
                                     continue;
@@ -138,32 +616,9 @@ pub async fn run_interactive_mode(
                                     continue;
                                 }
                                 
-                                let mut public_key = None;
-                                let mut name = None;
-                                let mut tags = None;
-                                
-                                // Parse optional arguments
-                                let mut i = 2;
-                                while i < parts.len() {
-                                    match parts[i] {
-                                        "--name" if i + 1 < parts.len() => {
-                                            name = Some(parts[i + 1].to_string());
-                                            i += 2;
-                                        }
-                                        "--tags" if i + 1 < parts.len() => {
-                                            tags = Some(parts[i + 1].to_string());
-                                            i += 2;
-                                        }
-                                        "--public-key" if i + 1 < parts.len() => {
-                                            public_key = Some(parts[i + 1].to_string());
-                                            i += 2;
-                                        }
-                                        _ => {
-                                            ui::print_warning(&format!("Unknown option: {}", parts[i]));
-                                            i += 1;
-                                        }
-                                    }
-                                }
+                                let public_key = parsed.flags.get("public-key").cloned();
+                                let name = parsed.flags.get("name").cloned();
+                                let tags = parsed.flags.get("tags").cloned();
                                 
                                 // Show operation confirmation
                                 let file_size = std::fs::metadata(&file_path).map(|m| m.len()).unwrap_or(0);
@@ -181,13 +636,13 @@ pub async fn run_interactive_mode(
                                 }
                             }
                             "get" => {
-                                if parts.len() < 3 {
+                                if parsed.args.len() < 2 {
                                     ui::print_error("Usage: get <name_or_key> <output_path> [--private-key <name>]");
                                     ui::print_info("Example: get my-document ./downloaded-doc.pdf");
                                     continue;
                                 }
                                 
-                                let output_path = PathBuf::from(parts[2]);
+                                let output_path = PathBuf::from(&parsed.args[1]);
                                 if output_path.exists() {
                                     ui::print_warning(&format!("Output file already exists: {}", output_path.display()));
                                     ui::print_info("File will be overwritten if download succeeds");
@@ -201,12 +656,8 @@ pub async fn run_interactive_mode(
                                     }
                                 }
                                 
-                                let identifier = parts[1].to_string();
-                                let private_key = if parts.len() > 4 && parts[3] == "--private-key" {
-                                    Some(parts[4].to_string())
-                                } else {
-                                    None
-                                };
+                                let identifier = parsed.args[0].clone();
+                                let private_key = parsed.flags.get("private-key").cloned();
                                 
                                 // Try to resolve identifier to a file key using database
                                 let file_key = if let Ok(Some(file_entry)) = db.get_file_by_name(&identifier) {
@@ -235,27 +686,8 @@ pub async fn run_interactive_mode(
                                 }
                             }
                             "list" => {
-                                let mut public_key = None;
-                                let mut tags = None;
-                                
-                                // Parse optional arguments
-                                let mut i = 1;
-                                while i < parts.len() {
-                                    match parts[i] {
-                                        "--public-key" if i + 1 < parts.len() => {
-                                            public_key = Some(parts[i + 1].to_string());
-                                            i += 2;
-                                        }
-                                        "--tags" if i + 1 < parts.len() => {
-                                            tags = Some(parts[i + 1].to_string());
-                                            i += 2;
-                                        }
-                                        _ => {
-                                            ui::print_warning(&format!("Unknown option: {}", parts[i]));
-                                            i += 1;
-                                        }
-                                    }
-                                }
+                                let public_key = parsed.flags.get("public-key").cloned();
+                                let tags = parsed.flags.get("tags").cloned();
                                 
                                 match handle_list_interactive(&db, &key_manager, &public_key, &tags) {
                                     Ok(_) => {},
@@ -284,16 +716,17 @@ pub async fn run_interactive_mode(
                                 }
                             }
                             "quit" | "exit" => {
-                                println!("Goodbye!");
+                                session.show_session_summary();
+                                ui::print_success("Goodbye!");
                                 return Ok(());
                             }
                             "info" => {
-                                if parts.len() < 2 {
+                                if parsed.args.is_empty() {
                                     ui::print_error("Usage: info <name_or_key>");
                                     continue;
                                 }
                                 
-                                let identifier = parts[1];
+                                let identifier = &parsed.args[0];
                                 match handle_info_interactive(&db, identifier) {
                                     Ok(_) => {},
                                     Err(e) => {
@@ -324,7 +757,7 @@ pub async fn run_interactive_mode(
                                 );
                             }
                             "peers" => {
-                                let detailed = parts.len() > 1 && parts[1] == "--detailed";
+                                let detailed = parsed.flags.contains_key("detailed");
                                 let format = crate::cli::OutputFormat::Table;
                                 
                                 match network_diagnostics::handle_peers_command(&mut swarm, detailed, &format).await {
@@ -336,12 +769,10 @@ pub async fn run_interactive_mode(
                                 }
                             }
                             "health" => {
-                                let continuous = parts.len() > 1 && parts[1] == "--continuous";
-                                let interval = if parts.len() > 3 && parts[2] == "--interval" {
-                                    parts[3].parse().unwrap_or(5)
-                                } else {
-                                    5
-                                };
+                                let continuous = parsed.flags.contains_key("continuous");
+                                let interval = parsed.flags.get("interval")
+                                    .and_then(|v| v.parse().ok())
+                                    .unwrap_or(5);
                                 
                                 match network_diagnostics::handle_health_command(&mut swarm, continuous, interval).await {
                                     Ok(_) => {},
@@ -352,12 +783,10 @@ pub async fn run_interactive_mode(
                                 }
                             }
                             "network" => {
-                                let depth = if parts.len() > 2 && parts[1] == "--depth" {
-                                    parts[2].parse().unwrap_or(2)
-                                } else {
-                                    2
-                                };
-                                let visualize = parts.len() > 1 && parts[1] == "--visualize";
+                                let depth = parsed.flags.get("depth")
+                                    .and_then(|v| v.parse().ok())
+                                    .unwrap_or(2);
+                                let visualize = parsed.flags.contains_key("visualize");
                                 
                                 match network_diagnostics::handle_network_command(&mut swarm, depth, visualize).await {
                                     Ok(_) => {},
@@ -368,12 +797,10 @@ pub async fn run_interactive_mode(
                                 }
                             }
                             "discover" => {
-                                let timeout = if parts.len() > 2 && parts[1] == "--timeout" {
-                                    parts[2].parse().unwrap_or(30)
-                                } else {
-                                    30
-                                };
-                                let bootstrap_all = parts.len() > 1 && parts[1] == "--bootstrap-all";
+                                let timeout = parsed.flags.get("timeout")
+                                    .and_then(|v| v.parse().ok())
+                                    .unwrap_or(30);
+                                let bootstrap_all = parsed.flags.contains_key("bootstrap-all");
                                 
                                 match network_diagnostics::handle_discover_command(&mut swarm, timeout, bootstrap_all).await {
                                     Ok(_) => {},
@@ -384,26 +811,8 @@ pub async fn run_interactive_mode(
                                 }
                             }
                             "distribution" => {
-                                let mut file_key = None;
-                                let mut public_key = None;
-                                
-                                let mut i = 1;
-                                while i < parts.len() {
-                                    match parts[i] {
-                                        "--file-key" if i + 1 < parts.len() => {
-                                            file_key = Some(parts[i + 1].to_string());
-                                            i += 2;
-                                        }
-                                        "--public-key" if i + 1 < parts.len() => {
-                                            public_key = Some(parts[i + 1].to_string());
-                                            i += 2;
-                                        }
-                                        _ => {
-                                            ui::print_warning(&format!("Unknown option: {}", parts[i]));
-                                            i += 1;
-                                        }
-                                    }
-                                }
+                                let file_key = parsed.flags.get("file-key").cloned();
+                                let public_key = parsed.flags.get("public-key").cloned();
                                 
                                 match network_diagnostics::handle_distribution_command(&mut swarm, &file_key, &public_key).await {
                                     Ok(_) => {},
@@ -414,16 +823,10 @@ pub async fn run_interactive_mode(
                                 }
                             }
                             "bandwidth" => {
-                                let test_peer = if parts.len() > 2 && parts[1] == "--test-peer" {
-                                    Some(parts[2].to_string())
-                                } else {
-                                    None
-                                };
-                                let duration = if parts.len() > 4 && parts[3] == "--duration" {
-                                    parts[4].parse().unwrap_or(30)
-                                } else {
-                                    30
-                                };
+                                let test_peer = parsed.flags.get("test-peer").cloned();
+                                let duration = parsed.flags.get("duration")
+                                    .and_then(|v| v.parse().ok())
+                                    .unwrap_or(30);
                                 
                                 match network_diagnostics::handle_bandwidth_command(&mut swarm, &test_peer, duration).await {
                                     Ok(_) => {},
@@ -434,13 +837,24 @@ pub async fn run_interactive_mode(
                                 }
                             }
                             "help" => {
-                                ui::print_interactive_welcome(
-                                    &swarm.local_peer_id().to_string(),
-                                    &key_manager.key_info.public_key_hex
-                                );
+                                if parsed.args.is_empty() {
+                                    print_interactive_help_enhanced();
+                                } else {
+                                    show_contextual_help(&parsed.args[0]);
+                                }
+                            }
+                            "wizard" => {
+                                start_command_wizard();
+                            }
+                            "examples" => {
+                                print_command_examples();
+                            }
+                            "summary" => {
+                                session.show_session_summary();
                             }
                             _ => {
-                                println!("Unknown command: {}. Type 'help' for available commands.", parts[0]);
+                                ui::print_error(&format!("Unknown command: '{}'", parsed.command));
+                                ui::print_info("Type 'help' for available commands or 'examples' for common workflows.");
                             }
                         }
                     }
@@ -621,10 +1035,12 @@ fn handle_behaviour_event(
                             
                             // Try to parse as StoredFile metadata first
                             if let Ok(stored_file) = serde_json::from_slice::<StoredFile>(&record.value) {
-                                println!("Found file metadata, retrieving {} chunks...", stored_file.chunk_keys.len());
-                                println!("File name: {}", stored_file.file_name);
-                                println!("Stored at: {}", stored_file.stored_at.format("%Y-%m-%d %H:%M:%S"));
-                                println!("Encrypted with public key: {}", stored_file.public_key_hex);
+                                ui::print_operation_status("File Metadata", "Found", 
+                                    Some(&format!("Retrieving {} chunks", stored_file.chunk_keys.len())));
+                                
+                                ui::print_key_value("File Name", &stored_file.file_name);
+                                ui::print_key_value("Stored At", &stored_file.stored_at.format("%Y-%m-%d %H:%M:%S").to_string());
+                                ui::print_key_value("Encryption Key", &format!("{}...", &stored_file.public_key_hex[..16]));
                                 
                                 // Update file retrieval state - we can't call swarm methods here,
                                 // so we'll just update the state
