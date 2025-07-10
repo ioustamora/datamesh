@@ -748,3 +748,35 @@ fn reconstruct_file(
     
     Ok(())
 }
+
+/// Handle info command for a specific file
+pub async fn handle_info_command(
+    key_manager: &KeyManager,
+    identifier: &str,
+) -> DfsResult<()> {
+    // Get database connection
+    let db = database::DatabaseManager::new()?;
+    
+    // Find file by name or key
+    let stored_file = if identifier.len() == 64 {
+        // Looks like a file key
+        db.get_file_by_key(identifier)?
+    } else {
+        // Treat as file name
+        db.get_file_by_name(identifier)?
+    };
+    
+    let file = stored_file.ok_or_else(|| DfsError::FileNotFound(identifier.to_string()))?;
+    
+    ui::print_file_info(&file);
+    Ok(())
+}
+
+/// Handle stats command for storage statistics
+pub async fn handle_stats_command(key_manager: &KeyManager) -> DfsResult<()> {
+    let db = database::DatabaseManager::new()?;
+    let stats = db.get_stats()?;
+    
+    ui::print_database_stats(&stats);
+    Ok(())
+}

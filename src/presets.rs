@@ -335,3 +335,43 @@ mod tests {
         assert!(config.bootstrap_peers[0].peer_id.is_none());
     }
 }
+
+/// Get available networks for display
+pub fn get_available_networks() -> HashMap<String, NetworkInfo> {
+    let mut networks = HashMap::new();
+    
+    networks.insert("local".to_string(), NetworkInfo {
+        description: "Auto-discover peers on local network".to_string(),
+        bootstrap_nodes: vec![
+            "/ip4/127.0.0.1/tcp/40871".to_string(),
+            "/ip6/::1/tcp/40871".to_string(),
+        ],
+        features: Some(vec!["auto-discovery".to_string(), "local-only".to_string()]),
+    });
+    
+    networks.insert("public".to_string(), NetworkInfo {
+        description: "Connect to public DataMesh network".to_string(),
+        bootstrap_nodes: vec![
+            "/ip4/147.75.77.187/tcp/40871".to_string(),
+        ],
+        features: Some(vec!["public".to_string(), "persistent".to_string()]),
+    });
+    
+    networks.insert("testnet".to_string(), NetworkInfo {
+        description: "Connect to DataMesh test network".to_string(),
+        bootstrap_nodes: vec![
+            "/ip4/127.0.0.1/tcp/40872".to_string(),
+        ],
+        features: Some(vec!["testing".to_string(), "development".to_string()]),
+    });
+    
+    networks
+}
+
+/// Network information for display
+#[derive(Debug, Clone)]
+pub struct NetworkInfo {
+    pub description: String,
+    pub bootstrap_nodes: Vec<String>,
+    pub features: Option<Vec<String>>,
+}

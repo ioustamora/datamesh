@@ -10,6 +10,7 @@ pub mod audit_logger;
 pub mod file_storage;
 pub mod network;
 pub mod cli;
+pub mod commands;
 pub mod interactive;
 pub mod error;
 pub mod error_handling;

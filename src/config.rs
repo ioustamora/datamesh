@@ -492,3 +492,10 @@ impl ApiConfig {
         }
     }
 }
+
+/// Generate a default configuration file
+pub fn generate_config(config_path: &PathBuf) -> crate::error::DfsResult<()> {
+    let config = Config::default();
+    config.save(config_path)?;
+    Ok(())
+}
