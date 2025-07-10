@@ -757,7 +757,7 @@ mod tests {
             economic_model,
         );
 
-        let user_id = 1;
+        let user_id = uuid::Uuid::new_v4();
         let subscription = billing_system.create_subscription(
             user_id,
             SubscriptionTier::Basic,
@@ -785,7 +785,7 @@ mod tests {
             economic_model,
         );
 
-        let user_id = 1;
+        let user_id = uuid::Uuid::new_v4();
         let result = billing_system.record_usage(
             user_id,
             ResourceType::Storage,

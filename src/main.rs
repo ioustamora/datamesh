@@ -1383,11 +1383,12 @@ async fn handle_api_server_command(
     );
     
     // Start the server
-    ui::print_info(&format!("Starting DataMesh API server on {}:{}", 
-        api_server.state.api_config.host, api_server.state.api_config.port));
+    ui::print_info("Starting DataMesh API server...");
     
     api_server.start().await
-        .map_err(|e| Box::new(e) as Box<dyn Error>)
+        .map_err(|e| anyhow::anyhow!(e))?;
+    
+    Ok(())
 }
 
 /// Handles the advanced command for testing DataMesh systems
@@ -1401,22 +1402,28 @@ async fn handle_advanced_command(
 ) -> Result<(), Box<dyn Error>> {
     if comprehensive {
         advanced_commands::run_comprehensive_test().await
-            .map_err(|e| Box::new(e) as Box<dyn Error>)
+            .map_err(|e| anyhow::anyhow!(e))?;
+        Ok(())
     } else if status {
         advanced_commands::handle_system_status().await
-            .map_err(|e| Box::new(e) as Box<dyn Error>)
+            .map_err(|e| anyhow::anyhow!(e))?;
+        Ok(())
     } else if performance {
         advanced_commands::handle_performance_optimization().await
-            .map_err(|e| Box::new(e) as Box<dyn Error>)
+            .map_err(|e| anyhow::anyhow!(e))?;
+        Ok(())
     } else if billing {
         advanced_commands::handle_billing_demo().await
-            .map_err(|e| Box::new(e) as Box<dyn Error>)
+            .map_err(|e| anyhow::anyhow!(e))?;
+        Ok(())
     } else if load_balancer {
         advanced_commands::handle_load_balancing_demo().await
-            .map_err(|e| Box::new(e) as Box<dyn Error>)
+            .map_err(|e| anyhow::anyhow!(e))?;
+        Ok(())
     } else if failover {
         advanced_commands::handle_failover_demo().await
-            .map_err(|e| Box::new(e) as Box<dyn Error>)
+            .map_err(|e| anyhow::anyhow!(e))?;
+        Ok(())
     } else {
         ui::print_info("DataMesh Advanced Systems");
         ui::print_info("Available tests:");

@@ -18,7 +18,7 @@ use libp2p::kad::{Record, RecordKey, Quorum, Event as KademliaEvent, GetRecordOk
 use libp2p::swarm::SwarmEvent;
 use tokio::sync::{Semaphore, RwLock, mpsc};
 use tokio::time::timeout;
-use futures::future::{select_ok, BoxFuture};
+// use futures::future::select_ok; // No longer needed
 use futures::{FutureExt, StreamExt};
 use tracing::{info, warn, error, debug};
 
@@ -251,46 +251,31 @@ impl ConcurrentChunkManager {
         let operation_start = Instant::now();
         info!("Starting concurrent retrieval of {} chunks", chunk_keys.len());
         
-        let (tx, mut rx) = mpsc::channel(chunk_keys.len());
         let mut tasks = Vec::new();
         
-        // Spawn concurrent retrieval tasks
+        // Create futures for all chunk retrievals without spawning tasks
         for chunk_key in chunk_keys {
-            let tx = tx.clone();
             let swarm = swarm.clone();
             let semaphore = self.retrieval_semaphore.clone();
             let config = self.config.clone();
             let peer_stats = self.peer_stats.clone();
             
-            let task = tokio::spawn(async move {
+            let future = async move {
                 let _permit = semaphore.acquire().await.unwrap();
                 
-                let result = Self::retrieve_single_chunk_with_retry(
+                Self::retrieve_single_chunk_with_retry(
                     chunk_key.clone(),
                     swarm,
                     config,
                     peer_stats,
-                ).await;
-                
-                let _ = tx.send(result).await;
-            });
+                ).await
+            };
             
-            tasks.push(task);
+            tasks.push(future);
         }
         
-        // Drop sender to signal completion
-        drop(tx);
-        
-        // Collect results
-        let mut results = Vec::new();
-        while let Some(result) = rx.recv().await {
-            results.push(result);
-        }
-        
-        // Wait for all tasks to complete
-        for task in tasks {
-            task.await?;
-        }
+        // Execute all futures concurrently using futures::future::join_all
+        let results = futures::future::join_all(tasks).await;
         
         // Update operation statistics
         let operation_time = operation_start.elapsed();
@@ -386,7 +371,7 @@ impl ConcurrentChunkManager {
         }
         
         // Create futures for querying multiple peers
-        let mut futures: Vec<BoxFuture<Result<ChunkResult>>> = Vec::new();
+        let mut futures = Vec::new();
         
         for peer_id in responsive_peers.iter().take(3) { // Query top 3 peers
             let chunk_key = chunk_key.clone();
@@ -397,19 +382,23 @@ impl ConcurrentChunkManager {
             
             let future = async move {
                 Self::retrieve_chunk_from_peer(chunk_key, peer_id, swarm, config, peer_stats).await
-            }.boxed();
+            };
             
             futures.push(future);
         }
         
-        // Use select_ok to get the first successful result
-        match select_ok(futures).await {
-            Ok((result, _)) => Ok(result),
-            Err(_) => {
-                // If all peer queries fail, fallback to DHT
-                Self::retrieve_chunk_from_dht(chunk_key, swarm, config).await
+        // Execute all futures and return the first successful result
+        let results = futures::future::join_all(futures).await;
+        
+        // Find first successful result
+        for result in results {
+            if result.is_ok() {
+                return result;
             }
         }
+        
+        // If all peer queries fail, fallback to DHT
+        Self::retrieve_chunk_from_dht(chunk_key, swarm, config).await
     }
 
     /// Retrieve chunk from a specific peer
@@ -471,7 +460,7 @@ impl ConcurrentChunkManager {
                                             return ChunkResult {
                                                 chunk_key: record.key.clone(),
                                                 data: record.value.clone(),
-                                                peer_id: Some(peer_record.peer),
+                                                peer_id: peer_record.peer,
                                                 response_time: request_start.elapsed(),
                                                 attempt_count: 1,
                                             };
@@ -507,58 +496,44 @@ impl ConcurrentChunkManager {
         let operation_start = Instant::now();
         info!("Starting concurrent upload of {} chunks", chunks.len());
         
-        let (tx, mut rx) = mpsc::channel(chunks.len());
+        let mut results: Vec<ChunkUploadResult> = Vec::new();
         let mut tasks = Vec::new();
         
-        // Spawn concurrent upload tasks
+        // Create futures for all chunk uploads without spawning tasks
         for (chunk_key, data) in chunks {
-            let tx = tx.clone();
             let swarm = swarm.clone();
-            let semaphore = self.upload_semaphore.clone();
             let config = self.config.clone();
+            let semaphore = self.upload_semaphore.clone();
             
-            let task = tokio::spawn(async move {
+            let future = async move {
                 let _permit = semaphore.acquire().await.unwrap();
                 
-                let result = Self::upload_single_chunk_with_retry(
+                Self::upload_single_chunk_with_retry(
                     chunk_key.clone(),
                     data,
                     swarm,
                     config,
-                ).await;
-                
-                let _ = tx.send(result).await;
-            });
+                ).await
+            };
             
-            tasks.push(task);
+            tasks.push(future);
         }
         
-        // Drop sender to signal completion
-        drop(tx);
-        
-        // Collect results
-        let mut results = Vec::new();
-        while let Some(result) = rx.recv().await {
-            results.push(result);
-        }
-        
-        // Wait for all tasks to complete
-        for task in tasks {
-            task.await?;
-        }
+        // Execute all futures concurrently using futures::future::join_all
+        let upload_results = futures::future::join_all(tasks).await;
         
         let operation_time = operation_start.elapsed();
-        let successful_uploads = results.iter().filter(|r| r.is_ok()).count();
+        let successful_uploads = upload_results.iter().filter(|r| r.is_ok()).count();
         
         info!(
             "Concurrent chunk upload completed: {}/{} chunks uploaded in {:?}",
             successful_uploads,
-            results.len(),
+            upload_results.len(),
             operation_time
         );
         
         // Filter successful results
-        let successful_results: Vec<ChunkUploadResult> = results
+        let successful_results: Vec<ChunkUploadResult> = upload_results
             .into_iter()
             .filter_map(|r| r.ok())
             .collect();
@@ -646,7 +621,8 @@ impl ConcurrentChunkManager {
                             KademliaEvent::OutboundQueryProgressed { result, .. } => {
                                 match result {
                                     QueryResult::PutRecord(Ok(put_record_ok)) => {
-                                        peers_contacted.push(put_record_ok.peer);
+                                        // Note: PutRecordOk doesn't provide peer info, so we'll track differently
+                                        debug!("Successfully stored chunk {:?} with key {:?}", chunk_key, put_record_ok.key);
                                         return (true, peers_contacted);
                                     }
                                     QueryResult::PutRecord(Err(err)) => {

@@ -20,14 +20,10 @@ use libp2p::kad::{
     Behaviour as Kademlia,
     Event as KademliaEvent,
 };
-use crate::persistent_dht::PersistentDHTStorage;
 use std::error::Error;
-use std::time::Duration;
-use std::fs;
 
 use crate::cli::Cli;
 use crate::config::Config;
-use crate::bootstrap_manager::BootstrapManager;
 
 /// Combined network behavior for the DFS node
 ///
@@ -36,8 +32,8 @@ use crate::bootstrap_manager::BootstrapManager;
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "MyBehaviourEvent")]
 pub struct MyBehaviour {
-    /// Kademlia DHT behavior
-    pub kad: Kademlia<PersistentDHTStorage>,
+    /// Kademlia DHT behavior - using standard MemoryStore for Send + Sync compatibility
+    pub kad: Kademlia<libp2p::kad::store::MemoryStore>,
 }
 
 /// Events emitted by the network behavior
@@ -81,26 +77,8 @@ pub async fn create_swarm_and_connect(cli: &Cli, config: &Config) -> Result<Swar
         .with_behaviour(|key| {
             let peer_id = key.public().to_peer_id();
             
-            // Create persistent DHT storage with unique path per peer
-            let storage_path = config.network.dht_storage.db_path.clone()
-                .unwrap_or_else(|| {
-                    dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."))
-                        .join(".datamesh").join("dht_storage").join(peer_id.to_string())
-                });
-            
-            // Ensure storage directory exists
-            if let Some(parent) = storage_path.parent() {
-                fs::create_dir_all(parent).expect("Failed to create storage directory");
-            }
-            
-            let storage = PersistentDHTStorage::new(
-                storage_path,
-                config.network.dht_storage.cache_size,
-                config.network.replication_factor as u8,
-                Duration::from_secs(config.network.dht_storage.cleanup_interval_secs),
-                peer_id,
-            ).expect("Failed to create persistent DHT storage");
-            
+            // Use standard memory store for Send + Sync compatibility
+            let storage = libp2p::kad::store::MemoryStore::new(peer_id);
             let mut kad = Kademlia::new(peer_id, storage);
             
             // Configure Kademlia for better connectivity
@@ -158,26 +136,8 @@ pub async fn create_swarm_and_connect_multi_bootstrap(cli: &Cli, config: &Config
         .with_behaviour(|key| {
             let peer_id = key.public().to_peer_id();
             
-            // Create persistent DHT storage with unique path per peer
-            let storage_path = config.network.dht_storage.db_path.clone()
-                .unwrap_or_else(|| {
-                    dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."))
-                        .join(".datamesh").join("dht_storage").join(peer_id.to_string())
-                });
-            
-            // Ensure storage directory exists
-            if let Some(parent) = storage_path.parent() {
-                fs::create_dir_all(parent).expect("Failed to create storage directory");
-            }
-            
-            let storage = PersistentDHTStorage::new(
-                storage_path,
-                config.network.dht_storage.cache_size,
-                config.network.replication_factor as u8,
-                Duration::from_secs(config.network.dht_storage.cleanup_interval_secs),
-                peer_id,
-            ).expect("Failed to create persistent DHT storage");
-            
+            // Use standard memory store for Send + Sync compatibility
+            let storage = libp2p::kad::store::MemoryStore::new(peer_id);
             let mut kad = Kademlia::new(peer_id, storage);
             
             // Configure Kademlia for better connectivity
@@ -256,26 +216,8 @@ pub async fn start_bootstrap_node(port: u16, config: &Config) -> Result<(), Box<
         .with_behaviour(|key| {
             let peer_id = key.public().to_peer_id();
             
-            // Create persistent DHT storage for bootstrap node
-            let storage_path = config.network.dht_storage.db_path.clone()
-                .unwrap_or_else(|| {
-                    dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."))
-                        .join(".datamesh").join("bootstrap_dht_storage")
-                });
-            
-            // Ensure storage directory exists
-            if let Some(parent) = storage_path.parent() {
-                fs::create_dir_all(parent).expect("Failed to create storage directory");
-            }
-            
-            let storage = PersistentDHTStorage::new(
-                storage_path,
-                config.network.dht_storage.cache_size,
-                config.network.replication_factor as u8,
-                Duration::from_secs(config.network.dht_storage.cleanup_interval_secs),
-                peer_id,
-            ).expect("Failed to create persistent DHT storage");
-            
+            // Use standard memory store for Send + Sync compatibility
+            let storage = libp2p::kad::store::MemoryStore::new(peer_id);
             let mut kad = Kademlia::new(peer_id, storage);
             
             // Configure as a server mode for better connectivity

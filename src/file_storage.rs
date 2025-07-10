@@ -8,33 +8,36 @@
 /// - Retrieving and reassembling files from the network
 /// - Error handling and retry logic for resilient operations
 /// 
-/// The implementation uses Reed-Solomon erasure coding with 4 data shards and 2 parity shards,
-/// allowing file recovery even if up to 2 chunks are lost or corrupted.
+/// The implementation provides both synchronous and asynchronous interfaces for maximum flexibility.
+
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::path::PathBuf;
+use std::fs;
+
+use anyhow::Result;
 use chrono::{DateTime, Local};
 use ecies::{decrypt, encrypt, SecretKey};
+use futures::StreamExt;
 use libp2p::kad::{Quorum, Record, RecordKey};
 use reed_solomon_erasure::galois_8::ReedSolomon;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fs;
-use std::path::PathBuf;
-use std::sync::Arc;
 use tokio::sync::RwLock;
+use tracing::warn;
 
 use crate::cli::Cli;
 use crate::config::Config;
+use crate::database::DatabaseManager;
 use crate::error::{DfsError, DfsResult};
-use crate::key_manager::{get_encryption_key, KeyManager};
-use crate::network::create_swarm_and_connect_multi_bootstrap;
-use crate::logging::log_file_operation;
+use crate::key_manager::{KeyManager, get_encryption_key};
+use crate::network::{MyBehaviour, create_swarm_and_connect_multi_bootstrap};
+use crate::concurrent_chunks::ConcurrentChunkManager;
+use crate::database;
+use crate::ui;
+use crate::smart_cache::{SmartCacheManager, AccessType};
 use crate::performance;
 use crate::resilience::{retry_async, RetryConfig};
-use crate::database::{self, DatabaseManager};
-use crate::ui;
-use crate::concurrent_chunks::{ConcurrentChunkManager, ConcurrentChunkConfig};
-use crate::quota_service::{QuotaService, QuotaResult};
-use crate::smart_cache::{SmartCacheManager, AccessType};
-use tracing::warn;
+use crate::logging::log_file_operation;
 
 /// Number of data shards for Reed-Solomon erasure coding
 const DATA_SHARDS: usize = 4;
@@ -157,7 +160,7 @@ pub async fn handle_put_command(
         }
         
         // Convert back to regular swarm for metadata upload
-        let mut swarm = Arc::try_unwrap(swarm).unwrap().into_inner();
+        let mut swarm = Arc::try_unwrap(swarm).map_err(|_| DfsError::Network("Failed to unwrap swarm".to_string()))?.into_inner();
         
         // Store file metadata
         let stored_file = StoredFile {
@@ -395,8 +398,10 @@ async fn attempt_concurrent_file_retrieval(
         swarm.write().await.behaviour_mut().kad.bootstrap().ok();
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         
-        let connected_peers: Vec<_> = swarm.read().await.connected_peers().collect();
-        println!("Current connected peers: {}", connected_peers.len());
+        let swarm_guard = swarm.read().await;
+        let connected_count = swarm_guard.connected_peers().count();
+        drop(swarm_guard);
+        println!("Current connected peers: {}", connected_count);
     }
     
     // Wait for DHT stabilization
@@ -405,12 +410,14 @@ async fn attempt_concurrent_file_retrieval(
     
     // Print network status
     println!("DHT Network Status:");
-    println!("  Local Peer ID: {}", swarm.read().await.local_peer_id());
-    let connected_peers: Vec<_> = swarm.read().await.connected_peers().collect();
-    println!("  Connected Peers: {}", connected_peers.len());
-    for peer in &connected_peers {
-        println!("    - {}", peer);
-    }
+    let (local_peer_id, connected_count) = {
+        let swarm_guard = swarm.read().await;
+        let local_peer_id = swarm_guard.local_peer_id().clone();
+        let connected_count = swarm_guard.connected_peers().count();
+        (local_peer_id, connected_count)
+    };
+    println!("  Local Peer ID: {}", local_peer_id);
+    println!("  Connected Peers: {}", connected_count);
     
     // Start concurrent file retrieval
     println!("Starting concurrent file retrieval for key: {}", key);
@@ -504,8 +511,8 @@ async fn attempt_file_retrieval(
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         
         // Check connected peers instead
-        let connected_peers: Vec<_> = swarm.connected_peers().collect();
-        println!("Current connected peers: {}", connected_peers.len());
+        let connected_count = swarm.connected_peers().count();
+        println!("Current connected peers: {}", connected_count);
     }
     
     // Additional time for DHT stabilization and peer discovery

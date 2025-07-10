@@ -5,8 +5,7 @@
 /// and administrative privileges within the DataMesh network.
 
 use crate::governance::{
-    BootstrapOperator, NetworkService, UserId, NetworkProposal, ProposalType,
-    ProposalStatus, Vote, VoteType, UserAccount, VerificationStatus
+    BootstrapOperator, NetworkService, UserId
 };
 use crate::error::{DfsResult, DfsError};
 use chrono::{DateTime, Utc, Duration};

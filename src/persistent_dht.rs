@@ -202,23 +202,21 @@ impl RecordStore for PersistentDHTStorage {
     fn get(&self, key: &RecordKey) -> Option<std::borrow::Cow<Record>> {
         let key_str = Self::key_to_string(key);
         
-        // Try cache first
-        if let Some(record) = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(self.get_from_cache(key))
-        }) {
-            return Some(std::borrow::Cow::Owned(record));
+        // Try cache first - use try_read to avoid blocking
+        if let Ok(cache) = self.cache.try_read() {
+            if let Some(record) = cache.peek(key) {
+                return Some(std::borrow::Cow::Owned(record.clone()));
+            }
         }
         
         // Try database
         if let Ok(Some(data)) = self.db.get(format!("chunk:{}", key_str)) {
             if let Ok(serializable_record) = bincode::deserialize::<SerializableRecord>(&data) {
                 let record = Record::from(serializable_record);
-                // Update cache
-                tokio::task::block_in_place(|| {
-                    tokio::runtime::Handle::current().block_on(
-                        self.put_in_cache(key.clone(), record.clone())
-                    )
-                });
+                // Update cache asynchronously without blocking
+                if let Ok(mut cache) = self.cache.try_write() {
+                    cache.put(key.clone(), record.clone());
+                }
                 return Some(std::borrow::Cow::Owned(record));
             }
         }
@@ -249,13 +247,13 @@ impl RecordStore for PersistentDHTStorage {
         self.db.insert(format!("metadata:{}", key_str), metadata_data)
             .map_err(|_| libp2p::kad::store::Error::MaxRecords)?;
         
-        // Update caches
-        tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                self.put_in_cache(key.clone(), record).await;
-                self.put_metadata_in_cache(key, metadata).await;
-            })
-        });
+        // Update caches asynchronously without blocking
+        if let Ok(mut cache) = self.cache.try_write() {
+            cache.put(key.clone(), record);
+        }
+        if let Ok(mut metadata_cache) = self.metadata_cache.try_write() {
+            metadata_cache.put(key, metadata);
+        }
         
         Ok(())
     }
@@ -267,16 +265,13 @@ impl RecordStore for PersistentDHTStorage {
         let _ = self.db.remove(format!("chunk:{}", key_str));
         let _ = self.db.remove(format!("metadata:{}", key_str));
         
-        // Remove from caches
-        tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                let mut cache = self.cache.write().await;
-                cache.pop(key);
-                
-                let mut metadata_cache = self.metadata_cache.write().await;
-                metadata_cache.pop(key);
-            })
-        });
+        // Remove from caches asynchronously without blocking
+        if let Ok(mut cache) = self.cache.try_write() {
+            cache.pop(key);
+        }
+        if let Ok(mut metadata_cache) = self.metadata_cache.try_write() {
+            metadata_cache.pop(key);
+        }
     }
 
     fn records(&self) -> Self::RecordsIter<'_> {

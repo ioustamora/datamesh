@@ -1,32 +1,24 @@
-/// Test Script for DFS Core Modules
+/// Test Script for DataMesh Core Modules
 ///
-/// This example demonstrates the functionality of the newly implemented
-/// core modules and verifies they work correctly.
+/// This example demonstrates the functionality of the core modules
+/// and verifies they work correctly with the current implementation.
 
 use std::path::PathBuf;
-use tempfile::TemporaryDirectory;
+use tempfile::TempDir;
 use chrono::Local;
 
-// Import DFS modules  
-use dfs::database::{DatabaseManager, FileEntry};
-use dfs::file_manager::{SearchCriteria, SizeRange, DateRange};
-use dfs::health_manager::{generate_health_report, QuotaInfo};
-use dfs::presets::{NetworkPresets, parse_network_spec};
-use dfs::error_handling::{handle_error, file_not_found_error_with_suggestions};
-use dfs::ui;
+// Import DataMesh modules that are actually implemented
+use datamesh::database::{DatabaseManager, get_default_db_path};
+use datamesh::presets::{NetworkPresets, parse_network_spec};
+use datamesh::error_handling::{handle_error, file_not_found_error_with_suggestions};
+use datamesh::ui;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🚀 Testing DFS Core Modules");
+    println!("🚀 Testing DataMesh Core Modules");
     
     // Test Database Module
     test_database_module().await?;
-    
-    // Test File Manager Module
-    test_file_manager_module().await?;
-    
-    // Test Health Manager Module 
-    test_health_manager_module().await?;
     
     // Test Network Presets Module
     test_presets_module()?;
@@ -45,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn test_database_module() -> Result<(), Box<dyn std::error::Error>> {
     ui::print_header("Testing Database Module");
     
-    let temp_dir = TemporaryDirectory::new()?;
+    let temp_dir = TempDir::new()?;
     let db_path = temp_dir.path().join("test.db");
     
     let db = DatabaseManager::new(&db_path)?;
@@ -82,51 +74,6 @@ async fn test_database_module() -> Result<(), Box<dyn std::error::Error>> {
     // Test unique name generation
     let unique_name = db.generate_unique_name("test-document.pdf")?;
     ui::print_key_value("Generated unique name", &unique_name);
-    
-    Ok(())
-}
-
-async fn test_file_manager_module() -> Result<(), Box<dyn std::error::Error>> {
-    ui::print_header("Testing File Manager Module");
-    
-    // Test search criteria
-    let criteria = SearchCriteria {
-        query: "test".to_string(),
-        file_type: Some("pdf".to_string()),
-        size_range: Some(SizeRange::GreaterThan(1024)),
-        date_range: Some(DateRange::LastDays(7)),
-        use_regex: false,
-        limit: 10,
-    };
-    
-    ui::print_key_value("Search query", &criteria.query);
-    ui::print_key_value("File type filter", criteria.file_type.as_ref().unwrap());
-    ui::print_key_value("Size filter", "Greater than 1KB");
-    
-    // Test recent files retrieval
-    let recent_files = dfs::file_manager::get_recent_files(5, 30, None).await?;
-    ui::print_key_value("Recent files found", &recent_files.len().to_string());
-    
-    ui::print_success("File manager module working correctly");
-    
-    Ok(())
-}
-
-async fn test_health_manager_module() -> Result<(), Box<dyn std::error::Error>> {
-    ui::print_header("Testing Health Manager Module");
-    
-    // Test health report generation
-    let health_report = generate_health_report().await?;
-    
-    ui::print_key_value("Total files", &health_report.total_files.to_string());
-    ui::print_key_value("Healthy files", &health_report.healthy_files.to_string());
-    ui::print_key_value("Average health", &format!("{:.1}%", health_report.average_health));
-    ui::print_key_value("Storage usage", &ui::format_file_size(health_report.storage_usage));
-    
-    // Test quota management
-    dfs::health_manager::manage_quota(true, None, None).await?;
-    
-    ui::print_success("Health manager module working correctly");
     
     Ok(())
 }

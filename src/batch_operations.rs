@@ -105,7 +105,7 @@ pub async fn batch_put(
     let chunks: Vec<_> = matching_files.chunks(config.parallel).collect();
     
     for (chunk_idx, chunk) in chunks.iter().enumerate() {
-        let mut join_set = JoinSet::new();
+        let mut upload_futures = Vec::new();
         
         for (_file_idx, file_path) in chunk.iter().enumerate() {
             let cli_clone = cli.clone();
@@ -114,7 +114,7 @@ pub async fn batch_put(
             let config_clone = config.clone();
             let base_dir_clone = base_dir.to_path_buf();
             
-            join_set.spawn(async move {
+            let future = async move {
                 upload_single_file(
                     &cli_clone,
                     &key_manager_clone,
@@ -122,11 +122,15 @@ pub async fn batch_put(
                     &config_clone,
                     &base_dir_clone,
                 ).await
-            });
+            };
+            
+            upload_futures.push(future);
         }
         
-        // Wait for this batch to complete
-        while let Some(result) = join_set.join_next().await {
+        // Wait for this batch to complete using join_all
+        let results = futures::future::join_all(upload_futures).await;
+        
+        for (idx, result) in results.into_iter().enumerate() {
             let current_progress = chunk_idx * config.parallel + successful + failed + 1;
             progress.update_operation(
                 upload_progress,
@@ -135,14 +139,10 @@ pub async fn batch_put(
             );
             
             match result {
-                Ok(Ok(_)) => successful += 1,
-                Ok(Err(e)) => {
-                    failed += 1;
-                    errors.push(e.to_string());
-                }
+                Ok(_) => successful += 1,
                 Err(e) => {
                     failed += 1;
-                    errors.push(format!("Task join error: {}", e));
+                    errors.push(e.to_string());
                 }
             }
         }
@@ -237,7 +237,7 @@ pub async fn batch_get(
     let chunks: Vec<_> = matching_files.chunks(config.parallel).collect();
     
     for (chunk_idx, chunk) in chunks.iter().enumerate() {
-        let mut join_set = JoinSet::new();
+        let mut download_futures = Vec::new();
         
         for file_entry in chunk.iter() {
             let cli_clone = cli.clone();
@@ -245,18 +245,22 @@ pub async fn batch_get(
             let file_entry_clone = file_entry.clone();
             let config_clone = config.clone();
             
-            join_set.spawn(async move {
+            let future = async move {
                 download_single_file(
                     &cli_clone,
                     &key_manager_clone,
                     &file_entry_clone,
                     &config_clone,
                 ).await
-            });
+            };
+            
+            download_futures.push(future);
         }
         
-        // Wait for this batch to complete
-        while let Some(result) = join_set.join_next().await {
+        // Wait for this batch to complete using join_all
+        let results = futures::future::join_all(download_futures).await;
+        
+        for (idx, result) in results.into_iter().enumerate() {
             let current_progress = chunk_idx * config.parallel + successful + failed + 1;
             progress.update_operation(
                 download_progress,
@@ -265,14 +269,10 @@ pub async fn batch_get(
             );
             
             match result {
-                Ok(Ok(_)) => successful += 1,
-                Ok(Err(e)) => {
-                    failed += 1;
-                    errors.push(e.to_string());
-                }
+                Ok(_) => successful += 1,
                 Err(e) => {
                     failed += 1;
-                    errors.push(format!("Task join error: {}", e));
+                    errors.push(e.to_string());
                 }
             }
         }
