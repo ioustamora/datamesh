@@ -730,7 +730,7 @@ impl ApiServer {
     tag = "auth"
 )]
 async fn login(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
     Json(request): Json<LoginRequest>,
 ) -> Result<Json<AuthResponse>, ApiError> {
     let user = state.user_registry
@@ -782,7 +782,7 @@ async fn login(
     tag = "auth"
 )]
 async fn register(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
     Json(request): Json<RegisterRequest>,
 ) -> Result<Json<AuthResponse>, ApiError> {
     let user = state.user_registry
@@ -840,7 +840,7 @@ async fn register(
     tag = "files"
 )]
 async fn upload_file(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
     headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<Json<FileUploadResponse>, ApiError> {
@@ -970,7 +970,7 @@ async fn upload_file(
     tag = "files"
 )]
 async fn download_file(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
     Path(file_key): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     let temp_dir = std::env::temp_dir();
@@ -1036,7 +1036,7 @@ async fn download_file(
     tag = "files"
 )]
 async fn get_file_metadata(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
     Path(file_key): Path<String>,
 ) -> Result<Json<FileMetadataResponse>, ApiError> {
     let db_path = database::get_default_db_path()
@@ -1080,7 +1080,7 @@ async fn get_file_metadata(
     tag = "files"
 )]
 async fn list_files(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<FileListResponse>, ApiError> {
     let db_path = database::get_default_db_path()
@@ -1137,7 +1137,7 @@ async fn list_files(
     tag = "search"
 )]
 async fn search_files(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
     Json(request): Json<FileSearchRequest>,
 ) -> Result<Json<FileListResponse>, ApiError> {
     let db_path = database::get_default_db_path()
@@ -1198,7 +1198,7 @@ async fn search_files(
     tag = "files"
 )]
 async fn delete_file(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
     Path(file_key): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let db_path = database::get_default_db_path()
@@ -1236,7 +1236,7 @@ async fn delete_file(
     tag = "stats"
 )]
 async fn get_api_stats(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
 ) -> Result<Json<ApiStatsResponse>, ApiError> {
     let db_path = database::get_default_db_path()
         .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
@@ -1333,7 +1333,7 @@ impl IntoResponse for ApiError {
     tag = "governance"
 )]
 async fn get_governance_status(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
 ) -> Result<Json<GovernanceStatusResponse>, ApiError> {
     let health = state.bootstrap_admin.check_network_health();
     
@@ -1359,7 +1359,7 @@ async fn get_governance_status(
     tag = "governance"
 )]
 async fn list_operators(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
 ) -> Result<Json<Vec<ApiOperatorResponse>>, ApiError> {
     let operators = state.bootstrap_admin.get_operators();
     
@@ -1396,7 +1396,7 @@ async fn list_operators(
     tag = "governance"
 )]
 async fn get_operator(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
     Path(operator_id): Path<String>,
 ) -> Result<Json<ApiOperatorResponse>, ApiError> {
     let operator_uuid = operator_id.parse::<uuid::Uuid>()
@@ -1435,7 +1435,7 @@ async fn get_operator(
     tag = "governance"
 )]
 async fn get_operator_dashboard(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
     Path(operator_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let operator_uuid = operator_id.parse::<uuid::Uuid>()
@@ -1458,7 +1458,7 @@ async fn get_operator_dashboard(
     tag = "governance"
 )]
 async fn get_network_health(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
 ) -> Result<Json<ApiNetworkHealthResponse>, ApiError> {
     let health = state.bootstrap_admin.check_network_health();
     
@@ -1487,7 +1487,7 @@ async fn get_network_health(
     tag = "admin"
 )]
 async fn register_operator(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
     Json(request): Json<ApiOperatorRegistrationRequest>,
 ) -> Result<Json<ApiOperatorResponse>, ApiError> {
     // Convert API request to bootstrap admin request
@@ -1551,7 +1551,7 @@ async fn register_operator(
     tag = "admin"
 )]
 async fn register_service(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
     Path(operator_id): Path<String>,
     Json(request): Json<ApiServiceRegistrationRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -1599,7 +1599,7 @@ async fn register_service(
     tag = "admin"
 )]
 async fn update_service_heartbeat(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
     Path((operator_id, service_id)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let service_uuid = service_id.parse::<uuid::Uuid>()
@@ -1629,7 +1629,7 @@ async fn update_service_heartbeat(
     tag = "admin"
 )]
 async fn execute_admin_action(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
     headers: HeaderMap,
     Json(request): Json<ApiAdminActionRequest>,
 ) -> Result<Json<ApiAdminActionResponse>, ApiError> {
@@ -1695,7 +1695,7 @@ async fn execute_admin_action(
     tag = "admin"
 )]
 async fn list_admin_actions(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
 ) -> Result<Json<Vec<ApiAdminActionResponse>>, ApiError> {
     let actions = state.bootstrap_admin.get_all_admin_actions();
     
@@ -1725,7 +1725,7 @@ async fn list_admin_actions(
     tag = "admin"
 )]
 async fn cleanup_inactive_operators(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     state.bootstrap_admin.cleanup_inactive_operators().await
         .map_err(|e| ApiError::InternalServerError(format!("Failed to cleanup operators: {}", e)))?;

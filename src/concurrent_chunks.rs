@@ -18,7 +18,7 @@ use libp2p::kad::{Record, RecordKey, Quorum, Event as KademliaEvent, GetRecordOk
 use libp2p::swarm::SwarmEvent;
 use tokio::sync::{Semaphore, RwLock};
 use tokio::time::timeout;
-use futures::{FutureExt, StreamExt};
+use futures::StreamExt;
 use tracing::{info, debug};
 
 use crate::network::{MyBehaviour, MyBehaviourEvent};
@@ -304,7 +304,7 @@ impl ConcurrentChunkManager {
         peer_stats: Arc<RwLock<HashMap<PeerId, PeerStats>>>,
     ) -> Result<ChunkResult> {
         let mut attempt = 0;
-        let mut last_error = None;
+        let mut _last_error = None;
         
         while attempt < config.retry_failed_chunks {
             attempt += 1;
@@ -320,7 +320,7 @@ impl ConcurrentChunkManager {
                     return Ok(result);
                 }
                 Err(e) => {
-                    last_error = Some(e);
+                    _last_error = Some(e);
                     
                     // Exponential backoff between retries
                     if attempt < config.retry_failed_chunks {
@@ -331,7 +331,7 @@ impl ConcurrentChunkManager {
             }
         }
         
-        Err(last_error.unwrap_or_else(|| anyhow!("Failed to retrieve chunk after {} attempts", config.retry_failed_chunks)))
+        Err(_last_error.unwrap_or_else(|| anyhow!("Failed to retrieve chunk after {} attempts", config.retry_failed_chunks)))
     }
 
     /// Retrieve chunk from multiple peers concurrently using select_ok
@@ -548,7 +548,7 @@ impl ConcurrentChunkManager {
         config: ConcurrentChunkConfig,
     ) -> Result<ChunkUploadResult> {
         let mut attempt = 0;
-        let mut last_error = None;
+        let mut _last_error = None;
         let upload_start = Instant::now();
         
         while attempt < config.retry_failed_chunks {
@@ -565,7 +565,7 @@ impl ConcurrentChunkManager {
                     return Ok(result);
                 }
                 Err(e) => {
-                    last_error = Some(e);
+                    _last_error = Some(e);
                     
                     // Exponential backoff between retries
                     if attempt < config.retry_failed_chunks {

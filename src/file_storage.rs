@@ -17,7 +17,6 @@ use std::fs;
 
 use chrono::{DateTime, Local};
 use ecies::{decrypt, encrypt, SecretKey};
-use futures::StreamExt;
 use libp2p::kad::{Quorum, Record, RecordKey};
 use reed_solomon_erasure::galois_8::ReedSolomon;
 use serde::{Deserialize, Serialize};

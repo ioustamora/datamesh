@@ -320,7 +320,7 @@ pub async fn store_file_with_network(
     name: &Option<String>,
     tags: &Option<Vec<String>>,
     network: std::sync::Arc<NetworkHandle>,
-    _database: std::sync::Arc<ThreadSafeDatabaseManager>,
+    database: std::sync::Arc<ThreadSafeDatabaseManager>,
 ) -> DfsResult<String> {
     // Implementation using actor-based network operations
     // This avoids the Swarm Send/Sync issues by using message passing
