@@ -9,10 +9,9 @@
 /// - File metadata (size, upload time, tags)
 /// - File keys for retrieval
 /// - File health information
-
 use anyhow::{Context, Result};
 use chrono::{DateTime, Local};
-use rusqlite::{params, Connection, Row, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -120,9 +119,9 @@ impl DatabaseManager {
              FROM files WHERE name = ?1"
         )?;
 
-        let file_entry = stmt.query_row(params![name], |row| {
-            Ok(self.row_to_file_entry(row)?)
-        }).optional()?;
+        let file_entry = stmt
+            .query_row(params![name], |row| Ok(self.row_to_file_entry(row)?))
+            .optional()?;
 
         Ok(file_entry)
     }
@@ -134,9 +133,9 @@ impl DatabaseManager {
              FROM files WHERE file_key = ?1"
         )?;
 
-        let file_entry = stmt.query_row(params![file_key], |row| {
-            Ok(self.row_to_file_entry(row)?)
-        }).optional()?;
+        let file_entry = stmt
+            .query_row(params![file_key], |row| Ok(self.row_to_file_entry(row)?))
+            .optional()?;
 
         Ok(file_entry)
     }
@@ -157,9 +156,7 @@ impl DatabaseManager {
             self.connection.prepare(query)?
         };
 
-        let file_entries = stmt.query_map([], |row| {
-            Ok(self.row_to_file_entry(row)?)
-        })?;
+        let file_entries = stmt.query_map([], |row| Ok(self.row_to_file_entry(row)?))?;
 
         let mut files = Vec::new();
         for entry in file_entries {
@@ -180,16 +177,17 @@ impl DatabaseManager {
 
     /// Delete a file entry
     pub fn delete_file(&self, name: &str) -> Result<bool> {
-        let rows_affected = self.connection.execute(
-            "DELETE FROM files WHERE name = ?1",
-            params![name],
-        )?;
+        let rows_affected = self
+            .connection
+            .execute("DELETE FROM files WHERE name = ?1", params![name])?;
         Ok(rows_affected > 0)
     }
 
     /// Check if a name is already taken
     pub fn is_name_taken(&self, name: &str) -> Result<bool> {
-        let mut stmt = self.connection.prepare("SELECT COUNT(*) FROM files WHERE name = ?1")?;
+        let mut stmt = self
+            .connection
+            .prepare("SELECT COUNT(*) FROM files WHERE name = ?1")?;
         let count: i64 = stmt.query_row(params![name], |row| row.get(0))?;
         Ok(count > 0)
     }
@@ -200,11 +198,11 @@ impl DatabaseManager {
             "UPDATE files SET name = ?1 WHERE name = ?2",
             params![new_name, old_name],
         )?;
-        
+
         if rows_affected == 0 {
             return Err(anyhow::anyhow!("File not found: {}", old_name));
         }
-        
+
         Ok(())
     }
 
@@ -214,34 +212,42 @@ impl DatabaseManager {
             "SELECT id, name, file_key, original_filename, file_size, upload_time, tags, public_key_hex, chunks_total, chunks_healthy
              FROM files WHERE tags LIKE ? ORDER BY upload_time DESC"
         )?;
-        
-        let file_entries = stmt.query_map([format!("%{}%", tag)], |row| {
-            let tags_str: String = row.get(6)?;
-            let tags: Vec<String> = if tags_str.is_empty() {
-                Vec::new()
-            } else {
-                tags_str.split(',').map(|s| s.trim().to_string()).collect()
-            };
-            
-            let upload_time_str: String = row.get(5)?;
-            let upload_time = DateTime::parse_from_rfc3339(&upload_time_str)
-                .map_err(|_| rusqlite::Error::InvalidColumnType(5, "upload_time".to_string(), rusqlite::types::Type::Text))?
-                .with_timezone(&Local::now().timezone());
-            
-            Ok(FileEntry {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                file_key: row.get(2)?,
-                original_filename: row.get(3)?,
-                file_size: row.get(4)?,
-                upload_time,
-                tags,
-                public_key_hex: row.get(7)?,
-                chunks_total: row.get(8)?,
-                chunks_healthy: row.get(9)?,
-            })
-        })?.collect::<std::result::Result<Vec<FileEntry>, rusqlite::Error>>()?;
-        
+
+        let file_entries = stmt
+            .query_map([format!("%{}%", tag)], |row| {
+                let tags_str: String = row.get(6)?;
+                let tags: Vec<String> = if tags_str.is_empty() {
+                    Vec::new()
+                } else {
+                    tags_str.split(',').map(|s| s.trim().to_string()).collect()
+                };
+
+                let upload_time_str: String = row.get(5)?;
+                let upload_time = DateTime::parse_from_rfc3339(&upload_time_str)
+                    .map_err(|_| {
+                        rusqlite::Error::InvalidColumnType(
+                            5,
+                            "upload_time".to_string(),
+                            rusqlite::types::Type::Text,
+                        )
+                    })?
+                    .with_timezone(&Local::now().timezone());
+
+                Ok(FileEntry {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    file_key: row.get(2)?,
+                    original_filename: row.get(3)?,
+                    file_size: row.get(4)?,
+                    upload_time,
+                    tags,
+                    public_key_hex: row.get(7)?,
+                    chunks_total: row.get(8)?,
+                    chunks_healthy: row.get(9)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<FileEntry>, rusqlite::Error>>()?;
+
         Ok(file_entries)
     }
 
@@ -252,11 +258,11 @@ impl DatabaseManager {
             "UPDATE files SET tags = ?1 WHERE name = ?2",
             params![tags_str, name],
         )?;
-        
+
         if rows_affected == 0 {
             return Err(anyhow::anyhow!("File not found: {}", name));
         }
-        
+
         Ok(())
     }
 
@@ -269,34 +275,42 @@ impl DatabaseManager {
              WHERE name LIKE ?1 OR original_filename LIKE ?1 OR tags LIKE ?1
              ORDER BY upload_time DESC"
         )?;
-        
-        let file_entries = stmt.query_map([&search_pattern], |row| {
-            let tags_str: String = row.get(6)?;
-            let tags: Vec<String> = if tags_str.is_empty() {
-                Vec::new()
-            } else {
-                tags_str.split(',').map(|s| s.trim().to_string()).collect()
-            };
-            
-            let upload_time_str: String = row.get(5)?;
-            let upload_time = DateTime::parse_from_rfc3339(&upload_time_str)
-                .map_err(|_| rusqlite::Error::InvalidColumnType(5, "upload_time".to_string(), rusqlite::types::Type::Text))?
-                .with_timezone(&Local::now().timezone());
-            
-            Ok(FileEntry {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                file_key: row.get(2)?,
-                original_filename: row.get(3)?,
-                file_size: row.get(4)?,
-                upload_time,
-                tags,
-                public_key_hex: row.get(7)?,
-                chunks_total: row.get(8)?,
-                chunks_healthy: row.get(9)?,
-            })
-        })?.collect::<std::result::Result<Vec<FileEntry>, rusqlite::Error>>()?;
-        
+
+        let file_entries = stmt
+            .query_map([&search_pattern], |row| {
+                let tags_str: String = row.get(6)?;
+                let tags: Vec<String> = if tags_str.is_empty() {
+                    Vec::new()
+                } else {
+                    tags_str.split(',').map(|s| s.trim().to_string()).collect()
+                };
+
+                let upload_time_str: String = row.get(5)?;
+                let upload_time = DateTime::parse_from_rfc3339(&upload_time_str)
+                    .map_err(|_| {
+                        rusqlite::Error::InvalidColumnType(
+                            5,
+                            "upload_time".to_string(),
+                            rusqlite::types::Type::Text,
+                        )
+                    })?
+                    .with_timezone(&Local::now().timezone());
+
+                Ok(FileEntry {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    file_key: row.get(2)?,
+                    original_filename: row.get(3)?,
+                    file_size: row.get(4)?,
+                    upload_time,
+                    tags,
+                    public_key_hex: row.get(7)?,
+                    chunks_total: row.get(8)?,
+                    chunks_healthy: row.get(9)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<FileEntry>, rusqlite::Error>>()?;
+
         Ok(file_entries)
     }
 
@@ -312,7 +326,13 @@ impl DatabaseManager {
         // Replace invalid characters with hyphens
         let clean_name = base_name
             .chars()
-            .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '-' })
+            .map(|c| {
+                if c.is_alphanumeric() || c == '-' || c == '_' {
+                    c
+                } else {
+                    '-'
+                }
+            })
             .collect::<String>()
             .to_lowercase();
 
@@ -340,7 +360,7 @@ impl DatabaseManager {
             "SELECT COUNT(*) as total_files, 
                     SUM(file_size) as total_size,
                     AVG(chunks_healthy * 1.0 / chunks_total) as avg_health
-             FROM files"
+             FROM files",
         )?;
 
         let stats = stmt.query_row([], |row| {
@@ -358,7 +378,13 @@ impl DatabaseManager {
     fn row_to_file_entry(&self, row: &Row) -> Result<FileEntry, rusqlite::Error> {
         let upload_time_str: String = row.get(5)?;
         let upload_time = DateTime::parse_from_rfc3339(&upload_time_str)
-            .map_err(|_| rusqlite::Error::InvalidColumnType(5, "upload_time".to_string(), rusqlite::types::Type::Text))?
+            .map_err(|_| {
+                rusqlite::Error::InvalidColumnType(
+                    5,
+                    "upload_time".to_string(),
+                    rusqlite::types::Type::Text,
+                )
+            })?
             .with_timezone(&Local);
 
         let tags_str: String = row.get(6)?;
@@ -396,7 +422,7 @@ pub fn get_default_db_path() -> Result<PathBuf> {
     let config_dir = dirs::config_dir()
         .or_else(|| dirs::home_dir().map(|h| h.join(".config")))
         .context("Could not determine config directory")?;
-    
+
     let datamesh_dir = config_dir.join("datamesh");
     Ok(datamesh_dir.join("files.db"))
 }
@@ -410,48 +436,50 @@ mod tests {
     fn test_database_operations() {
         let temp_file = NamedTempFile::new().unwrap();
         let db_path = temp_file.path().to_path_buf();
-        
+
         let db = DatabaseManager::new(&db_path).unwrap();
-        
+
         // Test storing a file
         let upload_time = Local::now();
-        let id = db.store_file(
-            "test-file",
-            "abc123",
-            "test.txt",
-            1024,
-            upload_time,
-            &["test".to_string(), "example".to_string()],
-            "public_key_hex"
-        ).unwrap();
-        
+        let id = db
+            .store_file(
+                "test-file",
+                "abc123",
+                "test.txt",
+                1024,
+                upload_time,
+                &["test".to_string(), "example".to_string()],
+                "public_key_hex",
+            )
+            .unwrap();
+
         assert!(id > 0);
-        
+
         // Test retrieving by name
         let file = db.get_file_by_name("test-file").unwrap().unwrap();
         assert_eq!(file.name, "test-file");
         assert_eq!(file.file_key, "abc123");
         assert_eq!(file.tags, vec!["test", "example"]);
-        
+
         // Test retrieving by key
         let file = db.get_file_by_key("abc123").unwrap().unwrap();
         assert_eq!(file.name, "test-file");
-        
+
         // Test listing files
         let files = db.list_files(None).unwrap();
         assert_eq!(files.len(), 1);
-        
+
         // Test filtering by tags
         let files = db.list_files(Some("test")).unwrap();
         assert_eq!(files.len(), 1);
-        
+
         let files = db.list_files(Some("nonexistent")).unwrap();
         assert_eq!(files.len(), 0);
-        
+
         // Test name generation
         let name = db.generate_unique_name("test.txt").unwrap();
         assert_eq!(name, "test"); // Should not conflict with "test-file"
-        
+
         // Test stats
         let stats = db.get_stats().unwrap();
         assert_eq!(stats.total_files, 1);

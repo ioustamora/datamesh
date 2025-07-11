@@ -1,28 +1,27 @@
+use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
 /// Advanced Performance Optimization System
 ///
 /// This module implements intelligent performance optimization, predictive analytics,
 /// and adaptive system tuning for the DataMesh network.
-
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use tokio::time::interval;
-use tracing::{info, error, debug};
-use serde::{Deserialize, Serialize};
-use anyhow::{Result, anyhow};
+use tracing::{debug, error, info};
 
-use crate::performance::PerformanceMonitor;
-use crate::network_diagnostics::NetworkDiagnostics;
 use crate::load_balancer::LoadBalancer;
+use crate::network_diagnostics::NetworkDiagnostics;
+use crate::performance::PerformanceMonitor;
 
 /// Performance optimization strategies
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OptimizationStrategy {
-    Conservative,       // Safe optimizations only
-    Aggressive,         // More aggressive optimizations
-    Adaptive,          // Adapt based on workload
-    MachineLearning,   // ML-based optimization
+    Conservative,    // Safe optimizations only
+    Aggressive,      // More aggressive optimizations
+    Adaptive,        // Adapt based on workload
+    MachineLearning, // ML-based optimization
 }
 
 /// Performance metrics for optimization decisions
@@ -102,7 +101,7 @@ impl Default for OptimizationConfig {
             auto_apply_safe_optimizations: true,
             monitoring_interval: Duration::from_secs(60),
             prediction_horizon: Duration::from_secs(300), // 5 minutes
-            optimization_threshold: 0.1, // 10% improvement threshold
+            optimization_threshold: 0.1,                  // 10% improvement threshold
             rollback_on_degradation: true,
         }
     }
@@ -142,20 +141,23 @@ impl PerformanceOptimizer {
 
     /// Start the performance optimizer
     pub async fn start(&self) -> Result<()> {
-        info!("Starting performance optimizer with strategy: {:?}", self.config.strategy);
-        
+        info!(
+            "Starting performance optimizer with strategy: {:?}",
+            self.config.strategy
+        );
+
         // Initialize baseline performance
         self.initialize_baseline().await?;
-        
+
         // Start performance monitoring
         self.start_performance_monitoring().await?;
-        
+
         // Start optimization analysis
         self.start_optimization_analysis().await?;
-        
+
         // Start predictive analytics
         self.start_predictive_analytics().await?;
-        
+
         Ok(())
     }
 
@@ -176,15 +178,17 @@ impl PerformanceOptimizer {
 
         tokio::spawn(async move {
             let mut interval = interval(monitoring_interval);
-            
+
             loop {
                 interval.tick().await;
-                
+
                 match Self::collect_and_store_metrics(
                     &historical_metrics,
                     &performance_monitor,
                     &network_diagnostics,
-                ).await {
+                )
+                .await
+                {
                     Ok(_) => debug!("Performance metrics collected successfully"),
                     Err(e) => error!("Failed to collect performance metrics: {}", e),
                 }
@@ -203,16 +207,18 @@ impl PerformanceOptimizer {
 
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(300)); // 5 minutes
-            
+
             loop {
                 interval.tick().await;
-                
+
                 match Self::analyze_and_recommend_optimizations(
                     &historical_metrics,
                     &active_optimizations,
                     &config,
                     &baseline_performance,
-                ).await {
+                )
+                .await
+                {
                     Ok(_) => debug!("Optimization analysis completed"),
                     Err(e) => error!("Optimization analysis failed: {}", e),
                 }
@@ -230,15 +236,17 @@ impl PerformanceOptimizer {
 
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(600)); // 10 minutes
-            
+
             loop {
                 interval.tick().await;
-                
+
                 match Self::update_predictive_models(
                     &historical_metrics,
                     &predictive_models,
                     &config,
-                ).await {
+                )
+                .await
+                {
                     Ok(_) => debug!("Predictive models updated"),
                     Err(e) => error!("Predictive model update failed: {}", e),
                 }
@@ -312,7 +320,8 @@ impl PerformanceOptimizer {
         let baseline_ref = baseline.as_ref().unwrap();
 
         // Generate recommendations
-        let recommendations = Self::generate_optimization_recommendations(recent_metrics, baseline_ref, config);
+        let recommendations =
+            Self::generate_optimization_recommendations(recent_metrics, baseline_ref, config);
 
         // Store recommendations
         let mut active = active_optimizations.write().await;
@@ -332,19 +341,29 @@ impl PerformanceOptimizer {
         let mut recommendations = Vec::new();
 
         // Calculate averages
-        let avg_cpu = recent_metrics.iter().map(|m| m.cpu_usage).sum::<f64>() / recent_metrics.len() as f64;
-        let avg_memory = recent_metrics.iter().map(|m| m.memory_usage).sum::<f64>() / recent_metrics.len() as f64;
-        let avg_latency = recent_metrics.iter().map(|m| m.network_latency).sum::<f64>() / recent_metrics.len() as f64;
-        let avg_throughput = recent_metrics.iter().map(|m| m.throughput).sum::<f64>() / recent_metrics.len() as f64;
-        let avg_error_rate = recent_metrics.iter().map(|m| m.error_rate).sum::<f64>() / recent_metrics.len() as f64;
-        let avg_cache_hit_rate = recent_metrics.iter().map(|m| m.cache_hit_rate).sum::<f64>() / recent_metrics.len() as f64;
+        let avg_cpu =
+            recent_metrics.iter().map(|m| m.cpu_usage).sum::<f64>() / recent_metrics.len() as f64;
+        let avg_memory = recent_metrics.iter().map(|m| m.memory_usage).sum::<f64>()
+            / recent_metrics.len() as f64;
+        let avg_latency = recent_metrics
+            .iter()
+            .map(|m| m.network_latency)
+            .sum::<f64>()
+            / recent_metrics.len() as f64;
+        let avg_throughput =
+            recent_metrics.iter().map(|m| m.throughput).sum::<f64>() / recent_metrics.len() as f64;
+        let avg_error_rate =
+            recent_metrics.iter().map(|m| m.error_rate).sum::<f64>() / recent_metrics.len() as f64;
+        let avg_cache_hit_rate = recent_metrics.iter().map(|m| m.cache_hit_rate).sum::<f64>()
+            / recent_metrics.len() as f64;
 
         // CPU optimization
         if avg_cpu > 0.8 {
             recommendations.push(OptimizationRecommendation {
                 category: "CPU".to_string(),
                 priority: 8,
-                description: "High CPU usage detected. Consider load balancing or scaling.".to_string(),
+                description: "High CPU usage detected. Consider load balancing or scaling."
+                    .to_string(),
                 expected_improvement: 0.3,
                 risk_level: RiskLevel::Low,
                 implementation_complexity: ComplexityLevel::Medium,
@@ -357,7 +376,9 @@ impl PerformanceOptimizer {
             recommendations.push(OptimizationRecommendation {
                 category: "Memory".to_string(),
                 priority: 9,
-                description: "High memory usage detected. Consider cache optimization or memory cleanup.".to_string(),
+                description:
+                    "High memory usage detected. Consider cache optimization or memory cleanup."
+                        .to_string(),
                 expected_improvement: 0.25,
                 risk_level: RiskLevel::Medium,
                 implementation_complexity: ComplexityLevel::High,
@@ -383,7 +404,9 @@ impl PerformanceOptimizer {
             recommendations.push(OptimizationRecommendation {
                 category: "Throughput".to_string(),
                 priority: 6,
-                description: "Throughput decreased. Consider parallel processing or connection optimization.".to_string(),
+                description:
+                    "Throughput decreased. Consider parallel processing or connection optimization."
+                        .to_string(),
                 expected_improvement: 0.35,
                 risk_level: RiskLevel::Medium,
                 implementation_complexity: ComplexityLevel::Medium,
@@ -396,7 +419,8 @@ impl PerformanceOptimizer {
             recommendations.push(OptimizationRecommendation {
                 category: "ErrorRate".to_string(),
                 priority: 10,
-                description: "High error rate detected. Investigate and fix error sources.".to_string(),
+                description: "High error rate detected. Investigate and fix error sources."
+                    .to_string(),
                 expected_improvement: 0.8,
                 risk_level: RiskLevel::High,
                 implementation_complexity: ComplexityLevel::High,
@@ -409,7 +433,9 @@ impl PerformanceOptimizer {
             recommendations.push(OptimizationRecommendation {
                 category: "Cache".to_string(),
                 priority: 5,
-                description: "Low cache hit rate. Consider cache warming or cache size optimization.".to_string(),
+                description:
+                    "Low cache hit rate. Consider cache warming or cache size optimization."
+                        .to_string(),
                 expected_improvement: 0.2,
                 risk_level: RiskLevel::Low,
                 implementation_complexity: ComplexityLevel::Low,
@@ -429,7 +455,7 @@ impl PerformanceOptimizer {
         config: &OptimizationConfig,
     ) -> Result<()> {
         let metrics = historical_metrics.read().await;
-        
+
         if metrics.len() < 10 {
             return Ok(()); // Need more data for predictions
         }
@@ -442,14 +468,12 @@ impl PerformanceOptimizer {
             model_type: "LinearTrend".to_string(),
             accuracy: 0.85,
             last_trained: Instant::now(),
-            predictions: vec![
-                PerformancePrediction {
-                    metric: "CPU".to_string(),
-                    predicted_value: cpu_trend,
-                    confidence: 0.8,
-                    time_horizon: config.prediction_horizon,
-                }
-            ],
+            predictions: vec![PerformancePrediction {
+                metric: "CPU".to_string(),
+                predicted_value: cpu_trend,
+                confidence: 0.8,
+                time_horizon: config.prediction_horizon,
+            }],
         };
 
         models.insert("CPU".to_string(), cpu_prediction);
@@ -460,14 +484,12 @@ impl PerformanceOptimizer {
             model_type: "LinearTrend".to_string(),
             accuracy: 0.82,
             last_trained: Instant::now(),
-            predictions: vec![
-                PerformancePrediction {
-                    metric: "Memory".to_string(),
-                    predicted_value: memory_trend,
-                    confidence: 0.75,
-                    time_horizon: config.prediction_horizon,
-                }
-            ],
+            predictions: vec![PerformancePrediction {
+                metric: "Memory".to_string(),
+                predicted_value: memory_trend,
+                confidence: 0.75,
+                time_horizon: config.prediction_horizon,
+            }],
         };
 
         models.insert("Memory".to_string(), memory_prediction);
@@ -477,7 +499,7 @@ impl PerformanceOptimizer {
     }
 
     /// Calculate trend for a metric
-    fn calculate_trend<F>(metrics: &[PerformanceMetrics], extractor: F) -> f64 
+    fn calculate_trend<F>(metrics: &[PerformanceMetrics], extractor: F) -> f64
     where
         F: Fn(&PerformanceMetrics) -> f64,
     {
@@ -487,17 +509,17 @@ impl PerformanceOptimizer {
 
         let recent = &metrics[metrics.len().min(20)..];
         let values: Vec<f64> = recent.iter().map(extractor).collect();
-        
+
         // Simple linear regression for trend
         let n = values.len() as f64;
         let sum_x: f64 = (0..values.len()).map(|i| i as f64).sum();
         let sum_y: f64 = values.iter().sum();
         let sum_xy: f64 = values.iter().enumerate().map(|(i, &y)| i as f64 * y).sum();
         let sum_x2: f64 = (0..values.len()).map(|i| (i as f64).powi(2)).sum();
-        
+
         let slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x.powi(2));
         let intercept = (sum_y - slope * sum_x) / n;
-        
+
         // Predict next value
         intercept + slope * n
     }
@@ -505,7 +527,8 @@ impl PerformanceOptimizer {
     /// Get current optimization recommendations
     pub async fn get_recommendations(&self) -> Result<Vec<OptimizationRecommendation>> {
         let active = self.active_optimizations.read().await;
-        let mut recommendations: Vec<OptimizationRecommendation> = active.values().cloned().collect();
+        let mut recommendations: Vec<OptimizationRecommendation> =
+            active.values().cloned().collect();
         recommendations.sort_by(|a, b| b.priority.cmp(&a.priority));
         Ok(recommendations)
     }
@@ -519,11 +542,11 @@ impl PerformanceOptimizer {
     /// Apply an optimization recommendation
     pub async fn apply_optimization(&self, category: &str) -> Result<()> {
         let active = self.active_optimizations.read().await;
-        
+
         if let Some(recommendation) = active.get(category) {
             if recommendation.auto_applicable {
                 info!("Applying optimization: {}", recommendation.description);
-                
+
                 match category {
                     "Cache" => {
                         // Implement cache optimization
@@ -534,16 +557,22 @@ impl PerformanceOptimizer {
                         self.optimize_network().await?;
                     }
                     _ => {
-                        info!("Optimization for category {} requires manual implementation", category);
+                        info!(
+                            "Optimization for category {} requires manual implementation",
+                            category
+                        );
                     }
                 }
             } else {
-                info!("Optimization for category {} requires manual approval", category);
+                info!(
+                    "Optimization for category {} requires manual approval",
+                    category
+                );
             }
         } else {
             return Err(anyhow!("No optimization found for category: {}", category));
         }
-        
+
         Ok(())
     }
 

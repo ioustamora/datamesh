@@ -1,12 +1,12 @@
+use super::alerts::Alert;
+use super::{PerformanceTrend, SystemMetrics};
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
-use anyhow::Result;
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
-use super::{SystemMetrics, PerformanceTrend};
-use super::alerts::Alert;
 
 /// Real-time monitoring dashboard data aggregator
 /// Provides comprehensive dashboard data with real-time updates
@@ -471,7 +471,7 @@ impl MonitoringDashboard {
     /// Get current dashboard data
     pub async fn get_dashboard_data(&self) -> Result<DashboardData> {
         let cache = self.data_cache.read().await;
-        
+
         // Check if cache is still valid
         if cache.cache_expiry > Utc::now() {
             Ok(cache.live_data.clone())
@@ -485,7 +485,7 @@ impl MonitoringDashboard {
     pub async fn get_user_dashboard_config(&self, user_id: &str) -> Result<UserDashboardConfig> {
         let preferences = self.user_preferences.read().await;
         let widgets = self.widget_configs.read().await;
-        
+
         let user_prefs = preferences.get(user_id).cloned().unwrap_or_else(|| {
             UserPreferences {
                 user_id: user_id.to_string(),
@@ -527,23 +527,31 @@ impl MonitoringDashboard {
     }
 
     /// Update user dashboard preferences
-    pub async fn update_user_preferences(&self, user_id: &str, preferences: UserPreferences) -> Result<()> {
+    pub async fn update_user_preferences(
+        &self,
+        user_id: &str,
+        preferences: UserPreferences,
+    ) -> Result<()> {
         let mut user_prefs = self.user_preferences.write().await;
         user_prefs.insert(user_id.to_string(), preferences);
-        
+
         tracing::info!("Updated dashboard preferences for user: {}", user_id);
         Ok(())
     }
 
     /// Subscribe user to alert notifications
-    pub async fn subscribe_to_alerts(&self, user_id: &str, subscription: AlertSubscription) -> Result<()> {
+    pub async fn subscribe_to_alerts(
+        &self,
+        user_id: &str,
+        subscription: AlertSubscription,
+    ) -> Result<()> {
         let mut subscriptions = self.alert_subscriptions.write().await;
-        
+
         subscriptions
             .entry(user_id.to_string())
             .or_insert_with(Vec::new)
             .push(subscription);
-        
+
         tracing::info!("Added alert subscription for user: {}", user_id);
         Ok(())
     }
@@ -557,10 +565,10 @@ impl MonitoringDashboard {
     /// Get aggregated metrics for time range
     pub async fn get_aggregated_metrics(&self, _time_range: Duration) -> Result<AggregatedMetrics> {
         let cache = self.data_cache.read().await;
-        
+
         // Filter metrics based on time range
         let filtered_metrics = cache.aggregated_metrics.clone();
-        
+
         // Apply time range filtering logic here
         // For now, return all metrics
         Ok(filtered_metrics)
@@ -573,9 +581,13 @@ impl MonitoringDashboard {
     }
 
     /// Export dashboard data
-    pub async fn export_dashboard_data(&self, format: ExportFormat, time_range: Duration) -> Result<ExportResult> {
+    pub async fn export_dashboard_data(
+        &self,
+        format: ExportFormat,
+        time_range: Duration,
+    ) -> Result<ExportResult> {
         let cache = self.data_cache.read().await;
-        
+
         let export_data = DashboardExportData {
             export_timestamp: Utc::now(),
             time_range,
@@ -593,11 +605,12 @@ impl MonitoringDashboard {
             ExportFormat::PDF => self.convert_to_pdf(&export_data).await?,
         };
 
-        let filename = format!("dashboard_export_{}.{}", 
+        let filename = format!(
+            "dashboard_export_{}.{}",
             Utc::now().format("%Y%m%d_%H%M%S"),
             format.file_extension()
         );
-        
+
         let data_size = exported_data.len();
         Ok(ExportResult {
             format,
@@ -779,20 +792,20 @@ impl MonitoringDashboard {
 
     async fn update_dashboard_data(data_cache: &Arc<RwLock<DashboardCache>>) -> Result<()> {
         let mut cache = data_cache.write().await;
-        
+
         // Update timestamps
         cache.last_updated = Utc::now();
         cache.cache_expiry = Utc::now() + Duration::from_secs(300);
-        
+
         // Update live data (simplified - would integrate with actual monitoring system)
         cache.live_data.timestamp = Utc::now();
         cache.live_data.system_health.last_updated = Utc::now();
-        
+
         // Add historical snapshot
         let current_metrics = cache.live_data.current_metrics.clone();
         let health_score = cache.live_data.system_health.overall_score;
         let active_alerts = cache.live_data.recent_alerts.len() as u32;
-        
+
         cache.historical_snapshots.push(HistoricalSnapshot {
             timestamp: Utc::now(),
             metrics: current_metrics,
@@ -800,12 +813,12 @@ impl MonitoringDashboard {
             active_alerts,
             performance_grade: "Good".to_string(),
         });
-        
+
         // Keep only recent snapshots
         if cache.historical_snapshots.len() > 1000 {
             cache.historical_snapshots.remove(0);
         }
-        
+
         tracing::debug!("Updated dashboard data");
         Ok(())
     }

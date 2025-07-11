@@ -1,24 +1,23 @@
+use anyhow::Result;
 /// DataMesh Core Integration Service
 ///
 /// This module integrates all the advanced features of DataMesh into a cohesive
 /// system, including load balancing, failover, performance optimization, billing,
 /// and governance.
-
 use std::sync::Arc;
-use anyhow::Result;
 use tokio::sync::RwLock;
 use tracing::info;
 
-use crate::load_balancer::{LoadBalancer, LoadBalancingStrategy, AutoScalingConfig};
-use crate::failover::{FailoverManager, FailoverConfig};
-use crate::performance_optimizer::{PerformanceOptimizer, OptimizationConfig};
-use crate::billing_system::{BillingSystem, BillingConfig};
-use crate::governance::GovernanceFramework;
-use crate::economics::EconomicModel;
-use crate::performance::PerformanceMonitor;
-use crate::network_diagnostics::NetworkDiagnostics;
+use crate::billing_system::{BillingConfig, BillingSystem};
 use crate::bootstrap_manager::BootstrapManager;
 use crate::database::DatabaseManager;
+use crate::economics::EconomicModel;
+use crate::failover::{FailoverConfig, FailoverManager};
+use crate::governance::GovernanceFramework;
+use crate::load_balancer::{AutoScalingConfig, LoadBalancer, LoadBalancingStrategy};
+use crate::network_diagnostics::NetworkDiagnostics;
+use crate::performance::PerformanceMonitor;
+use crate::performance_optimizer::{OptimizationConfig, PerformanceOptimizer};
 
 /// Core DataMesh system configuration
 #[derive(Debug, Clone)]
@@ -52,14 +51,14 @@ pub struct DataMeshCore {
     network_diagnostics: Arc<NetworkDiagnostics>,
     bootstrap_manager: Arc<BootstrapManager>,
     economic_model: Arc<EconomicModel>,
-    
+
     // Core systems
     load_balancer: Option<Arc<LoadBalancer>>,
     failover_manager: Option<Arc<FailoverManager>>,
     performance_optimizer: Option<Arc<PerformanceOptimizer>>,
     billing_system: Option<Arc<BillingSystem>>,
     governance_framework: Option<Arc<GovernanceFramework>>,
-    
+
     // System state
     is_running: Arc<RwLock<bool>>,
 }
@@ -74,7 +73,7 @@ impl DataMeshCore {
         bootstrap_manager: Arc<BootstrapManager>,
     ) -> Self {
         let economic_model = Arc::new(EconomicModel::new());
-        
+
         Self {
             config,
             database,
@@ -194,7 +193,7 @@ impl DataMeshCore {
     /// Get system status
     pub async fn get_status(&self) -> Result<DataMeshStatus> {
         let is_running = *self.is_running.read().await;
-        
+
         let load_balancer_stats = if let Some(load_balancer) = &self.load_balancer {
             Some(load_balancer.get_statistics().await?)
         } else {
@@ -229,7 +228,9 @@ impl DataMeshCore {
     }
 
     /// Get performance recommendations
-    pub async fn get_performance_recommendations(&self) -> Result<Vec<crate::performance_optimizer::OptimizationRecommendation>> {
+    pub async fn get_performance_recommendations(
+        &self,
+    ) -> Result<Vec<crate::performance_optimizer::OptimizationRecommendation>> {
         if let Some(performance_optimizer) = &self.performance_optimizer {
             performance_optimizer.get_recommendations().await
         } else {
@@ -280,13 +281,17 @@ impl DataMeshCore {
         metadata: std::collections::HashMap<String, String>,
     ) -> Result<()> {
         if let Some(billing_system) = &self.billing_system {
-            billing_system.record_usage(user_id, resource_type, amount, unit, metadata).await?;
+            billing_system
+                .record_usage(user_id, resource_type, amount, unit, metadata)
+                .await?;
         }
         Ok(())
     }
 
     /// Get billing statistics
-    pub async fn get_billing_statistics(&self) -> Result<Option<crate::billing_system::BillingStats>> {
+    pub async fn get_billing_statistics(
+        &self,
+    ) -> Result<Option<crate::billing_system::BillingStats>> {
         if let Some(billing_system) = &self.billing_system {
             Ok(Some(billing_system.get_billing_stats().await?))
         } else {
@@ -303,7 +308,11 @@ impl DataMeshCore {
         payment_method: crate::billing_system::PaymentMethod,
     ) -> Result<Option<crate::billing_system::Subscription>> {
         if let Some(billing_system) = &self.billing_system {
-            Ok(Some(billing_system.create_subscription(user_id, tier, billing_cycle, payment_method).await?))
+            Ok(Some(
+                billing_system
+                    .create_subscription(user_id, tier, billing_cycle, payment_method)
+                    .await?,
+            ))
         } else {
             Ok(None)
         }
@@ -376,7 +385,8 @@ mod tests {
             performance_monitor,
             network_diagnostics,
             bootstrap_manager,
-        ).await;
+        )
+        .await;
 
         assert!(core.is_ok());
     }

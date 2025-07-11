@@ -1,7 +1,7 @@
+use libp2p::{Multiaddr, PeerId};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::Duration;
-use libp2p::{PeerId, Multiaddr};
 
 /// Configuration for the DFS system
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -256,7 +256,7 @@ impl Default for Config {
                     db_path: None,
                     cache_size: 1000,
                     cleanup_interval_secs: 24 * 60 * 60, // 24 hours
-                    default_ttl_secs: 24 * 60 * 60, // 24 hours
+                    default_ttl_secs: 24 * 60 * 60,      // 24 hours
                 },
                 bootstrap: BootstrapConfig {
                     peers: vec![],
@@ -279,7 +279,7 @@ impl Default for Config {
                 data_shards: 4,
                 parity_shards: 2,
                 max_file_size: 100 * 1024 * 1024, // 100MB
-                chunk_size: 1024 * 1024, // 1MB
+                chunk_size: 1024 * 1024,          // 1MB
             },
             security: SecurityConfig {
                 key_algorithm: "secp256k1".to_string(),
@@ -303,7 +303,7 @@ impl Default for Config {
                 },
                 connection_pool: ConnectionPoolConfig {
                     max_connections_per_peer: 3,
-                    idle_timeout_secs: 300, // 5 minutes
+                    idle_timeout_secs: 300,       // 5 minutes
                     keep_alive_interval_secs: 60, // 1 minute
                 },
                 timeouts: TimeoutConfig {
@@ -347,26 +347,28 @@ impl Config {
         if let Some(path) = config_path {
             if path.exists() {
                 let config_str = std::fs::read_to_string(&path)?;
-                let config: Config = toml::from_str(&config_str)
-                    .map_err(|e| crate::error::DfsError::Serialization(format!("Config parse error: {}", e)))?;
+                let config: Config = toml::from_str(&config_str).map_err(|e| {
+                    crate::error::DfsError::Serialization(format!("Config parse error: {}", e))
+                })?;
                 tracing::info!("Loaded configuration from {:?}", path);
                 return Ok(config);
             }
         }
-        
+
         tracing::info!("Using default configuration");
         Ok(Config::default())
     }
 
     /// Save configuration to file
     pub fn save(&self, config_path: &PathBuf) -> crate::error::DfsResult<()> {
-        let config_str = toml::to_string_pretty(self)
-            .map_err(|e| crate::error::DfsError::Serialization(format!("Config serialize error: {}", e)))?;
-        
+        let config_str = toml::to_string_pretty(self).map_err(|e| {
+            crate::error::DfsError::Serialization(format!("Config serialize error: {}", e))
+        })?;
+
         if let Some(parent) = config_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        
+
         std::fs::write(config_path, config_str)?;
         tracing::info!("Configuration saved to {:?}", config_path);
         Ok(())
@@ -400,17 +402,19 @@ impl Config {
 
 impl BootstrapConfig {
     /// Convert configuration to bootstrap manager
-    pub fn to_bootstrap_manager(&self) -> Result<crate::bootstrap_manager::BootstrapManager, Box<dyn std::error::Error>> {
+    pub fn to_bootstrap_manager(
+        &self,
+    ) -> Result<crate::bootstrap_manager::BootstrapManager, Box<dyn std::error::Error>> {
         use crate::bootstrap_manager::{BootstrapManager, BootstrapPeer, ExponentialBackoff};
         use std::str::FromStr;
-        
+
         let mut manager = BootstrapManager::new()
             .with_connection_limits(self.min_connections, self.max_connections);
-        
+
         if let Some(ref region) = self.preferred_region {
             manager = manager.with_preferred_region(region.clone());
         }
-        
+
         // Configure retry strategy
         let retry_strategy = ExponentialBackoff::new(
             Duration::from_secs(self.backoff.base_delay_secs),
@@ -419,25 +423,26 @@ impl BootstrapConfig {
             self.backoff.max_attempts,
         );
         manager = manager.with_retry_strategy(retry_strategy);
-        
+
         // Add bootstrap peers
         for peer_config in &self.peers {
             let peer_id = PeerId::from_str(&peer_config.peer_id)?;
-            let addresses: Result<Vec<Multiaddr>, _> = peer_config.addresses
+            let addresses: Result<Vec<Multiaddr>, _> = peer_config
+                .addresses
                 .iter()
                 .map(|addr| Multiaddr::from_str(addr))
                 .collect();
-            
-            let mut peer = BootstrapPeer::new(peer_id, addresses?)
-                .with_priority(peer_config.priority);
-            
+
+            let mut peer =
+                BootstrapPeer::new(peer_id, addresses?).with_priority(peer_config.priority);
+
             if let Some(ref region) = peer_config.region {
                 peer = peer.with_region(region.clone());
             }
-            
+
             manager.add_bootstrap_peer(peer);
         }
-        
+
         Ok(manager)
     }
 }

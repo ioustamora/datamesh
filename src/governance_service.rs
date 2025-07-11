@@ -1,12 +1,11 @@
 /// Governance Service Module
-/// 
+///
 /// This module provides the Governance Service for managing network governance,
 /// user resources, and bootstrap operator administration. It coordinates between
 /// the various governance components to provide a unified interface for network
 /// administration.
 
 // Temporarily simplified implementation for compilation
-
 
 /// Simplified governance service for compilation
 pub struct GovernanceService {
@@ -16,12 +15,12 @@ pub struct GovernanceService {
 
 impl GovernanceService {
     pub fn new() -> Self {
-        Self { 
+        Self {
             enabled: false,
             user_resource_manager: None,
         }
     }
-    
+
     pub fn is_enabled(&self) -> bool {
         self.enabled
     }

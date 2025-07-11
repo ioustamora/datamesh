@@ -1,8 +1,9 @@
+use crate::error::{DfsError, DfsResult};
 /// Resilience Module
 ///
 /// This module provides resilience mechanisms for the distributed file system,
 /// including retry logic, circuit breakers, and fault tolerance features.
-/// 
+///
 /// Key features:
 /// - Configurable retry with exponential backoff
 /// - Operation timeouts
@@ -14,8 +15,7 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
-use tracing::{debug, warn, error};
-use crate::error::{DfsError, DfsResult};
+use tracing::{debug, error, warn};
 
 /// Retry configuration for resilient operations
 #[derive(Debug, Clone)]
@@ -51,28 +51,46 @@ where
     let mut last_error = None;
 
     for attempt in 1..=config.max_attempts {
-        debug!("Attempting {} (attempt {}/{})", operation_name, attempt, config.max_attempts);
-        
+        debug!(
+            "Attempting {} (attempt {}/{})",
+            operation_name, attempt, config.max_attempts
+        );
+
         let start = Instant::now();
         match operation().await {
             Ok(result) => {
-                debug!("{} succeeded on attempt {} after {:?}", 
-                    operation_name, attempt, start.elapsed());
+                debug!(
+                    "{} succeeded on attempt {} after {:?}",
+                    operation_name,
+                    attempt,
+                    start.elapsed()
+                );
                 return Ok(result);
             }
             Err(e) => {
                 last_error = Some(e);
                 if attempt < config.max_attempts {
-                    warn!("{} failed on attempt {}, retrying in {:?}: {}", 
-                        operation_name, attempt, delay, last_error.as_ref().unwrap());
+                    warn!(
+                        "{} failed on attempt {}, retrying in {:?}: {}",
+                        operation_name,
+                        attempt,
+                        delay,
+                        last_error.as_ref().unwrap()
+                    );
                     sleep(delay).await;
                     delay = std::cmp::min(
-                        Duration::from_millis((delay.as_millis() as f64 * config.backoff_multiplier) as u64),
-                        config.max_delay
+                        Duration::from_millis(
+                            (delay.as_millis() as f64 * config.backoff_multiplier) as u64,
+                        ),
+                        config.max_delay,
                     );
                 } else {
-                    error!("{} failed after {} attempts: {}", 
-                        operation_name, config.max_attempts, last_error.as_ref().unwrap());
+                    error!(
+                        "{} failed after {} attempts: {}",
+                        operation_name,
+                        config.max_attempts,
+                        last_error.as_ref().unwrap()
+                    );
                 }
             }
         }
@@ -94,7 +112,10 @@ where
         Ok(result) => Ok(result),
         Err(_) => {
             error!("{} timed out after {:?}", operation_name, timeout);
-            Err(DfsError::Network(format!("{} operation timed out", operation_name)))
+            Err(DfsError::Network(format!(
+                "{} operation timed out",
+                operation_name
+            )))
         }
     }
 }
@@ -143,8 +164,10 @@ impl CircuitBreaker {
     }
 
     pub fn state(&self) -> CircuitBreakerState {
-        let failure_count = self.failure_count.load(std::sync::atomic::Ordering::Relaxed);
-        
+        let failure_count = self
+            .failure_count
+            .load(std::sync::atomic::Ordering::Relaxed);
+
         if failure_count >= self.config.failure_threshold {
             let last_failure = self.last_failure.lock().unwrap();
             if let Some(last_fail_time) = *last_failure {
@@ -172,7 +195,8 @@ impl CircuitBreaker {
             }
             CircuitBreakerState::HalfOpen => {
                 // Reset success count for testing
-                self.success_count.store(0, std::sync::atomic::Ordering::Relaxed);
+                self.success_count
+                    .store(0, std::sync::atomic::Ordering::Relaxed);
             }
             CircuitBreakerState::Closed => {
                 // Normal operation
@@ -192,20 +216,26 @@ impl CircuitBreaker {
     }
 
     fn on_success(&self) {
-        self.success_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        
+        self.success_count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
         // If we're in half-open state and have enough successes, reset
         if self.state() == CircuitBreakerState::HalfOpen {
-            let success_count = self.success_count.load(std::sync::atomic::Ordering::Relaxed);
+            let success_count = self
+                .success_count
+                .load(std::sync::atomic::Ordering::Relaxed);
             if success_count >= self.config.success_threshold {
-                self.failure_count.store(0, std::sync::atomic::Ordering::Relaxed);
-                self.success_count.store(0, std::sync::atomic::Ordering::Relaxed);
+                self.failure_count
+                    .store(0, std::sync::atomic::Ordering::Relaxed);
+                self.success_count
+                    .store(0, std::sync::atomic::Ordering::Relaxed);
             }
         }
     }
 
     fn on_failure(&self) {
-        self.failure_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.failure_count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         *self.last_failure.lock().unwrap() = Some(Instant::now());
     }
 }

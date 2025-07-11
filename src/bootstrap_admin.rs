@@ -1,14 +1,11 @@
+use crate::error::{DfsError, DfsResult};
 /// Bootstrap Node Administration Service
 ///
 /// This service implements the bootstrap node administration framework as outlined
 /// in the governance roadmap. It manages bootstrap operators, their services,
 /// and administrative privileges within the DataMesh network.
-
-use crate::governance::{
-    BootstrapOperator, NetworkService, UserId
-};
-use crate::error::{DfsResult, DfsError};
-use chrono::{DateTime, Utc, Duration};
+use crate::governance::{BootstrapOperator, NetworkService, UserId};
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -155,10 +152,10 @@ impl BootstrapAdministrationService {
         peer_id: String,
     ) -> DfsResult<BootstrapOperator> {
         let operator_id = Uuid::new_v4();
-        
+
         // Calculate initial governance weight based on stake
         let governance_weight = self.calculate_governance_weight(request.stake_amount);
-        
+
         let operator = BootstrapOperator {
             operator_id,
             peer_id,
@@ -199,7 +196,7 @@ impl BootstrapAdministrationService {
     fn calculate_governance_weight(&self, stake: u64) -> f64 {
         // Base weight from stake (logarithmic to prevent excessive centralization)
         let stake_weight = (stake as f64).log10() / 10.0;
-        
+
         // Cap the weight to prevent single operator dominance
         stake_weight.min(0.3) // Maximum 30% weight from any single operator
     }
@@ -217,7 +214,11 @@ impl BootstrapAdministrationService {
     }
 
     /// Update operator metrics
-    pub async fn update_operator_metrics(&self, operator_id: &Uuid, metrics: OperatorMetrics) -> DfsResult<()> {
+    pub async fn update_operator_metrics(
+        &self,
+        operator_id: &Uuid,
+        metrics: OperatorMetrics,
+    ) -> DfsResult<()> {
         let mut operator_metrics = self.operator_metrics.write().unwrap();
         operator_metrics.insert(*operator_id, metrics);
 
@@ -250,17 +251,19 @@ impl BootstrapAdministrationService {
                 };
 
                 let connection_score = if metrics.successful_connections > 0 {
-                    metrics.successful_connections as f64 / 
-                    (metrics.successful_connections + metrics.failed_connections) as f64
+                    metrics.successful_connections as f64
+                        / (metrics.successful_connections + metrics.failed_connections) as f64
                 } else {
                     0.5
                 };
 
                 // Weighted average of different factors
-                let new_reputation = (uptime_score * 0.4) + (response_score * 0.3) + (connection_score * 0.3);
-                
+                let new_reputation =
+                    (uptime_score * 0.4) + (response_score * 0.3) + (connection_score * 0.3);
+
                 // Smooth reputation changes to prevent volatility
-                operator.reputation_score = (operator.reputation_score * 0.8) + (new_reputation * 0.2);
+                operator.reputation_score =
+                    (operator.reputation_score * 0.8) + (new_reputation * 0.2);
             }
         }
 
@@ -303,7 +306,8 @@ impl BootstrapAdministrationService {
     /// Get services provided by an operator
     pub fn get_operator_services(&self, operator_id: &Uuid) -> Vec<ServiceRegistration> {
         let service_registry = self.service_registry.read().unwrap();
-        service_registry.values()
+        service_registry
+            .values()
             .filter(|service| service.operator_id == *operator_id)
             .cloned()
             .collect()
@@ -323,13 +327,13 @@ impl BootstrapAdministrationService {
     pub async fn check_service_health(&self) -> DfsResult<()> {
         let stale_threshold = Utc::now() - Duration::minutes(5);
         let mut service_registry = self.service_registry.write().unwrap();
-        
+
         for service in service_registry.values_mut() {
             if service.last_heartbeat < stale_threshold {
                 service.status = ServiceStatus::Inactive;
             }
         }
-        
+
         Ok(())
     }
 
@@ -342,12 +346,15 @@ impl BootstrapAdministrationService {
         reason: String,
     ) -> DfsResult<AdminAction> {
         // Verify operator has admin privileges
-        let operator = self.get_operator(operator_id)
+        let operator = self
+            .get_operator(operator_id)
             .ok_or_else(|| DfsError::Authentication("Operator not found".to_string()))?;
 
         // Check if operator has sufficient reputation for admin actions
         if operator.reputation_score < 0.7 {
-            return Err(DfsError::Authentication("Insufficient reputation for admin action".to_string()));
+            return Err(DfsError::Authentication(
+                "Insufficient reputation for admin action".to_string(),
+            ));
         }
 
         let action = AdminAction {
@@ -403,7 +410,10 @@ impl BootstrapAdministrationService {
             }
             AdminActionType::EmergencyShutdown => {
                 // Implementation would initiate emergency shutdown
-                tracing::warn!("Emergency shutdown initiated by operator {}", action.operator_id);
+                tracing::warn!(
+                    "Emergency shutdown initiated by operator {}",
+                    action.operator_id
+                );
             }
         }
         Ok(())
@@ -412,7 +422,8 @@ impl BootstrapAdministrationService {
     /// Get administrative actions taken by an operator
     pub fn get_admin_actions(&self, operator_id: &Uuid) -> Vec<AdminAction> {
         let admin_actions = self.admin_actions.read().unwrap();
-        admin_actions.iter()
+        admin_actions
+            .iter()
             .filter(|action| action.operator_id == *operator_id)
             .cloned()
             .collect()
@@ -434,7 +445,11 @@ impl BootstrapAdministrationService {
     pub fn get_operators_by_governance_weight(&self) -> Vec<BootstrapOperator> {
         let operators = self.operators.read().unwrap();
         let mut ops: Vec<BootstrapOperator> = operators.values().cloned().collect();
-        ops.sort_by(|a, b| b.governance_weight.partial_cmp(&a.governance_weight).unwrap());
+        ops.sort_by(|a, b| {
+            b.governance_weight
+                .partial_cmp(&a.governance_weight)
+                .unwrap()
+        });
         ops
     }
 
@@ -442,9 +457,10 @@ impl BootstrapAdministrationService {
     pub fn check_network_health(&self) -> NetworkHealthStatus {
         let operators = self.operators.read().unwrap();
         let metrics = self.operator_metrics.read().unwrap();
-        
+
         let total_operators = operators.len();
-        let online_operators = metrics.values()
+        let online_operators = metrics
+            .values()
             .filter(|m| m.last_seen > Utc::now() - Duration::minutes(5))
             .count();
 
@@ -455,7 +471,8 @@ impl BootstrapAdministrationService {
         };
 
         let total_governance_weight = self.calculate_total_governance_weight();
-        let online_governance_weight = operators.values()
+        let online_governance_weight = operators
+            .values()
             .filter(|op| {
                 if let Some(metrics) = metrics.get(&op.operator_id) {
                     metrics.last_seen > Utc::now() - Duration::minutes(5)
@@ -481,8 +498,9 @@ impl BootstrapAdministrationService {
         let inactive_threshold = Utc::now() - Duration::days(30);
         let mut operators = self.operators.write().unwrap();
         let mut operator_metrics = self.operator_metrics.write().unwrap();
-        
-        let inactive_operators: Vec<Uuid> = operators.values()
+
+        let inactive_operators: Vec<Uuid> = operators
+            .values()
             .filter(|op| op.last_active < inactive_threshold)
             .map(|op| op.operator_id)
             .collect();
@@ -522,7 +540,7 @@ impl BootstrapAdministrationService {
     /// Get comprehensive dashboard data for an operator
     pub fn get_operator_dashboard(&self, operator_id: &Uuid) -> Option<OperatorDashboard> {
         let operator = self.get_operator(operator_id)?;
-        
+
         let metrics = {
             let operator_metrics = self.operator_metrics.read().unwrap();
             operator_metrics.get(operator_id).cloned()?
@@ -549,7 +567,7 @@ mod tests {
     #[tokio::test]
     async fn test_operator_registration() {
         let admin_service = BootstrapAdministrationService::new();
-        
+
         let request = OperatorRegistrationRequest {
             legal_name: "Test Operator Ltd".to_string(),
             contact_email: "admin@testop.com".to_string(),
@@ -560,7 +578,9 @@ mod tests {
             service_level_agreement: "99.9% uptime".to_string(),
         };
 
-        let result = admin_service.register_operator(request, "peer123".to_string()).await;
+        let result = admin_service
+            .register_operator(request, "peer123".to_string())
+            .await;
         assert!(result.is_ok());
 
         let operator = result.unwrap();
@@ -572,7 +592,7 @@ mod tests {
     #[tokio::test]
     async fn test_service_registration() {
         let admin_service = BootstrapAdministrationService::new();
-        
+
         let request = OperatorRegistrationRequest {
             legal_name: "Test Operator Ltd".to_string(),
             contact_email: "admin@testop.com".to_string(),
@@ -583,22 +603,27 @@ mod tests {
             service_level_agreement: "99.9% uptime".to_string(),
         };
 
-        let operator = admin_service.register_operator(request, "peer123".to_string()).await.unwrap();
-        
+        let operator = admin_service
+            .register_operator(request, "peer123".to_string())
+            .await
+            .unwrap();
+
         let service_config = ServiceConfig::Storage {
             capacity_gb: 1000,
             redundancy_factor: 3,
             data_retention_days: 365,
         };
 
-        let result = admin_service.register_service(
-            &operator.operator_id,
-            NetworkService::Storage,
-            service_config,
-        ).await;
+        let result = admin_service
+            .register_service(
+                &operator.operator_id,
+                NetworkService::Storage,
+                service_config,
+            )
+            .await;
 
         assert!(result.is_ok());
-        
+
         let services = admin_service.get_operator_services(&operator.operator_id);
         assert_eq!(services.len(), 1);
         assert!(matches!(services[0].service_type, NetworkService::Storage));
@@ -607,7 +632,7 @@ mod tests {
     #[tokio::test]
     async fn test_admin_action() {
         let admin_service = BootstrapAdministrationService::new();
-        
+
         let request = OperatorRegistrationRequest {
             legal_name: "Test Operator Ltd".to_string(),
             contact_email: "admin@testop.com".to_string(),
@@ -618,8 +643,11 @@ mod tests {
             service_level_agreement: "99.9% uptime".to_string(),
         };
 
-        let operator = admin_service.register_operator(request, "peer123".to_string()).await.unwrap();
-        
+        let operator = admin_service
+            .register_operator(request, "peer123".to_string())
+            .await
+            .unwrap();
+
         // Set high reputation to allow admin actions
         {
             let mut operators = admin_service.operators.write().unwrap();
@@ -628,12 +656,14 @@ mod tests {
             }
         }
 
-        let result = admin_service.execute_admin_action(
-            &operator.operator_id,
-            AdminActionType::SuspendUser,
-            AdminTarget::User(Uuid::new_v4()),
-            "Spam violation".to_string(),
-        ).await;
+        let result = admin_service
+            .execute_admin_action(
+                &operator.operator_id,
+                AdminActionType::SuspendUser,
+                AdminTarget::User(Uuid::new_v4()),
+                "Spam violation".to_string(),
+            )
+            .await;
 
         assert!(result.is_ok());
     }
@@ -641,7 +671,7 @@ mod tests {
     #[tokio::test]
     async fn test_network_health() {
         let admin_service = BootstrapAdministrationService::new();
-        
+
         // Register multiple operators
         for i in 0..5 {
             let request = OperatorRegistrationRequest {
@@ -654,8 +684,11 @@ mod tests {
                 service_level_agreement: "99.9% uptime".to_string(),
             };
 
-            let operator = admin_service.register_operator(request, format!("peer{}", i)).await.unwrap();
-            
+            let operator = admin_service
+                .register_operator(request, format!("peer{}", i))
+                .await
+                .unwrap();
+
             // Add metrics to simulate active operators
             let metrics = OperatorMetrics {
                 operator_id: operator.operator_id,
@@ -670,7 +703,10 @@ mod tests {
                 node_version: "0.1.0".to_string(),
             };
 
-            admin_service.update_operator_metrics(&operator.operator_id, metrics).await.unwrap();
+            admin_service
+                .update_operator_metrics(&operator.operator_id, metrics)
+                .await
+                .unwrap();
         }
 
         let health = admin_service.check_network_health();

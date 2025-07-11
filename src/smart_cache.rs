@@ -1,3 +1,8 @@
+use crate::concurrent_chunks::ConcurrentChunkManager;
+use anyhow::{anyhow, Result};
+use chrono::{DateTime, Utc};
+use lru::LruCache;
+use serde::{Deserialize, Serialize};
 /// Advanced Caching System Module
 ///
 /// This module implements the Advanced Caching System as outlined in the
@@ -8,18 +13,12 @@
 /// - Smart eviction policies based on access patterns
 /// - Performance metrics and monitoring
 /// - Integration with concurrent chunk operations
-
 use std::collections::{HashMap, VecDeque};
-use std::time::{Duration, Instant};
-use std::sync::Arc;
 use std::num::NonZeroUsize;
-use anyhow::{Result, anyhow};
-use chrono::{DateTime, Utc};
-use lru::LruCache;
-use tokio::sync::{RwLock, Mutex};
-use tracing::{info, warn, debug};
-use serde::{Serialize, Deserialize};
-use crate::concurrent_chunks::ConcurrentChunkManager;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::sync::{Mutex, RwLock};
+use tracing::{debug, info, warn};
 
 /// Configuration for the smart cache system
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -157,10 +156,10 @@ impl LRUPredictor {
         if let Some(pos) = self.recent_accesses.iter().position(|x| x == &file_key) {
             self.recent_accesses.remove(pos);
         }
-        
+
         // Add to front
         self.recent_accesses.push_front(file_key);
-        
+
         // Trim if too large
         if self.recent_accesses.len() > self.max_history {
             self.recent_accesses.pop_back();
@@ -177,11 +176,7 @@ impl LRUPredictor {
     }
 
     pub fn get_predicted_popular_files(&self, limit: usize) -> Vec<String> {
-        self.recent_accesses
-            .iter()
-            .take(limit)
-            .cloned()
-            .collect()
+        self.recent_accesses.iter().take(limit).cloned().collect()
     }
 }
 
@@ -203,7 +198,13 @@ impl AccessPatternAnalyzer {
         }
     }
 
-    pub fn record_access(&mut self, file_key: String, access_type: AccessType, response_time: Duration, file_size: u64) {
+    pub fn record_access(
+        &mut self,
+        file_key: String,
+        access_type: AccessType,
+        response_time: Duration,
+        file_size: u64,
+    ) {
         let access = FileAccess {
             file_key: file_key.clone(),
             access_type,
@@ -214,7 +215,7 @@ impl AccessPatternAnalyzer {
 
         // Add to history
         self.access_history.push_back(access);
-        
+
         // Trim history if too large
         if self.access_history.len() > self.max_history_size {
             self.access_history.pop_front();
@@ -229,7 +230,8 @@ impl AccessPatternAnalyzer {
 
     fn update_popularity_score(&mut self, file_key: &str) {
         let now = Utc::now();
-        let recent_accesses = self.access_history
+        let recent_accesses = self
+            .access_history
             .iter()
             .rev()
             .take(100) // Look at last 100 accesses
@@ -238,9 +240,10 @@ impl AccessPatternAnalyzer {
 
         // Calculate score based on recent access frequency
         let base_score = recent_accesses as f64;
-        
+
         // Apply time decay - more recent accesses are weighted higher
-        let time_weighted_score = self.access_history
+        let time_weighted_score = self
+            .access_history
             .iter()
             .rev()
             .take(100)
@@ -253,7 +256,8 @@ impl AccessPatternAnalyzer {
             .sum::<f64>();
 
         let final_score = base_score + time_weighted_score;
-        self.popularity_scores.insert(file_key.to_string(), final_score);
+        self.popularity_scores
+            .insert(file_key.to_string(), final_score);
     }
 
     pub fn get_access_frequency(&self, file_key: &str) -> u64 {
@@ -274,13 +278,14 @@ impl AccessPatternAnalyzer {
     }
 
     pub fn get_predicted_popular_files(&self, limit: usize) -> Vec<String> {
-        let mut files_with_scores: Vec<(String, f64)> = self.popularity_scores
+        let mut files_with_scores: Vec<(String, f64)> = self
+            .popularity_scores
             .iter()
             .map(|(file_key, score)| (file_key.clone(), *score))
             .collect();
 
         files_with_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-        
+
         files_with_scores
             .into_iter()
             .take(limit)
@@ -353,12 +358,14 @@ impl SmartCacheManager {
     /// Create a new smart cache manager
     pub fn new(config: CacheConfig) -> Self {
         let file_cache_capacity = NonZeroUsize::new(
-            (config.file_cache_size_bytes / 1024 / 1024) as usize // Rough estimate of files
-        ).unwrap_or(NonZeroUsize::new(1000).unwrap());
-        
+            (config.file_cache_size_bytes / 1024 / 1024) as usize, // Rough estimate of files
+        )
+        .unwrap_or(NonZeroUsize::new(1000).unwrap());
+
         let chunk_cache_capacity = NonZeroUsize::new(
-            (config.chunk_cache_size_bytes / 64 / 1024) as usize // Assuming 64KB average chunk size
-        ).unwrap_or(NonZeroUsize::new(8000).unwrap());
+            (config.chunk_cache_size_bytes / 64 / 1024) as usize, // Assuming 64KB average chunk size
+        )
+        .unwrap_or(NonZeroUsize::new(8000).unwrap());
 
         Self {
             config: config.clone(),
@@ -388,17 +395,17 @@ impl SmartCacheManager {
         let file_cache = self.file_cache.clone();
         let cleanup_interval = self.config.cleanup_interval;
         let ttl_duration = Duration::from_secs(self.config.ttl_hours * 3600);
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(cleanup_interval);
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let mut cache = file_cache.write().await;
                 let now = Utc::now();
                 let mut expired_keys = Vec::new();
-                
+
                 // Find expired entries
                 for (key, cached_file) in cache.iter() {
                     let age = now - cached_file.cached_at;
@@ -406,7 +413,7 @@ impl SmartCacheManager {
                         expired_keys.push(key.clone());
                     }
                 }
-                
+
                 // Remove expired entries
                 for key in expired_keys {
                     cache.pop(&key);
@@ -420,13 +427,13 @@ impl SmartCacheManager {
     async fn start_preload_task(&self) {
         let _access_patterns = self.access_patterns.clone();
         let cache_manager = self.clone();
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(300)); // Every 5 minutes
-            
+
             loop {
                 interval.tick().await;
-                
+
                 if let Err(e) = cache_manager.preload_popular_files().await {
                     warn!("Failed to preload popular files: {}", e);
                 }
@@ -437,11 +444,11 @@ impl SmartCacheManager {
     /// Smart file retrieval with caching
     pub async fn get_file_smart(&self, file_key: &str) -> Result<Vec<u8>> {
         let start_time = Instant::now();
-        
+
         // Check cache first
         if let Some(cached) = self.get_from_cache(file_key).await? {
             let response_time = start_time.elapsed();
-            
+
             // Update access patterns
             {
                 let mut patterns = self.access_patterns.lock().await;
@@ -452,32 +459,36 @@ impl SmartCacheManager {
                     cached.data.len() as u64,
                 );
             }
-            
+
             // Update statistics
             {
                 let mut stats = self.stats.write().await;
                 stats.file_cache_hits += 1;
                 self.update_hit_ratio(&mut stats);
             }
-            
-            debug!("Cache hit for file: {} ({}ms)", file_key, response_time.as_millis());
+
+            debug!(
+                "Cache hit for file: {} ({}ms)",
+                file_key,
+                response_time.as_millis()
+            );
             return Ok(cached.data);
         }
-        
+
         // Cache miss - retrieve from network
         let data = self.retrieve_from_network(file_key).await?;
         let response_time = start_time.elapsed();
-        
+
         // Analyze if this file should be cached
         let should_cache = {
             let patterns = self.access_patterns.lock().await;
             patterns.should_cache_file(file_key, data.len() as u64, self.config.max_file_size_bytes)
         };
-        
+
         if should_cache {
             self.cache_file_intelligent(file_key, data.clone()).await?;
         }
-        
+
         // Update access patterns
         {
             let mut patterns = self.access_patterns.lock().await;
@@ -488,27 +499,31 @@ impl SmartCacheManager {
                 data.len() as u64,
             );
         }
-        
+
         // Update statistics
         {
             let mut stats = self.stats.write().await;
             stats.file_cache_misses += 1;
             self.update_hit_ratio(&mut stats);
         }
-        
-        debug!("Cache miss for file: {} ({}ms)", file_key, response_time.as_millis());
+
+        debug!(
+            "Cache miss for file: {} ({}ms)",
+            file_key,
+            response_time.as_millis()
+        );
         Ok(data)
     }
 
     /// Get file from cache if it exists
     async fn get_from_cache(&self, file_key: &str) -> Result<Option<CachedFile>> {
         let mut cache = self.file_cache.write().await;
-        
+
         if let Some(cached_file) = cache.get_mut(file_key) {
             // Update access metadata
             cached_file.access_count += 1;
             cached_file.last_accessed = Utc::now();
-            
+
             Ok(Some(cached_file.clone()))
         } else {
             Ok(None)
@@ -518,12 +533,12 @@ impl SmartCacheManager {
     /// Intelligently cache a file based on policies
     pub async fn cache_file_intelligent(&self, file_key: &str, data: Vec<u8>) -> Result<()> {
         let file_size = data.len() as u64;
-        
+
         // Don't cache files that are too large
         if file_size > self.config.max_file_size_bytes {
             return Ok(());
         }
-        
+
         let data_hash = blake3::hash(&data);
         let cached_file = CachedFile {
             data,
@@ -541,19 +556,19 @@ impl SmartCacheManager {
             cache_priority: self.calculate_cache_priority(file_key, file_size).await,
             ttl: Duration::from_secs(self.config.ttl_hours * 3600),
         };
-        
+
         // Check if we need to evict files to make space
         let current_size = self.calculate_cache_size().await;
         if current_size + file_size > self.config.file_cache_size_bytes {
             self.evict_files_intelligently(file_size).await?;
         }
-        
+
         // Add to cache
         {
             let mut cache = self.file_cache.write().await;
             cache.put(file_key.to_string(), cached_file);
         }
-        
+
         // Update statistics
         {
             let mut stats = self.stats.write().await;
@@ -563,7 +578,7 @@ impl SmartCacheManager {
             };
             stats.cache_size_bytes = self.calculate_cache_size().await;
         }
-        
+
         debug!("Cached file: {} ({} bytes)", file_key, file_size);
         Ok(())
     }
@@ -573,7 +588,7 @@ impl SmartCacheManager {
         let patterns = self.access_patterns.lock().await;
         let frequency = patterns.get_access_frequency(file_key);
         let prediction = patterns.predict_future_access(file_key);
-        
+
         // Priority based on access frequency and prediction
         if frequency >= 10 || prediction > 0.9 {
             CachePriority::Critical
@@ -591,38 +606,38 @@ impl SmartCacheManager {
         let mut cache = self.file_cache.write().await;
         let mut freed_space = 0u64;
         let mut candidates = Vec::new();
-        
+
         // Collect eviction candidates with scores
         for (key, cached_file) in cache.iter() {
             let score = self.calculate_eviction_score(cached_file).await;
             candidates.push((key.clone(), score, cached_file.metadata.file_size));
         }
-        
+
         // Sort by eviction score (lowest first = most suitable for eviction)
         candidates.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-        
+
         // Evict files until we have enough space
         for (key, _score, file_size) in candidates {
             if freed_space >= needed_space {
                 break;
             }
-            
+
             cache.pop(&key);
             freed_space += file_size;
-            
+
             // Update statistics
             {
                 let mut stats = self.stats.write().await;
                 stats.evictions += 1;
             }
-            
+
             debug!("Evicted file for space: {} ({} bytes)", key, file_size);
         }
-        
+
         if freed_space < needed_space {
             return Err(anyhow!("Could not free enough cache space"));
         }
-        
+
         Ok(())
     }
 
@@ -630,21 +645,22 @@ impl SmartCacheManager {
     async fn calculate_eviction_score(&self, cached_file: &CachedFile) -> f64 {
         let now = Utc::now();
         let policies = &self.config.policies;
-        
+
         // LRU factor (time since last access)
         let hours_since_access = (now - cached_file.last_accessed).num_hours() as f64;
         let lru_score = hours_since_access / 24.0; // Normalize to days
-        
+
         // Frequency factor (inverse of access count)
         let frequency_score = 1.0 / (cached_file.access_count as f64 + 1.0);
-        
+
         // Recency factor (time since cached)
         let hours_since_cached = (now - cached_file.cached_at).num_hours() as f64;
         let recency_score = hours_since_cached / 24.0;
-        
+
         // Size factor (larger files get higher eviction scores)
-        let size_score = (cached_file.metadata.file_size as f64) / (self.config.max_file_size_bytes as f64);
-        
+        let size_score =
+            (cached_file.metadata.file_size as f64) / (self.config.max_file_size_bytes as f64);
+
         // Priority factor
         let priority_score = match cached_file.cache_priority {
             CachePriority::Critical => 0.1,
@@ -652,19 +668,20 @@ impl SmartCacheManager {
             CachePriority::Medium => 0.6,
             CachePriority::Low => 1.0,
         };
-        
+
         // Weighted combination
-        lru_score * policies.lru_weight +
-        frequency_score * policies.frequency_weight +
-        recency_score * policies.recency_weight +
-        size_score * policies.size_weight +
-        priority_score * 0.5 // Priority has its own weight
+        lru_score * policies.lru_weight
+            + frequency_score * policies.frequency_weight
+            + recency_score * policies.recency_weight
+            + size_score * policies.size_weight
+            + priority_score * 0.5 // Priority has its own weight
     }
 
     /// Calculate total cache size
     async fn calculate_cache_size(&self) -> u64 {
         let cache = self.file_cache.read().await;
-        cache.iter()
+        cache
+            .iter()
             .map(|(_, cached_file)| cached_file.metadata.file_size)
             .sum()
     }
@@ -677,11 +694,14 @@ impl SmartCacheManager {
             // TODO: This would need a swarm parameter, for now it's a placeholder
             // concurrent_chunks.retrieve_file_parallel(file_key, swarm).await
         }
-        
+
         // TODO: Integrate with actual file storage retrieval
         // This would call the file storage system's retrieve function
         // For now, return an error to indicate this needs integration
-        Err(anyhow!("Network retrieval not yet integrated - file_key: {}", file_key))
+        Err(anyhow!(
+            "Network retrieval not yet integrated - file_key: {}",
+            file_key
+        ))
     }
 
     /// Check if a file is cached
@@ -696,21 +716,21 @@ impl SmartCacheManager {
             let patterns = self.access_patterns.lock().await;
             patterns.get_predicted_popular_files(50)
         };
-        
+
         let mut preload_tasks = Vec::new();
-        
+
         for file_key in popular_files {
             if !self.is_cached(&file_key).await {
                 let cache_manager = self.clone();
                 let key = file_key.clone();
-                
+
                 let task = tokio::spawn(async move {
                     match cache_manager.get_file_smart(&key).await {
                         Ok(_) => {
                             // Update preload statistics
                             let mut stats = cache_manager.stats.write().await;
                             stats.preloads += 1;
-                            
+
                             // Record as preload access
                             let mut patterns = cache_manager.access_patterns.lock().await;
                             patterns.record_access(
@@ -719,7 +739,7 @@ impl SmartCacheManager {
                                 Duration::from_millis(0),
                                 0,
                             );
-                            
+
                             debug!("Preloaded popular file: {}", key);
                         }
                         Err(e) => {
@@ -727,16 +747,16 @@ impl SmartCacheManager {
                         }
                     }
                 });
-                
+
                 preload_tasks.push(task);
             }
         }
-        
+
         // Wait for a reasonable number of preloads to complete
         for task in preload_tasks.into_iter().take(10) {
             let _ = task.await;
         }
-        
+
         Ok(())
     }
 
@@ -751,15 +771,15 @@ impl SmartCacheManager {
     /// Get current cache statistics
     pub async fn get_stats(&self) -> CacheStats {
         let mut stats = self.stats.read().await.clone();
-        
+
         // Update current cache sizes
         stats.total_cached_files = {
             let cache = self.file_cache.read().await;
             cache.len()
         };
-        
+
         stats.cache_size_bytes = self.calculate_cache_size().await;
-        
+
         stats
     }
 
@@ -769,18 +789,18 @@ impl SmartCacheManager {
             let mut file_cache = self.file_cache.write().await;
             file_cache.clear();
         }
-        
+
         {
             let mut chunk_cache = self.chunk_cache.write().await;
             chunk_cache.clear();
         }
-        
+
         // Reset statistics
         {
             let mut stats = self.stats.write().await;
             *stats = CacheStats::default();
         }
-        
+
         info!("Cache cleared");
         Ok(())
     }
@@ -818,7 +838,7 @@ mod tests {
     async fn test_smart_cache_manager_creation() {
         let config = CacheConfig::default();
         let cache_manager = SmartCacheManager::new(config);
-        
+
         let stats = cache_manager.get_stats().await;
         assert_eq!(stats.total_cached_files, 0);
         assert_eq!(stats.cache_size_bytes, 0);
@@ -828,22 +848,37 @@ mod tests {
     #[test]
     fn test_access_pattern_analyzer() {
         let mut analyzer = AccessPatternAnalyzer::new(1000);
-        
+
         // Record some accesses
-        analyzer.record_access("file1".to_string(), AccessType::NetworkFetch, Duration::from_millis(100), 1024);
-        analyzer.record_access("file1".to_string(), AccessType::CacheHit, Duration::from_millis(10), 1024);
-        analyzer.record_access("file2".to_string(), AccessType::NetworkFetch, Duration::from_millis(150), 2048);
-        
+        analyzer.record_access(
+            "file1".to_string(),
+            AccessType::NetworkFetch,
+            Duration::from_millis(100),
+            1024,
+        );
+        analyzer.record_access(
+            "file1".to_string(),
+            AccessType::CacheHit,
+            Duration::from_millis(10),
+            1024,
+        );
+        analyzer.record_access(
+            "file2".to_string(),
+            AccessType::NetworkFetch,
+            Duration::from_millis(150),
+            2048,
+        );
+
         // Check frequency
         assert_eq!(analyzer.get_access_frequency("file1"), 2);
         assert_eq!(analyzer.get_access_frequency("file2"), 1);
         assert_eq!(analyzer.get_access_frequency("file3"), 0);
-        
+
         // Check prediction
         let prediction1 = analyzer.predict_future_access("file1");
         let prediction2 = analyzer.predict_future_access("file2");
         let prediction3 = analyzer.predict_future_access("file3");
-        
+
         assert!(prediction1 > prediction2);
         assert!(prediction2 > prediction3);
         assert_eq!(prediction3, 0.0);
@@ -852,20 +887,20 @@ mod tests {
     #[test]
     fn test_lru_predictor() {
         let mut predictor = LRUPredictor::new(5);
-        
+
         predictor.record_access("file1".to_string());
         predictor.record_access("file2".to_string());
         predictor.record_access("file3".to_string());
         predictor.record_access("file1".to_string()); // Access file1 again
-        
+
         let score1 = predictor.predict_access("file1");
         let score2 = predictor.predict_access("file2");
         let score3 = predictor.predict_access("file3");
         let score4 = predictor.predict_access("file4");
-        
+
         assert!(score1 > score2); // file1 was accessed more recently
         assert!(score2 > score3); // file2 was accessed more recently than file3
-        assert_eq!(score4, 0.0);  // file4 was never accessed
+        assert_eq!(score4, 0.0); // file4 was never accessed
     }
 
     #[test]
@@ -875,10 +910,12 @@ mod tests {
         assert_eq!(policies.frequency_weight, 0.3);
         assert_eq!(policies.recency_weight, 0.2);
         assert_eq!(policies.size_weight, 0.1);
-        
+
         // Weights should sum to 1.0
-        let total = policies.lru_weight + policies.frequency_weight + 
-                   policies.recency_weight + policies.size_weight;
+        let total = policies.lru_weight
+            + policies.frequency_weight
+            + policies.recency_weight
+            + policies.size_weight;
         assert!((total - 1.0).abs() < 0.001);
     }
 }

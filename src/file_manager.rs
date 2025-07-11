@@ -1,3 +1,11 @@
+use crate::cli::Cli;
+use crate::database::{DatabaseManager, FileEntry};
+use crate::file_storage;
+use crate::key_manager::KeyManager;
+use crate::ui;
+use anyhow::{Context, Result};
+use chrono::{DateTime, Duration as ChronoDuration, Local};
+use std::fs;
 /// File Management Module
 ///
 /// This module provides enhanced file management capabilities including:
@@ -5,17 +13,8 @@
 /// - Backup and restore operations
 /// - File duplication and renaming
 /// - Advanced file search and discovery
-
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::fs;
-use anyhow::{Result, Context};
-use chrono::{DateTime, Local, Duration as ChronoDuration};
-use crate::database::{DatabaseManager, FileEntry};
-use crate::key_manager::KeyManager;
-use crate::file_storage;
-use crate::cli::Cli;
-use crate::ui;
 
 /// File synchronization options
 #[derive(Debug, Clone)]
@@ -72,41 +71,44 @@ pub async fn sync_directory(
     options: SyncOptions,
 ) -> Result<()> {
     ui::print_header(&format!("Synchronizing {}", local_dir.display()));
-    
+
     if !local_dir.exists() {
-        return Err(anyhow::anyhow!("Directory does not exist: {}", local_dir.display()));
+        return Err(anyhow::anyhow!(
+            "Directory does not exist: {}",
+            local_dir.display()
+        ));
     }
 
     let spinner = ui::create_spinner("Analyzing directory structure...");
-    
+
     // Get list of local files
     let local_files = scan_directory(local_dir, &options.exclude_patterns)?;
     spinner.finish_with_message("Directory scanned");
-    
+
     // Get list of remote files
     ui::print_operation_status("Remote Files", "Scanning", None);
     let db_path = crate::database::get_default_db_path()?;
     let db = DatabaseManager::new(&db_path)?;
     let remote_files = db.list_files(None)?;
-    
+
     // Compare and determine actions
     let sync_plan = create_sync_plan(&local_files, &remote_files, options.bidirectional)?;
-    
+
     ui::print_section("Synchronization Plan");
     ui::print_key_value("Files to upload", &sync_plan.uploads.len().to_string());
     ui::print_key_value("Files to download", &sync_plan.downloads.len().to_string());
     ui::print_key_value("Files to update", &sync_plan.updates.len().to_string());
-    
+
     if ui::confirm_action("Proceed with synchronization?", true) {
         execute_sync_plan(cli, key_manager, &sync_plan, &options).await?;
         ui::print_success("Synchronization completed successfully");
     }
-    
+
     if options.watch {
         ui::print_info("Starting file watcher (Ctrl+C to stop)...");
         start_file_watcher(cli, key_manager, local_dir, options).await?;
     }
-    
+
     Ok(())
 }
 
@@ -118,15 +120,19 @@ pub async fn create_backup(
     config: BackupConfig,
 ) -> Result<()> {
     ui::print_header(&format!("Creating Backup: {}", config.name));
-    
+
     let backup_tag = format!("backup:{}", config.name);
     let timestamp_tag = format!("backup-date:{}", Local::now().format("%Y-%m-%d"));
-    
+
     if source.is_file() {
         // Single file backup
         let tags = format!("{},{},single-file", backup_tag, timestamp_tag);
-        let file_name = format!("{}-{}", config.name, source.file_name().unwrap().to_string_lossy());
-        
+        let file_name = format!(
+            "{}-{}",
+            config.name,
+            source.file_name().unwrap().to_string_lossy()
+        );
+
         file_storage::handle_put_command(
             cli,
             key_manager,
@@ -134,36 +140,50 @@ pub async fn create_backup(
             &None,
             &Some(file_name),
             &Some(tags),
-        ).await.map_err(|e| anyhow::anyhow!(e))?;
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
     } else if source.is_dir() {
         // Directory backup
         let files = scan_directory(source, &config.exclude_patterns)?;
-        
+
         ui::print_key_value("Files to backup", &files.len().to_string());
-        ui::print_key_value("Backup type", if config.incremental { "Incremental" } else { "Full" });
-        
+        ui::print_key_value(
+            "Backup type",
+            if config.incremental {
+                "Incremental"
+            } else {
+                "Full"
+            },
+        );
+
         if config.incremental {
             // Check for previous backup
             let db_path = crate::database::get_default_db_path()?;
             let db = DatabaseManager::new(&db_path)?;
             let previous_files = db.list_files_by_tag(&backup_tag)?;
-            
+
             ui::print_key_value("Previous backup files", &previous_files.len().to_string());
         }
-        
+
         let mut progress = ui::MultiOperationProgress::new();
         let backup_op = progress.add_operation("Backup Progress", files.len() as u64);
-        
+
         for (i, file_path) in files.iter().enumerate() {
-            let relative_path = file_path.strip_prefix(source)
+            let relative_path = file_path
+                .strip_prefix(source)
                 .unwrap_or(file_path)
                 .to_string_lossy();
-            
+
             let file_tags = format!("{},{},path:{}", backup_tag, timestamp_tag, relative_path);
             let file_name = format!("{}-{}", config.name, relative_path.replace('/', "-"));
-            
-            progress.update_operation(backup_op, i as u64, &format!("Backing up {}", relative_path));
-            
+
+            progress.update_operation(
+                backup_op,
+                i as u64,
+                &format!("Backing up {}", relative_path),
+            );
+
             if let Err(e) = file_storage::handle_put_command(
                 cli,
                 key_manager,
@@ -171,15 +191,17 @@ pub async fn create_backup(
                 &None,
                 &Some(file_name),
                 &Some(file_tags),
-            ).await {
+            )
+            .await
+            {
                 ui::print_error(&format!("Failed to backup {}: {}", relative_path, e));
             }
         }
-        
+
         progress.finish_operation(backup_op, "Backup completed");
         progress.clear();
     }
-    
+
     ui::print_success(&format!("Backup '{}' created successfully", config.name));
     Ok(())
 }
@@ -194,43 +216,50 @@ pub async fn restore_backup(
     verify: bool,
 ) -> Result<()> {
     ui::print_header(&format!("Restoring Backup: {}", backup_name));
-    
+
     let backup_tag = format!("backup:{}", backup_name);
-    
+
     // Get backup files from database
     let db_path = crate::database::get_default_db_path()?;
     let db = DatabaseManager::new(&db_path)?;
     let backup_files = db.list_files_by_tag(&backup_tag)?;
-    
+
     if backup_files.is_empty() {
-        return Err(anyhow::anyhow!("No backup found with name: {}", backup_name));
+        return Err(anyhow::anyhow!(
+            "No backup found with name: {}",
+            backup_name
+        ));
     }
-    
+
     ui::print_key_value("Backup files found", &backup_files.len().to_string());
-    
+
     // Create destination directory
-    fs::create_dir_all(destination)
-        .context("Failed to create destination directory")?;
-    
+    fs::create_dir_all(destination).context("Failed to create destination directory")?;
+
     let mut progress = ui::MultiOperationProgress::new();
     let restore_op = progress.add_operation("Restore Progress", backup_files.len() as u64);
-    
+
     for (i, file_entry) in backup_files.iter().enumerate() {
-        progress.update_operation(restore_op, i as u64, &format!("Restoring {}", file_entry.name));
-        
+        progress.update_operation(
+            restore_op,
+            i as u64,
+            &format!("Restoring {}", file_entry.name),
+        );
+
         // Extract original path from tags
-        let output_path = if let Some(path_tag) = file_entry.tags.iter().find(|tag| tag.starts_with("path:")) {
-            let relative_path = path_tag.strip_prefix("path:").unwrap();
-            destination.join(relative_path)
-        } else {
-            destination.join(&file_entry.original_filename)
-        };
-        
+        let output_path =
+            if let Some(path_tag) = file_entry.tags.iter().find(|tag| tag.starts_with("path:")) {
+                let relative_path = path_tag.strip_prefix("path:").unwrap();
+                destination.join(relative_path)
+            } else {
+                destination.join(&file_entry.original_filename)
+            };
+
         // Create parent directories
         if let Some(parent) = output_path.parent() {
             fs::create_dir_all(parent)?;
         }
-        
+
         // Restore file
         if let Err(e) = file_storage::handle_get_command(
             cli,
@@ -238,20 +267,26 @@ pub async fn restore_backup(
             &file_entry.name,
             &output_path,
             &None,
-        ).await {
+        )
+        .await
+        {
             ui::print_error(&format!("Failed to restore {}: {}", file_entry.name, e));
         }
-        
+
         if verify {
             // Verify file integrity
             verify_file_integrity(&output_path, &file_entry)?;
         }
     }
-    
+
     progress.finish_operation(restore_op, "Restore completed");
     progress.clear();
-    
-    ui::print_success(&format!("Backup '{}' restored to {}", backup_name, destination.display()));
+
+    ui::print_success(&format!(
+        "Backup '{}' restored to {}",
+        backup_name,
+        destination.display()
+    ));
     Ok(())
 }
 
@@ -259,18 +294,18 @@ pub async fn restore_backup(
 pub async fn search_files(criteria: SearchCriteria) -> Result<Vec<FileEntry>> {
     ui::print_header("File Search");
     ui::print_key_value("Query", &criteria.query);
-    
+
     let db_path = crate::database::get_default_db_path()?;
     let db = DatabaseManager::new(&db_path)?;
-    
+
     let spinner = ui::create_spinner("Searching files...");
-    
+
     // Get all files first
     let all_files = db.list_files(None)?;
-    
+
     // Apply filters
     let mut results = Vec::new();
-    
+
     for file in all_files {
         if matches_search_criteria(&file, &criteria)? {
             results.push(file);
@@ -279,9 +314,9 @@ pub async fn search_files(criteria: SearchCriteria) -> Result<Vec<FileEntry>> {
             }
         }
     }
-    
+
     spinner.finish_with_message("Search completed");
-    
+
     // Sort by relevance
     results.sort_by(|a, b| {
         calculate_relevance_score(&a.name, &criteria.query)
@@ -289,18 +324,22 @@ pub async fn search_files(criteria: SearchCriteria) -> Result<Vec<FileEntry>> {
             .unwrap_or(std::cmp::Ordering::Equal)
             .reverse()
     });
-    
+
     Ok(results)
 }
 
 /// Get recently uploaded/accessed files
-pub async fn get_recent_files(count: usize, days: u32, file_type: Option<String>) -> Result<Vec<FileEntry>> {
+pub async fn get_recent_files(
+    count: usize,
+    days: u32,
+    file_type: Option<String>,
+) -> Result<Vec<FileEntry>> {
     let db_path = crate::database::get_default_db_path()?;
     let db = DatabaseManager::new(&db_path)?;
-    
+
     let cutoff_date = Local::now() - ChronoDuration::days(days as i64);
     let all_files = db.list_files(None)?;
-    
+
     let mut recent_files: Vec<FileEntry> = all_files
         .into_iter()
         .filter(|file| file.upload_time >= cutoff_date)
@@ -312,10 +351,10 @@ pub async fn get_recent_files(count: usize, days: u32, file_type: Option<String>
             }
         })
         .collect();
-    
+
     recent_files.sort_by(|a, b| b.upload_time.cmp(&a.upload_time));
     recent_files.truncate(count);
-    
+
     Ok(recent_files)
 }
 
@@ -328,18 +367,23 @@ pub async fn duplicate_file(
     new_tags: Option<String>,
 ) -> Result<()> {
     ui::print_header("File Duplication");
-    
+
     // First get the source file
     let temp_dir = std::env::temp_dir();
-    let temp_file = temp_dir.join(format!("dfs_duplicate_{}", SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs()));
-    
+    let temp_file = temp_dir.join(format!(
+        "dfs_duplicate_{}",
+        SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs()
+    ));
+
     ui::print_operation_status("Source File", "Downloading", Some(source));
-    file_storage::handle_get_command(cli, key_manager, source, &temp_file, &None).await.map_err(|e| anyhow::anyhow!(e))?;
-    
+    file_storage::handle_get_command(cli, key_manager, source, &temp_file, &None)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
+
     // Upload as new file
     let final_name = new_name.unwrap_or_else(|| format!("{}-copy", source));
     ui::print_operation_status("Duplicate", "Creating", Some(&final_name));
-    
+
     file_storage::handle_put_command(
         cli,
         key_manager,
@@ -347,11 +391,13 @@ pub async fn duplicate_file(
         &None,
         &Some(final_name.clone()),
         &new_tags,
-    ).await.map_err(|e| anyhow::anyhow!(e))?;
-    
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
+
     // Cleanup
     let _ = fs::remove_file(&temp_file);
-    
+
     ui::print_success(&format!("File duplicated as '{}'", final_name));
     Ok(())
 }
@@ -359,18 +405,18 @@ pub async fn duplicate_file(
 /// Rename a file (metadata-only operation)
 pub async fn rename_file(old_name: &str, new_name: &str) -> Result<()> {
     ui::print_header("File Rename");
-    
+
     let db_path = crate::database::get_default_db_path()?;
     let db = DatabaseManager::new(&db_path)?;
-    
+
     ui::print_key_value("Old name", old_name);
     ui::print_key_value("New name", new_name);
-    
+
     if ui::confirm_action("Proceed with rename?", true) {
         db.rename_file(old_name, new_name)?;
         ui::print_success("File renamed successfully");
     }
-    
+
     Ok(())
 }
 
@@ -378,12 +424,16 @@ pub async fn rename_file(old_name: &str, new_name: &str) -> Result<()> {
 
 fn scan_directory(dir: &Path, exclude_patterns: &[String]) -> Result<Vec<PathBuf>> {
     let mut files = Vec::new();
-    
-    fn scan_recursive(dir: &Path, files: &mut Vec<PathBuf>, exclude_patterns: &[String]) -> Result<()> {
+
+    fn scan_recursive(
+        dir: &Path,
+        files: &mut Vec<PathBuf>,
+        exclude_patterns: &[String],
+    ) -> Result<()> {
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
-            
+
             // Check exclude patterns
             let path_str = path.to_string_lossy();
             if exclude_patterns.iter().any(|pattern| {
@@ -393,7 +443,7 @@ fn scan_directory(dir: &Path, exclude_patterns: &[String]) -> Result<Vec<PathBuf
             }) {
                 continue;
             }
-            
+
             if path.is_file() {
                 files.push(path);
             } else if path.is_dir() {
@@ -402,7 +452,7 @@ fn scan_directory(dir: &Path, exclude_patterns: &[String]) -> Result<Vec<PathBuf
         }
         Ok(())
     }
-    
+
     scan_recursive(dir, &mut files, exclude_patterns)?;
     Ok(files)
 }
@@ -423,26 +473,29 @@ fn create_sync_plan(
         downloads: Vec::new(),
         updates: Vec::new(),
     };
-    
+
     // Files to upload (local files not in remote)
     for local_file in local_files {
         let filename = local_file.file_name().unwrap().to_string_lossy();
-        if !remote_files.iter().any(|rf| rf.original_filename == filename) {
+        if !remote_files
+            .iter()
+            .any(|rf| rf.original_filename == filename)
+        {
             plan.uploads.push(local_file.clone());
         }
     }
-    
+
     if bidirectional {
         // Files to download (remote files not in local)
         for remote_file in remote_files {
-            if !local_files.iter().any(|lf| 
+            if !local_files.iter().any(|lf| {
                 lf.file_name().unwrap().to_string_lossy() == remote_file.original_filename
-            ) {
+            }) {
                 plan.downloads.push(remote_file.clone());
             }
         }
     }
-    
+
     Ok(plan)
 }
 
@@ -457,11 +510,11 @@ async fn execute_sync_plan(
         ui::print_section("Uploading Files");
         let mut progress = ui::MultiOperationProgress::new();
         let upload_op = progress.add_operation("Upload", plan.uploads.len() as u64);
-        
+
         for (i, file_path) in plan.uploads.iter().enumerate() {
             let filename = file_path.file_name().unwrap().to_string_lossy();
             progress.update_operation(upload_op, i as u64, &format!("Uploading {}", filename));
-            
+
             if let Err(e) = file_storage::handle_put_command(
                 cli,
                 key_manager,
@@ -469,24 +522,30 @@ async fn execute_sync_plan(
                 &None,
                 &Some(filename.to_string()),
                 &Some("sync".to_string()),
-            ).await {
+            )
+            .await
+            {
                 ui::print_error(&format!("Failed to upload {}: {}", filename, e));
             }
         }
-        
+
         progress.finish_operation(upload_op, "Uploads completed");
         progress.clear();
     }
-    
+
     // Download files
     if !plan.downloads.is_empty() {
         ui::print_section("Downloading Files");
         let mut progress = ui::MultiOperationProgress::new();
         let download_op = progress.add_operation("Download", plan.downloads.len() as u64);
-        
+
         for (i, remote_file) in plan.downloads.iter().enumerate() {
-            progress.update_operation(download_op, i as u64, &format!("Downloading {}", remote_file.name));
-            
+            progress.update_operation(
+                download_op,
+                i as u64,
+                &format!("Downloading {}", remote_file.name),
+            );
+
             let local_path = PathBuf::from(&remote_file.original_filename);
             if let Err(e) = file_storage::handle_get_command(
                 cli,
@@ -494,15 +553,17 @@ async fn execute_sync_plan(
                 &remote_file.name,
                 &local_path,
                 &None,
-            ).await {
+            )
+            .await
+            {
                 ui::print_error(&format!("Failed to download {}: {}", remote_file.name, e));
             }
         }
-        
+
         progress.finish_operation(download_op, "Downloads completed");
         progress.clear();
     }
-    
+
     Ok(())
 }
 
@@ -512,58 +573,62 @@ async fn start_file_watcher(
     local_dir: &Path,
     options: SyncOptions,
 ) -> Result<()> {
-    use notify::{Watcher, RecommendedWatcher, RecursiveMode, Event};
+    use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
     use std::sync::mpsc;
-    
+
     ui::print_info("Starting file watcher...");
     ui::print_info("Press Ctrl+C to stop watching");
-    
+
     let (tx, rx) = mpsc::channel::<Result<Event, notify::Error>>();
-    
+
     // Create a watcher
     let mut watcher = RecommendedWatcher::new(tx, notify::Config::default())?;
-    
+
     // Watch the directory
     watcher.watch(local_dir, RecursiveMode::Recursive)?;
-    
+
     // Clone data for the async task
     let cli_clone = cli.clone();
     let key_manager_clone = key_manager.clone();
     let local_dir_clone = local_dir.to_path_buf();
     let exclude_patterns = options.exclude_patterns.clone();
-    
+
     // Process events in a separate task
-    let handle = tokio::task::spawn_blocking(move || {
-        loop {
-            match rx.recv() {
-                Ok(Ok(event)) => {
-                    if let Err(e) = handle_file_event(&cli_clone, &key_manager_clone, &local_dir_clone, event, &exclude_patterns) {
-                        ui::print_error(&format!("Error handling file event: {}", e));
-                    }
+    let handle = tokio::task::spawn_blocking(move || loop {
+        match rx.recv() {
+            Ok(Ok(event)) => {
+                if let Err(e) = handle_file_event(
+                    &cli_clone,
+                    &key_manager_clone,
+                    &local_dir_clone,
+                    event,
+                    &exclude_patterns,
+                ) {
+                    ui::print_error(&format!("Error handling file event: {}", e));
                 }
-                Ok(Err(e)) => {
-                    ui::print_error(&format!("Watch error: {}", e));
-                }
-                Err(_) => {
-                    ui::print_info("File watcher stopped");
-                    break;
-                }
+            }
+            Ok(Err(e)) => {
+                ui::print_error(&format!("Watch error: {}", e));
+            }
+            Err(_) => {
+                ui::print_info("File watcher stopped");
+                break;
             }
         }
     });
-    
+
     // Wait for the task to complete or be interrupted
     match handle.await {
         Ok(_) => ui::print_info("File watching completed"),
         Err(e) => ui::print_error(&format!("File watcher task error: {}", e)),
     }
-    
+
     Ok(())
 }
 
 fn handle_file_event(
     _cli: &Cli,
-    _key_manager: &KeyManager, 
+    _key_manager: &KeyManager,
     local_dir: &Path,
     event: notify::Event,
     exclude_patterns: &[String],
@@ -573,24 +638,24 @@ fn handle_file_event(
             for path in event.paths {
                 if path.is_file() {
                     // Check if file should be excluded
-                    let relative_path = path.strip_prefix(local_dir)
-                        .unwrap_or(&path);
+                    let relative_path = path.strip_prefix(local_dir).unwrap_or(&path);
                     let path_str = relative_path.to_string_lossy();
-                    
+
                     let should_exclude = exclude_patterns.iter().any(|pattern| {
                         glob::Pattern::new(pattern)
                             .map(|p| p.matches(&path_str))
                             .unwrap_or(false)
                     });
-                    
+
                     if !should_exclude {
                         ui::print_info(&format!("File changed: {}", path.display()));
-                        
+
                         // Upload the file (in a real implementation, this would be async)
-                        let filename = path.file_name()
+                        let filename = path
+                            .file_name()
                             .and_then(|n| n.to_str())
                             .unwrap_or("unknown");
-                        
+
                         // Note: This is a simplified sync version
                         // In practice, you'd want to batch changes and handle them asynchronously
                         ui::print_info(&format!("Would upload: {}", filename));
@@ -608,34 +673,40 @@ fn handle_file_event(
             // Ignore other event types
         }
     }
-    
+
     Ok(())
 }
 
 fn matches_search_criteria(file: &FileEntry, criteria: &SearchCriteria) -> Result<bool> {
     // Check query match
     let query_match = if criteria.use_regex {
-        regex::Regex::new(&criteria.query)?
-            .is_match(&file.name) || 
-        regex::Regex::new(&criteria.query)?
-            .is_match(&file.original_filename)
+        regex::Regex::new(&criteria.query)?.is_match(&file.name)
+            || regex::Regex::new(&criteria.query)?.is_match(&file.original_filename)
     } else {
-        file.name.to_lowercase().contains(&criteria.query.to_lowercase()) ||
-        file.original_filename.to_lowercase().contains(&criteria.query.to_lowercase()) ||
-        file.tags.iter().any(|tag| tag.to_lowercase().contains(&criteria.query.to_lowercase()))
+        file.name
+            .to_lowercase()
+            .contains(&criteria.query.to_lowercase())
+            || file
+                .original_filename
+                .to_lowercase()
+                .contains(&criteria.query.to_lowercase())
+            || file
+                .tags
+                .iter()
+                .any(|tag| tag.to_lowercase().contains(&criteria.query.to_lowercase()))
     };
-    
+
     if !query_match {
         return Ok(false);
     }
-    
+
     // Check file type
     if let Some(ref file_type) = criteria.file_type {
         if !file.original_filename.ends_with(&format!(".{}", file_type)) {
             return Ok(false);
         }
     }
-    
+
     // Check size range
     if let Some(ref size_range) = criteria.size_range {
         match size_range {
@@ -656,7 +727,7 @@ fn matches_search_criteria(file: &FileEntry, criteria: &SearchCriteria) -> Resul
             }
         }
     }
-    
+
     // Check date range
     if let Some(ref date_range) = criteria.date_range {
         let now = Local::now();
@@ -686,31 +757,31 @@ fn matches_search_criteria(file: &FileEntry, criteria: &SearchCriteria) -> Resul
             }
         }
     }
-    
+
     Ok(true)
 }
 
 fn calculate_relevance_score(filename: &str, query: &str) -> f64 {
     let filename_lower = filename.to_lowercase();
     let query_lower = query.to_lowercase();
-    
+
     if filename_lower == query_lower {
         return 100.0;
     }
-    
+
     if filename_lower.starts_with(&query_lower) {
         return 90.0;
     }
-    
+
     if filename_lower.contains(&query_lower) {
         return 50.0;
     }
-    
+
     // Basic fuzzy matching score
     let mut score = 0.0;
     let query_chars: Vec<char> = query_lower.chars().collect();
     let filename_chars: Vec<char> = filename_lower.chars().collect();
-    
+
     let mut query_idx = 0;
     for filename_char in filename_chars {
         if query_idx < query_chars.len() && filename_char == query_chars[query_idx] {
@@ -718,7 +789,7 @@ fn calculate_relevance_score(filename: &str, query: &str) -> f64 {
             query_idx += 1;
         }
     }
-    
+
     score / query_chars.len() as f64 * 20.0
 }
 

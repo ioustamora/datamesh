@@ -1,17 +1,16 @@
-use tracing::{info, error};
+use tracing::{error, info};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 /// Initialize logging system for the DataMesh application
 pub fn init_logging() -> Result<(), Box<dyn std::error::Error>> {
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| {
-            // Default log level based on debug/release build
-            if cfg!(debug_assertions) {
-                EnvFilter::new("datamesh=debug,libp2p=info")
-            } else {
-                EnvFilter::new("datamesh=info,libp2p=warn")
-            }
-        });
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        // Default log level based on debug/release build
+        if cfg!(debug_assertions) {
+            EnvFilter::new("datamesh=debug,libp2p=info")
+        } else {
+            EnvFilter::new("datamesh=info,libp2p=warn")
+        }
+    });
 
     let subscriber = FmtSubscriber::builder()
         .with_env_filter(filter)
@@ -32,7 +31,10 @@ pub fn init_logging() -> Result<(), Box<dyn std::error::Error>> {
 /// Initialize logging with fallback behavior if setup fails
 pub fn init_logging_safe() {
     if let Err(e) = init_logging() {
-        eprintln!("Warning: Failed to set up advanced logging: {}. Using basic logging.", e);
+        eprintln!(
+            "Warning: Failed to set up advanced logging: {}. Using basic logging.",
+            e
+        );
         // Fallback to basic println-style logging if tracing setup fails
         eprintln!("DataMesh logging initialized with fallback");
     }

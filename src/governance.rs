@@ -1,3 +1,8 @@
+use crate::error::{DfsError, DfsResult};
+use argon2::{
+    password_hash::{rand_core::OsRng, SaltString},
+    Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
+};
 /// Network Governance Module
 ///
 /// This module implements the network governance framework for DataMesh as outlined
@@ -11,15 +16,12 @@
 /// - Network governance through voting
 /// - Token-based economic model
 /// - Abuse detection and response
-
-use chrono::{DateTime, Utc, Duration};
+use chrono::{DateTime, Duration, Utc};
+use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use uuid::Uuid;
-use crate::error::DfsResult;
-use jsonwebtoken::{encode, decode, Header, Algorithm, Validation, EncodingKey, DecodingKey};
-use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier, password_hash::{rand_core::OsRng, SaltString}};
 
 // ===== User Authentication & Management =====
 
@@ -29,13 +31,13 @@ pub type UserId = Uuid;
 /// JWT claims for user authentication
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AuthClaims {
-    pub sub: String,      // Subject (user ID)
-    pub email: String,    // User email
-    pub exp: usize,       // Expiration time
-    pub iat: usize,       // Issued at
-    pub iss: String,      // Issuer
-    pub aud: String,      // Audience
-    pub role: String,     // User role (user, admin, operator)
+    pub sub: String,   // Subject (user ID)
+    pub email: String, // User email
+    pub exp: usize,    // Expiration time
+    pub iat: usize,    // Issued at
+    pub iss: String,   // Issuer
+    pub aud: String,   // Audience
+    pub role: String,  // User role (user, admin, operator)
 }
 
 /// User account in the DataMesh network
@@ -129,21 +131,21 @@ pub struct Subscription {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserQuota {
     pub user_id: UserId,
-    
+
     // Storage limits
     pub max_storage_bytes: u64,
     pub max_files: u32,
     pub max_file_size: u64,
-    
+
     // Bandwidth limits
     pub max_upload_mbps: f64,
     pub max_download_mbps: f64,
     pub monthly_transfer_gb: u64,
-    
+
     // API limits
     pub max_requests_per_hour: u32,
     pub max_concurrent_operations: u8,
-    
+
     // Time-based limits
     pub quota_reset_date: DateTime<Utc>,
     pub priority_level: PriorityLevel,
@@ -180,21 +182,14 @@ pub enum QuotaError {
         requested: u64,
     },
     #[error("File too large: {size} bytes, limit is {limit} bytes")]
-    FileTooLarge {
-        size: u64,
-        limit: u64,
-    },
+    FileTooLarge { size: u64, limit: u64 },
     #[error("File count exceeded: {current} files, limit is {limit} files")]
-    FileCountExceeded {
-        current: u32,
-        limit: u32,
-    },
+    FileCountExceeded { current: u32, limit: u32 },
     #[error("Bandwidth quota exceeded: {current_gb} GB used, {limit_gb} GB limit")]
-    BandwidthQuotaExceeded {
-        current_gb: u64,
-        limit_gb: u64,
-    },
-    #[error("Rate limit exceeded: {requests_made} requests made, {limit} limit. Reset at {reset_time}")]
+    BandwidthQuotaExceeded { current_gb: u64, limit_gb: u64 },
+    #[error(
+        "Rate limit exceeded: {requests_made} requests made, {limit} limit. Reset at {reset_time}"
+    )]
     RateLimitExceeded {
         requests_made: u32,
         limit: u32,
@@ -304,13 +299,20 @@ impl UserRegistry {
         }
     }
 
-    pub fn register_user(&self, email: String, password: String, public_key: String) -> DfsResult<UserAccount> {
+    pub fn register_user(
+        &self,
+        email: String,
+        password: String,
+        public_key: String,
+    ) -> DfsResult<UserAccount> {
         let mut users = self.users.write().unwrap();
         let mut email_index = self.email_index.write().unwrap();
 
         // Check if email already exists
         if email_index.contains_key(&email) {
-            return Err(crate::error::DfsError::Authentication("Email already registered".to_string()));
+            return Err(crate::error::DfsError::Authentication(
+                "Email already registered".to_string(),
+            ));
         }
 
         // Hash password
@@ -343,8 +345,9 @@ impl UserRegistry {
 
     /// Authenticate user with email and password
     pub fn authenticate_user(&self, email: &str, password: &str) -> DfsResult<UserAccount> {
-        let user = self.get_user_by_email(email)
-            .ok_or_else(|| crate::error::DfsError::Authentication("Invalid credentials".to_string()))?;
+        let user = self.get_user_by_email(email).ok_or_else(|| {
+            crate::error::DfsError::Authentication("Invalid credentials".to_string())
+        })?;
 
         if self.verify_password(password, &user.password_hash)? {
             // Update last activity
@@ -353,7 +356,9 @@ impl UserRegistry {
             self.update_user(updated_user.clone())?;
             Ok(updated_user)
         } else {
-            Err(crate::error::DfsError::Authentication("Invalid credentials".to_string()))
+            Err(crate::error::DfsError::Authentication(
+                "Invalid credentials".to_string(),
+            ))
         }
     }
 
@@ -361,18 +366,21 @@ impl UserRegistry {
     fn hash_password(&self, password: &str) -> DfsResult<String> {
         let salt = SaltString::generate(&mut OsRng);
         let argon2 = Argon2::default();
-        
+
         argon2
             .hash_password(password.as_bytes(), &salt)
             .map(|hash| hash.to_string())
-            .map_err(|e| crate::error::DfsError::Authentication(format!("Password hashing failed: {}", e)))
+            .map_err(|e| {
+                crate::error::DfsError::Authentication(format!("Password hashing failed: {}", e))
+            })
     }
 
     /// Verify a password against its hash
     fn verify_password(&self, password: &str, hash: &str) -> DfsResult<bool> {
-        let parsed_hash = PasswordHash::new(hash)
-            .map_err(|e| crate::error::DfsError::Authentication(format!("Invalid password hash: {}", e)))?;
-        
+        let parsed_hash = PasswordHash::new(hash).map_err(|e| {
+            crate::error::DfsError::Authentication(format!("Invalid password hash: {}", e))
+        })?;
+
         Ok(Argon2::default()
             .verify_password(password.as_bytes(), &parsed_hash)
             .is_ok())
@@ -416,16 +424,17 @@ impl AuthService {
     pub fn new(jwt_config: &crate::api_server::JwtConfig) -> DfsResult<Self> {
         // Validate secret strength (minimum 32 bytes for HS256)
         if jwt_config.secret.len() < 32 {
-            return Err(DfsError::Authentication(
-                format!("JWT secret must be at least 32 characters long for security. Current length: {}", jwt_config.secret.len())
-            ));
+            return Err(DfsError::Authentication(format!(
+                "JWT secret must be at least 32 characters long for security. Current length: {}",
+                jwt_config.secret.len()
+            )));
         }
-        
+
         let mut validation = Validation::new(Algorithm::HS256);
         validation.leeway = jwt_config.leeway_seconds;
         validation.set_issuer(&[jwt_config.issuer.clone()]);
         validation.set_audience(&[jwt_config.audience.clone()]);
-        
+
         Ok(Self {
             encoding_key: EncodingKey::from_secret(jwt_config.secret.as_ref()),
             decoding_key: DecodingKey::from_secret(jwt_config.secret.as_ref()),
@@ -433,9 +442,9 @@ impl AuthService {
             jwt_config: jwt_config.clone(),
         })
     }
-    
+
     /// Legacy constructor for backward compatibility
-    pub fn new_with_secret(secret: &str) -> Self {
+    pub fn new_with_secret(secret: &str) -> DfsResult<Self> {
         let jwt_config = crate::api_server::JwtConfig {
             secret: secret.to_string(),
             issuer: "datamesh.local".to_string(),
@@ -466,22 +475,26 @@ impl AuthService {
             role: role.to_string(),
         };
 
-        encode(&Header::default(), &claims, &self.encoding_key)
-            .map_err(|e| crate::error::DfsError::Authentication(format!("Token generation failed: {}", e)))
+        encode(&Header::default(), &claims, &self.encoding_key).map_err(|e| {
+            crate::error::DfsError::Authentication(format!("Token generation failed: {}", e))
+        })
     }
 
     /// Validate and decode JWT token
     pub fn validate_token(&self, token: &str) -> DfsResult<AuthClaims> {
         decode::<AuthClaims>(token, &self.decoding_key, &self.validation)
             .map(|data| data.claims)
-            .map_err(|e| crate::error::DfsError::Authentication(format!("Token validation failed: {}", e)))
+            .map_err(|e| {
+                crate::error::DfsError::Authentication(format!("Token validation failed: {}", e))
+            })
     }
 
     /// Extract user ID from token
     pub fn get_user_id_from_token(&self, token: &str) -> DfsResult<UserId> {
         let claims = self.validate_token(token)?;
-        Uuid::parse_str(&claims.sub)
-            .map_err(|e| crate::error::DfsError::Authentication(format!("Invalid user ID in token: {}", e)))
+        Uuid::parse_str(&claims.sub).map_err(|e| {
+            crate::error::DfsError::Authentication(format!("Invalid user ID in token: {}", e))
+        })
     }
 }
 
@@ -519,12 +532,18 @@ impl UserResourceManager {
         usage_tracker.get(user_id).cloned()
     }
 
-    pub fn check_storage_quota(&self, user_id: &UserId, additional_bytes: u64) -> Result<(), QuotaError> {
-        let quota = self.get_quota(user_id).ok_or(QuotaError::StorageQuotaExceeded {
-            current: 0,
-            limit: 0,
-            requested: additional_bytes,
-        })?;
+    pub fn check_storage_quota(
+        &self,
+        user_id: &UserId,
+        additional_bytes: u64,
+    ) -> Result<(), QuotaError> {
+        let quota = self
+            .get_quota(user_id)
+            .ok_or(QuotaError::StorageQuotaExceeded {
+                current: 0,
+                limit: 0,
+                requested: additional_bytes,
+            })?;
 
         let usage = self.get_usage(user_id).unwrap_or_default();
 
@@ -540,11 +559,13 @@ impl UserResourceManager {
     }
 
     pub fn check_rate_limit(&self, user_id: &UserId) -> Result<(), QuotaError> {
-        let quota = self.get_quota(user_id).ok_or(QuotaError::RateLimitExceeded {
-            requests_made: 0,
-            limit: 0,
-            reset_time: Utc::now(),
-        })?;
+        let quota = self
+            .get_quota(user_id)
+            .ok_or(QuotaError::RateLimitExceeded {
+                requests_made: 0,
+                limit: 0,
+                reset_time: Utc::now(),
+            })?;
 
         let usage = self.get_usage(user_id).unwrap_or_default();
 
@@ -687,10 +708,10 @@ mod tests {
         let result = registry.register_user(
             "test@example.com".to_string(),
             "password123".to_string(),
-            "pubkey123".to_string()
+            "pubkey123".to_string(),
         );
         assert!(result.is_ok());
-        
+
         let user = result.unwrap();
         assert_eq!(user.email, "test@example.com");
         assert_eq!(user.public_key, "pubkey123");
@@ -703,13 +724,13 @@ mod tests {
         let _ = registry.register_user(
             "test@example.com".to_string(),
             "password123".to_string(),
-            "pubkey123".to_string()
+            "pubkey123".to_string(),
         );
-        
+
         let result = registry.register_user(
             "test@example.com".to_string(),
             "password456".to_string(),
-            "pubkey456".to_string()
+            "pubkey456".to_string(),
         );
         assert!(result.is_err());
     }
@@ -718,14 +739,14 @@ mod tests {
     fn test_quota_enforcement() {
         let manager = UserResourceManager::new();
         let user_id = Uuid::new_v4();
-        
+
         let quota = UserQuota::for_free_account(user_id);
         manager.set_quota(user_id, quota);
-        
+
         // Test storage quota
         let result = manager.check_storage_quota(&user_id, 6 * 1024 * 1024 * 1024); // 6GB
         assert!(result.is_err());
-        
+
         let result = manager.check_storage_quota(&user_id, 1 * 1024 * 1024 * 1024); // 1GB
         assert!(result.is_ok());
     }
@@ -747,10 +768,10 @@ mod tests {
             implementation_timeline: None,
             created_at: Utc::now(),
         };
-        
+
         let result = governance.submit_proposal(proposal.clone());
         assert!(result.is_ok());
-        
+
         let retrieved = governance.get_proposal(&proposal.proposal_id);
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().title, "Test Proposal");

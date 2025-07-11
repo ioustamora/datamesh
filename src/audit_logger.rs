@@ -4,7 +4,7 @@
 /// and security events in the DataMesh system. It provides comprehensive
 /// logging, anomaly detection, and compliance monitoring capabilities.
 use anyhow::Result;
-use chrono::{DateTime, Utc, Timelike};
+use chrono::{DateTime, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::fs::{self, OpenOptions};
@@ -109,25 +109,25 @@ impl FileAuditLogger {
         if let Some(parent) = log_file_path.parent() {
             fs::create_dir_all(parent)?;
         }
-        
+
         // Set secure file permissions
         let logger = Self {
             log_file_path,
             events_cache: Arc::new(Mutex::new(Vec::new())),
             max_cache_size: 10000, // Keep last 10k events in memory
         };
-        
+
         logger.ensure_log_file_permissions()?;
-        
+
         Ok(logger)
     }
-    
+
     fn ensure_log_file_permissions(&self) -> Result<()> {
         // Create file if it doesn't exist
         if !self.log_file_path.exists() {
             fs::File::create(&self.log_file_path)?;
         }
-        
+
         // Set restrictive permissions (owner read/write only)
         #[cfg(unix)]
         {
@@ -136,25 +136,26 @@ impl FileAuditLogger {
             perms.set_mode(0o600);
             fs::set_permissions(&self.log_file_path, perms)?;
         }
-        
+
         Ok(())
     }
-    
+
     fn add_to_cache(&self, event: AuditEvent) {
         let mut cache = self.events_cache.lock().unwrap();
         cache.push(event);
-        
+
         // Trim cache if too large
         if cache.len() > self.max_cache_size {
             let trim_count = cache.len() - self.max_cache_size;
             cache.drain(0..trim_count);
         }
     }
-    
+
     fn search_cache(&self, query: &AuditQuery) -> Vec<AuditEvent> {
         let cache = self.events_cache.lock().unwrap();
-        
-        cache.iter()
+
+        cache
+            .iter()
             .filter(|event| {
                 // Filter by time range
                 if let Some(start) = query.start_time {
@@ -167,35 +168,37 @@ impl FileAuditLogger {
                         return false;
                     }
                 }
-                
+
                 // Filter by event types
                 if let Some(ref types) = query.event_types {
-                    if !types.iter().any(|t| std::mem::discriminant(t) == std::mem::discriminant(&event.event_type)) {
+                    if !types.iter().any(|t| {
+                        std::mem::discriminant(t) == std::mem::discriminant(&event.event_type)
+                    }) {
                         return false;
                     }
                 }
-                
+
                 // Filter by user ID
                 if let Some(ref user_id) = query.user_id {
                     if event.user_id != *user_id {
                         return false;
                     }
                 }
-                
+
                 // Filter by resource ID
                 if let Some(ref resource_id) = query.resource_id {
                     if event.resource_id != *resource_id {
                         return false;
                     }
                 }
-                
+
                 // Filter by severity
                 if let Some(ref severity) = query.severity {
                     if event.severity != *severity {
                         return false;
                     }
                 }
-                
+
                 true
             })
             .take(query.limit.unwrap_or(100))
@@ -208,36 +211,32 @@ impl AuditLogger for FileAuditLogger {
     fn log_operation(&self, event: AuditEvent) -> Result<()> {
         // Add to in-memory cache
         self.add_to_cache(event.clone());
-        
+
         // Write to file
         let mut file = OpenOptions::new()
             .create(true)
             .append(true)
             .open(&self.log_file_path)?;
-        
+
         let log_line = format!("{}\n", serde_json::to_string(&event)?);
         file.write_all(log_line.as_bytes())?;
         file.flush()?;
-        
+
         Ok(())
     }
-    
+
     fn query_logs(&self, query: AuditQuery) -> Result<Vec<AuditEvent>> {
         // For simple implementation, search in-memory cache
         // In production, this would search the log file or database
         Ok(self.search_cache(&query))
     }
-    
+
     fn get_recent_events(&self, limit: usize) -> Result<Vec<AuditEvent>> {
         let cache = self.events_cache.lock().unwrap();
-        let events = cache.iter()
-            .rev()
-            .take(limit)
-            .cloned()
-            .collect();
+        let events = cache.iter().rev().take(limit).cloned().collect();
         Ok(events)
     }
-    
+
     fn get_events_by_user(&self, user_id: &str, limit: usize) -> Result<Vec<AuditEvent>> {
         let query = AuditQuery {
             start_time: None,
@@ -250,7 +249,7 @@ impl AuditLogger for FileAuditLogger {
         };
         self.query_logs(query)
     }
-    
+
     fn get_security_alerts(&self, limit: usize) -> Result<Vec<AuditEvent>> {
         let query = AuditQuery {
             start_time: None,
@@ -330,38 +329,44 @@ impl AnomalyDetector {
             },
         }
     }
-    
+
     pub fn analyze_event(&self, event: &AuditEvent) -> Result<Option<AlertType>> {
         let current_hour = event.timestamp.hour() as u8;
-        
+
         // Check for off-hours access
-        if current_hour < self.baseline_behavior.normal_hours.0 || 
-           current_hour > self.baseline_behavior.normal_hours.1 {
+        if current_hour < self.baseline_behavior.normal_hours.0
+            || current_hour > self.baseline_behavior.normal_hours.1
+        {
             return Ok(Some(AlertType::OffHoursAccess));
         }
-        
+
         // Check for suspicious location
         if let Some(ref source_ip) = event.client_info.source_ip {
-            let is_typical = self.baseline_behavior.typical_locations.iter()
+            let is_typical = self
+                .baseline_behavior
+                .typical_locations
+                .iter()
                 .any(|range| source_ip.starts_with(range));
-            
+
             if !is_typical {
                 return Ok(Some(AlertType::SuspiciousLocation));
             }
         }
-        
+
         // Check for failure patterns (would need more context/state)
         if matches!(event.result, OperationResult::Failure { .. }) {
             return Ok(Some(AlertType::UnusualAccess));
         }
-        
+
         Ok(None)
     }
-    
+
     pub fn trigger_alert(&self, alert_type: AlertType, event: &AuditEvent) -> Result<()> {
-        println!("🚨 Security Alert: {:?} detected for user {} at {}", 
-                alert_type, event.user_id, event.timestamp);
-        
+        println!(
+            "🚨 Security Alert: {:?} detected for user {} at {}",
+            alert_type, event.user_id, event.timestamp
+        );
+
         // In production, this would send alerts to security monitoring systems
         // For now, we'll just log the alert
         Ok(())
@@ -412,24 +417,24 @@ impl ComplianceMonitor {
             ],
         }
     }
-    
+
     pub fn check_compliance(&self, event: &AuditEvent) -> Result<Vec<String>> {
         let mut violations = Vec::new();
-        
+
         for rule in &self.compliance_rules {
             // Check if event type is required for this rule
-            if rule.required_events.iter().any(|required| 
+            if rule.required_events.iter().any(|required| {
                 std::mem::discriminant(required) == std::mem::discriminant(&event.event_type)
-            ) {
+            }) {
                 // Verify event meets compliance requirements
                 if rule.encryption_required && event.metadata.get("encrypted").is_none() {
                     violations.push(format!("Rule {} requires encryption metadata", rule.name));
                 }
-                
+
                 // Additional compliance checks would go here
             }
         }
-        
+
         Ok(violations)
     }
 }
@@ -449,7 +454,7 @@ impl KeyOperationAuditor {
             compliance_monitor: ComplianceMonitor::new(),
         }
     }
-    
+
     pub fn log_key_operation(&self, op: KeyOperation) -> Result<()> {
         let audit_event = AuditEvent {
             timestamp: Utc::now(),
@@ -467,15 +472,16 @@ impl KeyOperationAuditor {
             severity: EventSeverity::Medium,
             session_id: None,
         };
-        
+
         // Log the event
         self.audit_logger.log_operation(audit_event.clone())?;
-        
+
         // Check for anomalies
         if let Some(alert_type) = self.anomaly_detector.analyze_event(&audit_event)? {
-            self.anomaly_detector.trigger_alert(alert_type, &audit_event)?;
+            self.anomaly_detector
+                .trigger_alert(alert_type, &audit_event)?;
         }
-        
+
         // Compliance monitoring
         let violations = self.compliance_monitor.check_compliance(&audit_event)?;
         if !violations.is_empty() {
@@ -483,25 +489,26 @@ impl KeyOperationAuditor {
                 println!("⚠️  Compliance violation: {}", violation);
             }
         }
-        
+
         Ok(())
     }
-    
+
     pub fn get_audit_summary(&self) -> Result<AuditSummary> {
         let recent_events = self.audit_logger.get_recent_events(100)?;
         let security_alerts = self.audit_logger.get_security_alerts(50)?;
-        
+
         let total_events = recent_events.len();
-        let failed_operations = recent_events.iter()
+        let failed_operations = recent_events
+            .iter()
             .filter(|e| matches!(e.result, OperationResult::Failure { .. }))
             .count();
-        
+
         let success_rate = if total_events > 0 {
             ((total_events - failed_operations) as f64 / total_events as f64) * 100.0
         } else {
             100.0
         };
-        
+
         Ok(AuditSummary {
             total_events,
             failed_operations,
@@ -540,10 +547,10 @@ pub fn get_default_audit_log_path() -> Result<std::path::PathBuf> {
     let config_dir = dirs::config_dir()
         .or_else(|| dirs::home_dir().map(|h| h.join(".config")))
         .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?;
-    
+
     let datamesh_dir = config_dir.join("datamesh");
     fs::create_dir_all(&datamesh_dir)?;
-    
+
     Ok(datamesh_dir.join("audit.log"))
 }
 
@@ -551,14 +558,14 @@ pub fn get_default_audit_log_path() -> Result<std::path::PathBuf> {
 mod tests {
     use super::*;
     use tempfile::TempDir;
-    
+
     #[test]
     fn test_file_audit_logger() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("audit.log");
-        
+
         let logger = FileAuditLogger::new(log_path).unwrap();
-        
+
         let event = AuditEvent {
             timestamp: Utc::now(),
             event_type: AuditEventType::KeyAccess,
@@ -571,18 +578,18 @@ mod tests {
             severity: EventSeverity::Low,
             session_id: None,
         };
-        
+
         logger.log_operation(event.clone()).unwrap();
-        
+
         let recent = logger.get_recent_events(10).unwrap();
         assert_eq!(recent.len(), 1);
         assert_eq!(recent[0].user_id, "test_user");
     }
-    
+
     #[test]
     fn test_anomaly_detection() {
         let detector = AnomalyDetector::new();
-        
+
         // Test off-hours access
         let mut event = AuditEvent {
             timestamp: Utc::now().with_hour(2).unwrap().with_minute(0).unwrap(), // 2 AM
@@ -596,7 +603,7 @@ mod tests {
             severity: EventSeverity::Low,
             session_id: None,
         };
-        
+
         let alert = detector.analyze_event(&event).unwrap();
         assert!(matches!(alert, Some(AlertType::OffHoursAccess)));
     }

@@ -2,7 +2,6 @@
 ///
 /// This module provides cryptographically secure random number generation
 /// using OsRng to replace insecure usage of thread_rng and fastrand.
-
 use rand::rngs::OsRng;
 use rand::RngCore;
 
@@ -74,7 +73,7 @@ mod tests {
     fn test_secure_nonce_generation() {
         let nonce1 = generate_secure_nonce();
         let nonce2 = generate_secure_nonce();
-        
+
         // Nonces should be different (extremely unlikely to be same)
         assert_ne!(nonce1, nonce2);
         assert_eq!(nonce1.len(), 12);
@@ -84,7 +83,7 @@ mod tests {
     fn test_secure_salt_generation() {
         let salt1 = generate_secure_salt();
         let salt2 = generate_secure_salt();
-        
+
         // Salts should be different
         assert_ne!(salt1, salt2);
         assert_eq!(salt1.len(), 32);
@@ -94,7 +93,7 @@ mod tests {
     fn test_secure_bytes_generation() {
         let bytes1 = generate_secure_bytes(64);
         let bytes2 = generate_secure_bytes(64);
-        
+
         assert_ne!(bytes1, bytes2);
         assert_eq!(bytes1.len(), 64);
         assert_eq!(bytes2.len(), 64);
@@ -106,7 +105,7 @@ mod tests {
             let val = secure_f64();
             assert!(val >= 0.0 && val < 1.0);
         }
-        
+
         for _ in 0..1000 {
             let val = secure_f64_range(10.0, 20.0);
             assert!(val >= 10.0 && val < 20.0);

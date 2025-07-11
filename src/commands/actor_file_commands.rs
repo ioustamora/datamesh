@@ -1,13 +1,12 @@
+use anyhow::Result;
 /// Actor-based File Command Handlers
-/// 
+///
 /// This module contains actor-based handlers for all file-related operations:
 /// put, get, list, info, stats
-
 use std::error::Error;
 use std::path::PathBuf;
-use anyhow::Result;
 
-use crate::commands::actor_commands::{ActorCommandHandler, ActorCommandContext};
+use crate::commands::actor_commands::{ActorCommandContext, ActorCommandHandler};
 use crate::database::DatabaseManager;
 use crate::error::DfsError;
 use crate::ui;
@@ -24,14 +23,12 @@ pub struct ActorPutCommand {
 #[async_trait::async_trait]
 impl ActorCommandHandler for ActorPutCommand {
     async fn execute(&self, context: &ActorCommandContext) -> Result<(), Box<dyn Error>> {
-        let result = context.context.store_file(
-            &self.path,
-            &self.public_key,
-            &self.name,
-            &self.tags,
-        ).await
-        .map_err(|e| Box::new(e) as Box<dyn Error>)?;
-        
+        let result = context
+            .context
+            .store_file(&self.path, &self.public_key, &self.name, &self.tags)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)?;
+
         println!("File stored successfully with key: {}", result);
         if let Some(name) = &self.name {
             println!("Name: {}", name);
@@ -39,10 +36,10 @@ impl ActorCommandHandler for ActorPutCommand {
         if let Some(tags) = &self.tags {
             println!("Tags: {}", tags.join(","));
         }
-        
+
         Ok(())
     }
-    
+
     fn command_name(&self) -> &'static str {
         "actor_file_put"
     }
@@ -59,18 +56,20 @@ pub struct ActorGetCommand {
 #[async_trait::async_trait]
 impl ActorCommandHandler for ActorGetCommand {
     async fn execute(&self, context: &ActorCommandContext) -> Result<(), Box<dyn Error>> {
-        context.context.retrieve_file(
-            &self.identifier,
-            &self.output_path,
-            &self.private_key,
-        ).await
-        .map_err(|e| Box::new(e) as Box<dyn Error>)?;
-        
-        println!("File retrieved successfully to: {}", self.output_path.display());
-        
+        context
+            .context
+            .retrieve_file(&self.identifier, &self.output_path, &self.private_key)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)?;
+
+        println!(
+            "File retrieved successfully to: {}",
+            self.output_path.display()
+        );
+
         Ok(())
     }
-    
+
     fn command_name(&self) -> &'static str {
         "actor_file_get"
     }
@@ -89,13 +88,13 @@ impl ActorCommandHandler for ActorListCommand {
         // Initialize database
         let db_path = crate::database::get_default_db_path()?;
         let db = DatabaseManager::new(&db_path)?;
-        
+
         // Parse tag filter
         let tag_filter = self.tags.as_ref().map(|t| t.as_str());
-        
+
         // Get files from database
         let files = db.list_files(tag_filter)?;
-        
+
         if let Some(pk) = &self.public_key {
             // Filter by public key if specified
             let filtered_files: Vec<_> = files
@@ -112,10 +111,10 @@ impl ActorCommandHandler for ActorListCommand {
                 .collect();
             ui::print_file_list(&filtered_files);
         }
-        
+
         Ok(())
     }
-    
+
     fn command_name(&self) -> &'static str {
         "actor_file_list"
     }
@@ -133,7 +132,7 @@ impl ActorCommandHandler for ActorInfoCommand {
         // Get database connection
         let db_path = crate::database::get_default_db_path()?;
         let db = DatabaseManager::new(&db_path)?;
-        
+
         // Find file by name or key
         let stored_file = if self.identifier.len() == 64 {
             // Looks like a file key
@@ -142,13 +141,13 @@ impl ActorCommandHandler for ActorInfoCommand {
             // Treat as file name
             db.get_file_by_name(&self.identifier)?
         };
-        
+
         let file = stored_file.ok_or_else(|| DfsError::FileNotFound(self.identifier.clone()))?;
-        
+
         ui::print_file_info(&file);
         Ok(())
     }
-    
+
     fn command_name(&self) -> &'static str {
         "actor_file_info"
     }
@@ -164,9 +163,9 @@ impl ActorCommandHandler for ActorStatsCommand {
         let db_path = crate::database::get_default_db_path()?;
         let db = DatabaseManager::new(&db_path)?;
         let stats = db.get_stats()?;
-        
+
         ui::print_database_stats(&stats);
-        
+
         // Also print network stats
         match context.context.get_network_stats().await {
             Ok(network_stats) => {
@@ -180,10 +179,10 @@ impl ActorCommandHandler for ActorStatsCommand {
                 ui::print_warning(&format!("Failed to get network stats: {}", e));
             }
         }
-        
+
         Ok(())
     }
-    
+
     fn command_name(&self) -> &'static str {
         "actor_file_stats"
     }

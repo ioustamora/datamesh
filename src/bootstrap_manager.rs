@@ -1,3 +1,7 @@
+use anyhow::{anyhow, Result};
+use chrono::{DateTime, Utc};
+use libp2p::{Multiaddr, PeerId, Swarm};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// Multi-Bootstrap Peer Support Implementation
 ///
 /// This module implements the Multi-Bootstrap Peer Support system as outlined
@@ -7,17 +11,12 @@
 /// - Health monitoring and automatic failover
 /// - Geographic redundancy support
 /// - Exponential backoff retry strategies
-
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
-use anyhow::{Result, anyhow};
-use chrono::{DateTime, Utc};
-use libp2p::{PeerId, Multiaddr, Swarm};
-use serde::{Deserialize, Serialize, Deserializer, Serializer};
-use tokio::time::{sleep, interval};
-use tracing::{info, warn, debug};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
+use tokio::time::{interval, sleep};
+use tracing::{debug, info, warn};
 
 use crate::network::MyBehaviour;
 
@@ -35,7 +34,9 @@ where
     D: Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
-    let bytes = bs58::decode(&s).into_vec().map_err(serde::de::Error::custom)?;
+    let bytes = bs58::decode(&s)
+        .into_vec()
+        .map_err(serde::de::Error::custom)?;
     PeerId::from_bytes(&bytes).map_err(serde::de::Error::custom)
 }
 
@@ -63,9 +64,15 @@ where
 /// Bootstrap peer configuration with priority and health tracking
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BootstrapPeer {
-    #[serde(serialize_with = "serialize_peer_id", deserialize_with = "deserialize_peer_id")]
+    #[serde(
+        serialize_with = "serialize_peer_id",
+        deserialize_with = "deserialize_peer_id"
+    )]
     pub peer_id: PeerId,
-    #[serde(serialize_with = "serialize_addresses", deserialize_with = "deserialize_addresses")]
+    #[serde(
+        serialize_with = "serialize_addresses",
+        deserialize_with = "deserialize_addresses"
+    )]
     pub addresses: Vec<Multiaddr>,
     pub priority: u8,
     pub region: Option<String>,
@@ -105,7 +112,7 @@ impl BootstrapPeer {
             self.successful_attempts += 1;
             self.last_seen = Some(Utc::now());
         }
-        
+
         if self.total_attempts > 0 {
             self.success_rate = self.successful_attempts as f64 / self.total_attempts as f64;
         }
@@ -113,10 +120,10 @@ impl BootstrapPeer {
 
     pub fn is_healthy(&self) -> bool {
         // Consider peer healthy if success rate > 50% and last seen within 5 minutes
-        self.success_rate > 0.5 && 
-        self.last_seen.map_or(false, |last| {
-            Utc::now().signed_duration_since(last).num_minutes() < 5
-        })
+        self.success_rate > 0.5
+            && self.last_seen.map_or(false, |last| {
+                Utc::now().signed_duration_since(last).num_minutes() < 5
+            })
     }
 
     pub fn score(&self) -> f64 {
@@ -127,7 +134,7 @@ impl BootstrapPeer {
             let minutes_ago = Utc::now().signed_duration_since(last).num_minutes();
             (60.0 - minutes_ago.min(60) as f64) / 60.0 * 5.0
         });
-        
+
         (priority_score + success_score + recency_score) / 3.0
     }
 }
@@ -137,8 +144,13 @@ impl BootstrapPeer {
 pub enum ConnectionState {
     Disconnected,
     Connecting,
-    Connected { connected_at: Instant },
-    Failed { last_attempt: Instant, retry_count: u32 },
+    Connected {
+        connected_at: Instant,
+    },
+    Failed {
+        last_attempt: Instant,
+        retry_count: u32,
+    },
 }
 
 /// Exponential backoff retry strategy
@@ -162,7 +174,12 @@ impl Default for ExponentialBackoff {
 }
 
 impl ExponentialBackoff {
-    pub fn new(base_delay: Duration, max_delay: Duration, multiplier: f64, max_attempts: u32) -> Self {
+    pub fn new(
+        base_delay: Duration,
+        max_delay: Duration,
+        multiplier: f64,
+        max_attempts: u32,
+    ) -> Self {
         Self {
             base_delay,
             max_delay,
@@ -175,7 +192,7 @@ impl ExponentialBackoff {
         if attempt == 0 {
             return self.base_delay;
         }
-        
+
         let delay = self.base_delay.as_secs_f64() * self.multiplier.powi(attempt as i32);
         Duration::from_secs_f64(delay.min(self.max_delay.as_secs_f64()))
     }
@@ -213,20 +230,24 @@ impl BootstrapHealthChecker {
         bootstrap_manager: Arc<RwLock<BootstrapManager>>,
     ) -> tokio::task::JoinHandle<()> {
         let check_interval = self.check_interval;
-        
+
         tokio::spawn(async move {
             let mut interval = interval(check_interval);
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let manager = bootstrap_manager.read().await;
                 let peers = manager.get_all_peers();
-                
+
                 for peer in peers {
                     // In a real implementation, this would perform actual health checks
                     // For now, we'll just log the health check
-                    debug!("Health check for peer {}: healthy={}", peer.peer_id, peer.is_healthy());
+                    debug!(
+                        "Health check for peer {}: healthy={}",
+                        peer.peer_id,
+                        peer.is_healthy()
+                    );
                 }
             }
         })
@@ -274,15 +295,22 @@ impl BootstrapManager {
     }
 
     pub fn add_bootstrap_peer(&mut self, peer: BootstrapPeer) {
-        info!("Adding bootstrap peer: {} (priority: {}, region: {:?})", 
-              peer.peer_id, peer.priority, peer.region);
-        
+        info!(
+            "Adding bootstrap peer: {} (priority: {}, region: {:?})",
+            peer.peer_id, peer.priority, peer.region
+        );
+
         self.bootstrap_peers.push(peer.clone());
-        self.connection_pool.insert(peer.peer_id, ConnectionState::Disconnected);
+        self.connection_pool
+            .insert(peer.peer_id, ConnectionState::Disconnected);
     }
 
     pub fn remove_bootstrap_peer(&mut self, peer_id: &PeerId) -> bool {
-        if let Some(pos) = self.bootstrap_peers.iter().position(|p| &p.peer_id == peer_id) {
+        if let Some(pos) = self
+            .bootstrap_peers
+            .iter()
+            .position(|p| &p.peer_id == peer_id)
+        {
             self.bootstrap_peers.remove(pos);
             self.connection_pool.remove(peer_id);
             info!("Removed bootstrap peer: {}", peer_id);
@@ -299,11 +327,9 @@ impl BootstrapManager {
     pub fn get_connected_peers(&self) -> Vec<PeerId> {
         self.connection_pool
             .iter()
-            .filter_map(|(peer_id, state)| {
-                match state {
-                    ConnectionState::Connected { .. } => Some(*peer_id),
-                    _ => None,
-                }
+            .filter_map(|(peer_id, state)| match state {
+                ConnectionState::Connected { .. } => Some(*peer_id),
+                _ => None,
             })
             .collect()
     }
@@ -319,7 +345,7 @@ impl BootstrapManager {
     /// Get bootstrap peers sorted by priority and success rate
     pub fn prioritized_bootstrap_peers(&self) -> Vec<BootstrapPeer> {
         let mut peers = self.bootstrap_peers.clone();
-        
+
         // Sort by region preference first, then by score
         peers.sort_by(|a, b| {
             // Prefer peers in the preferred region
@@ -342,25 +368,33 @@ impl BootstrapManager {
                     _ => {}
                 }
             }
-            
+
             // Then sort by connection score (higher is better)
-            b.score().partial_cmp(&a.score()).unwrap_or(std::cmp::Ordering::Equal)
+            b.score()
+                .partial_cmp(&a.score())
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
-        
+
         peers
     }
 
     /// Connect to bootstrap peers using intelligent strategy
-    pub async fn connect_to_network(&mut self, swarm: &mut Swarm<MyBehaviour>) -> Result<Vec<PeerId>> {
-        info!("Connecting to bootstrap network with {} peers available", self.bootstrap_peers.len());
-        
+    pub async fn connect_to_network(
+        &mut self,
+        swarm: &mut Swarm<MyBehaviour>,
+    ) -> Result<Vec<PeerId>> {
+        info!(
+            "Connecting to bootstrap network with {} peers available",
+            self.bootstrap_peers.len()
+        );
+
         if self.bootstrap_peers.is_empty() {
             return Err(anyhow!("No bootstrap peers configured"));
         }
 
         let mut connected_peers = Vec::new();
         let prioritized_peers = self.prioritized_bootstrap_peers();
-        
+
         // Try to connect to peers in order of priority
         for peer in prioritized_peers {
             if connected_peers.len() >= self.max_connections {
@@ -370,17 +404,24 @@ impl BootstrapManager {
             match self.connect_to_peer(&peer, swarm).await {
                 Ok(peer_id) => {
                     connected_peers.push(peer_id);
-                    self.connection_pool.insert(peer_id, ConnectionState::Connected {
-                        connected_at: Instant::now(),
-                    });
-                    
+                    self.connection_pool.insert(
+                        peer_id,
+                        ConnectionState::Connected {
+                            connected_at: Instant::now(),
+                        },
+                    );
+
                     // Update peer success rate
-                    if let Some(peer_ref) = self.bootstrap_peers.iter_mut().find(|p| p.peer_id == peer_id) {
+                    if let Some(peer_ref) = self
+                        .bootstrap_peers
+                        .iter_mut()
+                        .find(|p| p.peer_id == peer_id)
+                    {
                         peer_ref.update_success(true);
                     }
-                    
+
                     info!("Successfully connected to bootstrap peer: {}", peer_id);
-                    
+
                     // If we have minimum connections, we can continue with reduced urgency
                     if connected_peers.len() >= self.min_connections {
                         // Continue trying to connect to more peers but don't fail if unsuccessful
@@ -388,59 +429,83 @@ impl BootstrapManager {
                     }
                 }
                 Err(e) => {
-                    warn!("Failed to connect to bootstrap peer {}: {}", peer.peer_id, e);
-                    
+                    warn!(
+                        "Failed to connect to bootstrap peer {}: {}",
+                        peer.peer_id, e
+                    );
+
                     // Update peer success rate
-                    if let Some(peer_ref) = self.bootstrap_peers.iter_mut().find(|p| p.peer_id == peer.peer_id) {
+                    if let Some(peer_ref) = self
+                        .bootstrap_peers
+                        .iter_mut()
+                        .find(|p| p.peer_id == peer.peer_id)
+                    {
                         peer_ref.update_success(false);
                     }
-                    
-                    self.connection_pool.insert(peer.peer_id, ConnectionState::Failed {
-                        last_attempt: Instant::now(),
-                        retry_count: 1,
-                    });
+
+                    self.connection_pool.insert(
+                        peer.peer_id,
+                        ConnectionState::Failed {
+                            last_attempt: Instant::now(),
+                            retry_count: 1,
+                        },
+                    );
                 }
             }
         }
 
         if connected_peers.len() < self.min_connections {
             // If we don't have minimum connections, try with retry strategy
-            info!("Insufficient connections ({}), retrying with backoff strategy", connected_peers.len());
-            
+            info!(
+                "Insufficient connections ({}), retrying with backoff strategy",
+                connected_peers.len()
+            );
+
             for retry_attempt in 1..=self.retry_strategy.max_attempts {
                 if connected_peers.len() >= self.min_connections {
                     break;
                 }
-                
+
                 let delay = self.retry_strategy.delay(retry_attempt);
                 info!("Retry attempt {} after {:?}", retry_attempt, delay);
                 sleep(delay).await;
-                
+
                 // Try failed peers again
-                let failed_peers: Vec<_> = self.bootstrap_peers
+                let failed_peers: Vec<_> = self
+                    .bootstrap_peers
                     .iter()
                     .filter(|p| !connected_peers.contains(&p.peer_id))
                     .cloned()
                     .collect();
-                
+
                 for peer in failed_peers {
                     if connected_peers.len() >= self.max_connections {
                         break;
                     }
-                    
+
                     match self.connect_to_peer(&peer, swarm).await {
                         Ok(peer_id) => {
                             connected_peers.push(peer_id);
-                            self.connection_pool.insert(peer_id, ConnectionState::Connected {
-                                connected_at: Instant::now(),
-                            });
-                            
-                            if let Some(peer_ref) = self.bootstrap_peers.iter_mut().find(|p| p.peer_id == peer_id) {
+                            self.connection_pool.insert(
+                                peer_id,
+                                ConnectionState::Connected {
+                                    connected_at: Instant::now(),
+                                },
+                            );
+
+                            if let Some(peer_ref) = self
+                                .bootstrap_peers
+                                .iter_mut()
+                                .find(|p| p.peer_id == peer_id)
+                            {
                                 peer_ref.update_success(true);
                             }
-                            
-                            info!("Successfully connected to bootstrap peer on retry: {}", peer_id);
-                            
+
+                            info!(
+                                "Successfully connected to bootstrap peer on retry: {}",
+                                peer_id
+                            );
+
                             if connected_peers.len() >= self.min_connections {
                                 break;
                             }
@@ -454,24 +519,39 @@ impl BootstrapManager {
         }
 
         if connected_peers.is_empty() {
-            return Err(anyhow!("Failed to connect to any bootstrap peers after {} attempts", 
-                              self.retry_strategy.max_attempts));
+            return Err(anyhow!(
+                "Failed to connect to any bootstrap peers after {} attempts",
+                self.retry_strategy.max_attempts
+            ));
         }
 
         if connected_peers.len() < self.min_connections {
-            warn!("Connected to {} peers, which is less than minimum required ({})", 
-                  connected_peers.len(), self.min_connections);
+            warn!(
+                "Connected to {} peers, which is less than minimum required ({})",
+                connected_peers.len(),
+                self.min_connections
+            );
         }
 
-        info!("Successfully connected to {} bootstrap peers", connected_peers.len());
+        info!(
+            "Successfully connected to {} bootstrap peers",
+            connected_peers.len()
+        );
         Ok(connected_peers)
     }
 
     /// Connect to a specific bootstrap peer
-    async fn connect_to_peer(&self, peer: &BootstrapPeer, swarm: &mut Swarm<MyBehaviour>) -> Result<PeerId> {
+    async fn connect_to_peer(
+        &self,
+        peer: &BootstrapPeer,
+        swarm: &mut Swarm<MyBehaviour>,
+    ) -> Result<PeerId> {
         // Add peer addresses to Kademlia DHT
         for addr in &peer.addresses {
-            swarm.behaviour_mut().kad.add_address(&peer.peer_id, addr.clone());
+            swarm
+                .behaviour_mut()
+                .kad
+                .add_address(&peer.peer_id, addr.clone());
         }
 
         // Try to dial the peer
@@ -490,39 +570,45 @@ impl BootstrapManager {
             }
         }
 
-        Err(anyhow!("Failed to connect to any address for peer {}", peer.peer_id))
+        Err(anyhow!(
+            "Failed to connect to any address for peer {}",
+            peer.peer_id
+        ))
     }
 
     /// Start automatic failover monitoring (disabled due to Send/Sync issues)
-    pub async fn start_failover_monitoring(&self, _swarm: Arc<RwLock<Swarm<MyBehaviour>>>) -> tokio::task::JoinHandle<()> {
+    pub async fn start_failover_monitoring(
+        &self,
+        _swarm: Arc<RwLock<Swarm<MyBehaviour>>>,
+    ) -> tokio::task::JoinHandle<()> {
         // let manager = Arc::new(RwLock::new(self.clone()));
-        
+
         tokio::spawn(async move {
             // Temporary empty implementation to fix build issues
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(60)).await;
             }
         })
-        
+
         /* Original implementation commented out due to Send/Sync issues
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(30));
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let connected_count = {
                     let manager = manager.read().await;
                     manager.get_connected_count()
                 };
-                
+
                 // If we have fewer than minimum connections, try to reconnect
                 if connected_count < 3 {
                     warn!("Low bootstrap connections ({}), attempting to reconnect", connected_count);
-                    
+
                     let mut manager = manager.write().await;
                     let mut swarm = swarm.write().await;
-                    
+
                     if let Err(e) = manager.connect_to_network(&mut swarm).await {
                         error!("Failed to reconnect to bootstrap network: {}", e);
                     }
@@ -564,11 +650,11 @@ mod tests {
         let keypair = Keypair::generate_ed25519();
         let peer_id = PeerId::from(keypair.public());
         let addr = Multiaddr::from_str("/ip4/127.0.0.1/tcp/4001").unwrap();
-        
+
         let peer = BootstrapPeer::new(peer_id, vec![addr])
             .with_priority(1)
             .with_region("us-east".to_string());
-        
+
         assert_eq!(peer.peer_id, peer_id);
         assert_eq!(peer.priority, 1);
         assert_eq!(peer.region, Some("us-east".to_string()));
@@ -580,15 +666,15 @@ mod tests {
         let keypair = Keypair::generate_ed25519();
         let peer_id = PeerId::from(keypair.public());
         let addr = Multiaddr::from_str("/ip4/127.0.0.1/tcp/4001").unwrap();
-        
+
         let mut peer = BootstrapPeer::new(peer_id, vec![addr]);
-        
+
         // Test success updates
         peer.update_success(true);
         assert_eq!(peer.successful_attempts, 1);
         assert_eq!(peer.total_attempts, 1);
         assert_eq!(peer.success_rate, 1.0);
-        
+
         // Test failure updates
         peer.update_success(false);
         assert_eq!(peer.successful_attempts, 1);
@@ -598,18 +684,14 @@ mod tests {
 
     #[test]
     fn test_exponential_backoff() {
-        let backoff = ExponentialBackoff::new(
-            Duration::from_secs(1),
-            Duration::from_secs(60),
-            2.0,
-            5
-        );
-        
+        let backoff =
+            ExponentialBackoff::new(Duration::from_secs(1), Duration::from_secs(60), 2.0, 5);
+
         assert_eq!(backoff.delay(0), Duration::from_secs(1));
         assert_eq!(backoff.delay(1), Duration::from_secs(2));
         assert_eq!(backoff.delay(2), Duration::from_secs(4));
         assert_eq!(backoff.delay(3), Duration::from_secs(8));
-        
+
         assert!(backoff.should_retry(0));
         assert!(backoff.should_retry(4));
         assert!(!backoff.should_retry(5));
@@ -618,32 +700,31 @@ mod tests {
     #[test]
     fn test_bootstrap_manager_peer_management() {
         let mut manager = BootstrapManager::new();
-        
+
         let keypair = Keypair::generate_ed25519();
         let peer_id = PeerId::from(keypair.public());
         let addr = Multiaddr::from_str("/ip4/127.0.0.1/tcp/4001").unwrap();
-        
+
         let peer = BootstrapPeer::new(peer_id, vec![addr])
             .with_priority(1)
             .with_region("us-east".to_string());
-        
+
         // Test adding peer
         manager.add_bootstrap_peer(peer);
         assert_eq!(manager.get_peer_count(), 1);
-        
+
         // Test removing peer
         assert!(manager.remove_bootstrap_peer(&peer_id));
         assert_eq!(manager.get_peer_count(), 0);
-        
+
         // Test removing non-existent peer
         assert!(!manager.remove_bootstrap_peer(&peer_id));
     }
 
     #[test]
     fn test_peer_prioritization() {
-        let mut manager = BootstrapManager::new()
-            .with_preferred_region("us-east".to_string());
-        
+        let mut manager = BootstrapManager::new().with_preferred_region("us-east".to_string());
+
         // Create peers with different priorities and regions
         let keypair1 = Keypair::generate_ed25519();
         let peer1_id = PeerId::from(keypair1.public());
@@ -652,7 +733,7 @@ mod tests {
             .with_priority(2)
             .with_region("eu-west".to_string());
         peer1.update_success(true);
-        
+
         let keypair2 = Keypair::generate_ed25519();
         let peer2_id = PeerId::from(keypair2.public());
         let addr2 = Multiaddr::from_str("/ip4/127.0.0.1/tcp/4002").unwrap();
@@ -660,12 +741,12 @@ mod tests {
             .with_priority(1)
             .with_region("us-east".to_string());
         peer2.update_success(true);
-        
+
         manager.add_bootstrap_peer(peer1);
         manager.add_bootstrap_peer(peer2);
-        
+
         let prioritized = manager.prioritized_bootstrap_peers();
-        
+
         // peer2 should be first because it's in the preferred region
         assert_eq!(prioritized[0].peer_id, peer2_id);
         assert_eq!(prioritized[1].peer_id, peer1_id);
@@ -674,11 +755,11 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_bootstrap_manager_connection_strategy() {
         use std::str::FromStr;
-        
+
         let mut manager = BootstrapManager::new()
             .with_connection_limits(2, 5)
             .with_preferred_region("us-east".to_string());
-        
+
         // Create test peers
         let keypair1 = Keypair::generate_ed25519();
         let peer1_id = PeerId::from(keypair1.public());
@@ -686,23 +767,23 @@ mod tests {
         let peer1 = BootstrapPeer::new(peer1_id, vec![addr1])
             .with_priority(1)
             .with_region("us-east".to_string());
-        
+
         let keypair2 = Keypair::generate_ed25519();
         let peer2_id = PeerId::from(keypair2.public());
         let addr2 = Multiaddr::from_str("/ip4/127.0.0.1/tcp/4002").unwrap();
         let peer2 = BootstrapPeer::new(peer2_id, vec![addr2])
             .with_priority(2)
             .with_region("eu-west".to_string());
-        
+
         manager.add_bootstrap_peer(peer1);
         manager.add_bootstrap_peer(peer2);
-        
+
         // Test prioritization
         let prioritized = manager.prioritized_bootstrap_peers();
         assert_eq!(prioritized.len(), 2);
         assert_eq!(prioritized[0].peer_id, peer1_id); // Should be first due to preferred region
         assert_eq!(prioritized[1].peer_id, peer2_id);
-        
+
         // Test connection counting
         assert_eq!(manager.get_peer_count(), 2);
         assert_eq!(manager.get_connected_count(), 0);
@@ -710,8 +791,8 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_bootstrap_config_integration() {
-        use crate::config::{BootstrapConfig, BootstrapPeerConfig, BackoffConfig};
-        
+        use crate::config::{BackoffConfig, BootstrapConfig, BootstrapPeerConfig};
+
         let config = BootstrapConfig {
             peers: vec![
                 BootstrapPeerConfig {
@@ -740,11 +821,11 @@ mod tests {
                 max_attempts: 3,
             },
         };
-        
+
         // Test that we can convert config to bootstrap manager
         let result = config.to_bootstrap_manager();
         assert!(result.is_ok());
-        
+
         let manager = result.unwrap();
         assert_eq!(manager.get_peer_count(), 2);
     }
@@ -753,31 +834,31 @@ mod tests {
     fn test_cli_bootstrap_peer_parsing() {
         use crate::cli::Cli;
         use clap::Parser;
-        
+
         // Test parsing multiple bootstrap peers
         let args = vec![
             "datamesh",
             "--bootstrap-peers",
             "12D3KooWCRscMgHgEo3ojm8ovzheydpvTEqsDtq7Vby7y6NGY2Ez@/ip4/127.0.0.1/tcp/4001",
-            "--bootstrap-peers", 
+            "--bootstrap-peers",
             "12D3KooWCRscMgHgEo3ojm8ovzheydpvTEqsDtq7Vby7y6NGY2Ea@/ip4/127.0.0.1/tcp/4002",
             "bootstrap",
             "--port",
             "4001",
         ];
-        
+
         let cli = Cli::try_parse_from(args);
         assert!(cli.is_ok());
-        
+
         let cli = cli.unwrap();
         assert!(cli.bootstrap_peers.is_some());
-        
+
         let peers = cli.parse_bootstrap_peers();
         assert!(peers.is_ok());
-        
+
         let peers = peers.unwrap();
         assert_eq!(peers.len(), 2);
-        
+
         // Test that all peers have priority 1 (high priority for CLI)
         for peer in peers {
             assert_eq!(peer.priority, 1);
@@ -787,7 +868,7 @@ mod tests {
     #[test]
     fn test_failover_mechanism() {
         use std::time::Duration;
-        
+
         let mut manager = BootstrapManager::new()
             .with_connection_limits(2, 4)
             .with_retry_strategy(ExponentialBackoff::new(
@@ -796,39 +877,37 @@ mod tests {
                 2.0,
                 3,
             ));
-        
+
         // Create peers with different success rates
         let keypair1 = Keypair::generate_ed25519();
         let peer1_id = PeerId::from(keypair1.public());
         let addr1 = Multiaddr::from_str("/ip4/127.0.0.1/tcp/4001").unwrap();
-        let mut peer1 = BootstrapPeer::new(peer1_id, vec![addr1])
-            .with_priority(1);
-        
+        let mut peer1 = BootstrapPeer::new(peer1_id, vec![addr1]).with_priority(1);
+
         // Simulate poor connection history
         peer1.update_success(false);
         peer1.update_success(false);
         peer1.update_success(true);
-        
+
         let keypair2 = Keypair::generate_ed25519();
         let peer2_id = PeerId::from(keypair2.public());
         let addr2 = Multiaddr::from_str("/ip4/127.0.0.1/tcp/4002").unwrap();
-        let mut peer2 = BootstrapPeer::new(peer2_id, vec![addr2])
-            .with_priority(2);
-        
+        let mut peer2 = BootstrapPeer::new(peer2_id, vec![addr2]).with_priority(2);
+
         // Simulate good connection history
         peer2.update_success(true);
         peer2.update_success(true);
         peer2.update_success(true);
-        
+
         manager.add_bootstrap_peer(peer1);
         manager.add_bootstrap_peer(peer2);
-        
+
         let prioritized = manager.prioritized_bootstrap_peers();
-        
+
         // peer2 should be prioritized due to better success rate
         assert_eq!(prioritized[0].peer_id, peer2_id);
         assert_eq!(prioritized[1].peer_id, peer1_id);
-        
+
         // Test that peer2 has better score
         assert!(prioritized[0].score() > prioritized[1].score());
     }

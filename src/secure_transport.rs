@@ -1,14 +1,13 @@
+use libp2p::noise;
+use libp2p::{identity, PeerId};
+use serde::{Deserialize, Serialize};
 /// Secure Transport Configuration Module
 ///
 /// This module provides enhanced security features for P2P transport,
 /// including certificate pinning, peer authentication, and connection validation.
-
 use std::collections::HashSet;
 use std::sync::Arc;
-use libp2p::{identity, PeerId};
-use libp2p::noise;
-use serde::{Deserialize, Serialize};
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 /// Secure transport configuration for P2P connections
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,28 +66,35 @@ impl SecureTransportConfig {
 
         let peer_key = peer_id.to_string();
         let allowed = self.allowed_peer_keys.contains(&peer_key);
-        
+
         if !allowed {
             warn!("Rejecting connection from unauthorized peer: {}", peer_key);
         } else {
             info!("Accepting connection from authorized peer: {}", peer_key);
         }
-        
+
         allowed
     }
 
     /// Create a configured Noise transport with security enhancements
-    pub fn create_noise_config(&self, keypair: &identity::Keypair) -> Result<noise::Config, Box<dyn std::error::Error>> {
-        let config = noise::Config::new(keypair)
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
-        
+    pub fn create_noise_config(
+        &self,
+        keypair: &identity::Keypair,
+    ) -> Result<noise::Config, Box<dyn std::error::Error>> {
+        let config =
+            noise::Config::new(keypair).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+
         // Additional security configurations would go here
         // For now, we return the basic config as libp2p handles most security
         Ok(config)
     }
 
     /// Validate connection parameters
-    pub fn validate_connection(&self, peer_id: &PeerId, connection_count: u32) -> Result<(), SecurityError> {
+    pub fn validate_connection(
+        &self,
+        peer_id: &PeerId,
+        connection_count: u32,
+    ) -> Result<(), SecurityError> {
         // Check peer allowlist
         if !self.is_peer_allowed(peer_id) {
             return Err(SecurityError::UnauthorizedPeer(peer_id.to_string()));
@@ -112,20 +118,20 @@ impl SecureTransportConfig {
 pub enum SecurityError {
     #[error("Unauthorized peer: {0}")]
     UnauthorizedPeer(String),
-    
+
     #[error("Too many connections to peer {peer}: {current}/{max}")]
     TooManyConnections {
         peer: String,
         current: u32,
         max: u32,
     },
-    
+
     #[error("Connection timeout exceeded")]
     ConnectionTimeout,
-    
+
     #[error("Invalid certificate: {0}")]
     InvalidCertificate(String),
-    
+
     #[error("Security policy violation: {0}")]
     PolicyViolation(String),
 }
@@ -196,7 +202,7 @@ impl SecurityManager {
     /// Register a new connection
     pub fn register_connection(&self, peer_id: PeerId) -> Result<(), SecurityError> {
         self.validate_incoming_connection(&peer_id)?;
-        
+
         let mut tracker = self.connection_tracker.write().unwrap();
         tracker.add_connection(peer_id);
         Ok(())
@@ -233,12 +239,12 @@ mod tests {
     #[test]
     fn test_secure_transport_config() {
         let mut config = SecureTransportConfig::new(true);
-        
+
         // Test peer management
         let peer_key = "test_peer_key".to_string();
         config.add_allowed_peer(peer_key.clone());
         assert!(config.allowed_peer_keys.contains(&peer_key));
-        
+
         config.remove_allowed_peer(&peer_key);
         assert!(!config.allowed_peer_keys.contains(&peer_key));
     }
@@ -247,18 +253,18 @@ mod tests {
     fn test_connection_tracker() {
         let mut tracker = PeerConnectionTracker::new();
         let peer_id = PeerId::random();
-        
+
         // Test adding connections
         tracker.add_connection(peer_id);
         assert_eq!(tracker.get_connection_count(&peer_id), 1);
-        
+
         tracker.add_connection(peer_id);
         assert_eq!(tracker.get_connection_count(&peer_id), 2);
-        
+
         // Test removing connections
         tracker.remove_connection(&peer_id);
         assert_eq!(tracker.get_connection_count(&peer_id), 1);
-        
+
         tracker.remove_connection(&peer_id);
         assert_eq!(tracker.get_connection_count(&peer_id), 0);
     }
@@ -267,22 +273,22 @@ mod tests {
     fn test_security_manager() {
         let config = SecureTransportConfig::new(false); // Permissive for testing
         let manager = SecurityManager::new(config);
-        
+
         let peer_id = PeerId::random();
-        
+
         // Test connection registration
         assert!(manager.register_connection(peer_id).is_ok());
         assert!(manager.register_connection(peer_id).is_ok());
-        
+
         // Test connection stats
         let stats = manager.get_connection_stats();
         assert_eq!(stats.len(), 1);
         assert_eq!(stats[0].1, 2); // 2 connections for the peer
-        
+
         // Test unregistration
         manager.unregister_connection(&peer_id);
         manager.unregister_connection(&peer_id);
-        
+
         let stats = manager.get_connection_stats();
         assert_eq!(stats.len(), 0); // No more connections
     }

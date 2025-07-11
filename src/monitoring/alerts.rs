@@ -1,12 +1,12 @@
-use std::collections::{HashMap, VecDeque, BTreeMap};
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
-use std::pin::Pin;
-use std::future::Future;
-use tokio::sync::{RwLock, Mutex};
-use anyhow::Result;
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
+use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
 use super::SystemMetrics;
@@ -398,7 +398,10 @@ pub struct AlertStats {
 
 /// Notification channel trait for different notification methods
 pub trait NotificationChannel: Send + Sync {
-    fn send_notification<'a>(&'a self, alert: &'a Alert) -> Pin<Box<dyn Future<Output = Result<NotificationRecord>> + Send + 'a>>;
+    fn send_notification<'a>(
+        &'a self,
+        alert: &'a Alert,
+    ) -> Pin<Box<dyn Future<Output = Result<NotificationRecord>> + Send + 'a>>;
     fn channel_type(&self) -> NotificationMethodType;
     fn is_enabled(&self) -> bool;
     fn get_configuration(&self) -> HashMap<String, String>;
@@ -502,7 +505,12 @@ impl AlertManager {
 
             // Check cooldown period
             if let Some(last_triggered) = rule.last_triggered {
-                if Utc::now().signed_duration_since(last_triggered).to_std().unwrap_or(Duration::MAX) < rule.cooldown {
+                if Utc::now()
+                    .signed_duration_since(last_triggered)
+                    .to_std()
+                    .unwrap_or(Duration::MAX)
+                    < rule.cooldown
+                {
                     continue;
                 }
             }
@@ -525,7 +533,7 @@ impl AlertManager {
     /// Process a triggered alert
     async fn process_alert(&self, alert: Alert) -> Result<()> {
         let alert_id = alert.id.clone();
-        
+
         // Check if alert is already active
         let mut active_alerts = self.active_alerts.write().await;
         if active_alerts.contains_key(&alert_id) {
@@ -553,7 +561,8 @@ impl AlertManager {
         // Add to history
         let mut history = self.alert_history.write().await;
         history.push_back(alert);
-        if history.len() > 10000 { // Keep last 10k alerts
+        if history.len() > 10000 {
+            // Keep last 10k alerts
             history.pop_front();
         }
 
@@ -562,25 +571,56 @@ impl AlertManager {
     }
 
     /// Evaluate a single alert condition
-    async fn evaluate_condition(&self, condition: &AlertCondition, metrics: &SystemMetrics) -> Result<bool> {
+    async fn evaluate_condition(
+        &self,
+        condition: &AlertCondition,
+        metrics: &SystemMetrics,
+    ) -> Result<bool> {
         match condition {
-            AlertCondition::Threshold { metric, operator, threshold, duration: _ } => {
+            AlertCondition::Threshold {
+                metric,
+                operator,
+                threshold,
+                duration: _,
+            } => {
                 let value = self.get_metric_value(metric, metrics).await?;
                 Ok(self.compare_values(value, *threshold, operator))
             }
-            AlertCondition::AnomalyDetection { metric, sensitivity, window: _ } => {
+            AlertCondition::AnomalyDetection {
+                metric,
+                sensitivity,
+                window: _,
+            } => {
                 let detector = self.anomaly_detector.read().await;
-                detector.is_anomaly(metric, self.get_metric_value(metric, metrics).await?, *sensitivity).await
+                detector
+                    .is_anomaly(
+                        metric,
+                        self.get_metric_value(metric, metrics).await?,
+                        *sensitivity,
+                    )
+                    .await
             }
-            AlertCondition::RateOfChange { metric: _, rate_threshold: _, time_window: _ } => {
+            AlertCondition::RateOfChange {
+                metric: _,
+                rate_threshold: _,
+                time_window: _,
+            } => {
                 // Would implement rate of change calculation
                 Ok(false) // Placeholder
             }
-            AlertCondition::Correlation { primary_metric: _, secondary_metric: _, correlation_threshold: _, window: _ } => {
+            AlertCondition::Correlation {
+                primary_metric: _,
+                secondary_metric: _,
+                correlation_threshold: _,
+                window: _,
+            } => {
                 // Would implement correlation analysis
                 Ok(false) // Placeholder
             }
-            AlertCondition::Composite { expression: _, conditions: _ } => {
+            AlertCondition::Composite {
+                expression: _,
+                conditions: _,
+            } => {
                 // Would implement composite condition evaluation
                 Ok(false) // Placeholder
             }
@@ -612,7 +652,11 @@ impl AlertManager {
             "governance_health" => metrics.governance_health,
             _ => {
                 // Check custom metrics
-                metrics.custom_metrics.get(metric_name).cloned().unwrap_or(0.0)
+                metrics
+                    .custom_metrics
+                    .get(metric_name)
+                    .cloned()
+                    .unwrap_or(0.0)
             }
         };
 
@@ -634,15 +678,23 @@ impl AlertManager {
     /// Create an alert from a triggered rule
     async fn create_alert(&self, rule: &AlertRule, metrics: &SystemMetrics) -> Result<Alert> {
         let alert_id = Uuid::new_v4().to_string();
-        let current_value = self.get_metric_value(&self.extract_metric_name(&rule.condition), metrics).await?;
+        let current_value = self
+            .get_metric_value(&self.extract_metric_name(&rule.condition), metrics)
+            .await?;
         let threshold_value = self.extract_threshold_value(&rule.condition);
 
         Ok(Alert {
             id: alert_id,
             rule_id: rule.id.clone(),
             severity: rule.severity.clone(),
-            title: format!("{} - {}", rule.name, self.get_severity_description(&rule.severity)),
-            description: self.generate_alert_description(rule, current_value, threshold_value).await?,
+            title: format!(
+                "{} - {}",
+                rule.name,
+                self.get_severity_description(&rule.severity)
+            ),
+            description: self
+                .generate_alert_description(rule, current_value, threshold_value)
+                .await?,
             category: self.determine_alert_category(&rule.condition),
             metric_name: self.extract_metric_name(&rule.condition),
             current_value,
@@ -680,11 +732,19 @@ impl AlertManager {
                 match channel.send_notification(alert).await {
                     Ok(record) => {
                         notification_results.push(record);
-                        tracing::info!("Notification sent via {:?} for alert {}", channel.channel_type(), alert.id);
+                        tracing::info!(
+                            "Notification sent via {:?} for alert {}",
+                            channel.channel_type(),
+                            alert.id
+                        );
                     }
                     Err(e) => {
-                        tracing::error!("Failed to send notification via {:?} for alert {}: {}", 
-                                      channel.channel_type(), alert.id, e);
+                        tracing::error!(
+                            "Failed to send notification via {:?} for alert {}: {}",
+                            channel.channel_type(),
+                            alert.id,
+                            e
+                        );
                     }
                 }
             }
@@ -704,13 +764,13 @@ impl AlertManager {
     /// Acknowledge an alert
     pub async fn acknowledge_alert(&self, alert_id: &str, acknowledged_by: &str) -> Result<()> {
         let mut active_alerts = self.active_alerts.write().await;
-        
+
         if let Some(alert) = active_alerts.get_mut(alert_id) {
             alert.acknowledged = true;
             alert.acknowledged_by = Some(acknowledged_by.to_string());
             alert.acknowledged_at = Some(Utc::now());
             alert.updated_at = Utc::now();
-            
+
             tracing::info!("Alert {} acknowledged by {}", alert_id, acknowledged_by);
         }
 
@@ -720,12 +780,12 @@ impl AlertManager {
     /// Resolve an alert
     pub async fn resolve_alert(&self, alert_id: &str) -> Result<()> {
         let mut active_alerts = self.active_alerts.write().await;
-        
+
         if let Some(alert) = active_alerts.get_mut(alert_id) {
             alert.resolved = true;
             alert.resolved_at = Some(Utc::now());
             alert.updated_at = Utc::now();
-            
+
             tracing::info!("Alert {} resolved", alert_id);
         }
 
@@ -735,18 +795,19 @@ impl AlertManager {
     /// Get recent alerts
     pub async fn get_recent_alerts(&self, limit: usize) -> Result<Vec<Alert>> {
         let history = self.alert_history.read().await;
-        let alerts: Vec<Alert> = history.iter()
-            .rev()
-            .take(limit)
-            .cloned()
-            .collect();
+        let alerts: Vec<Alert> = history.iter().rev().take(limit).cloned().collect();
         Ok(alerts)
     }
 
     /// Get alerts within a time period
-    pub async fn get_alerts_in_period(&self, start: DateTime<Utc>, end: DateTime<Utc>) -> Result<Vec<Alert>> {
+    pub async fn get_alerts_in_period(
+        &self,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<Alert>> {
         let history = self.alert_history.read().await;
-        let alerts: Vec<Alert> = history.iter()
+        let alerts: Vec<Alert> = history
+            .iter()
             .filter(|alert| alert.created_at >= start && alert.created_at <= end)
             .cloned()
             .collect();
@@ -760,7 +821,10 @@ impl AlertManager {
     }
 
     /// Add a notification channel
-    pub async fn add_notification_channel(&self, channel: Box<dyn NotificationChannel>) -> Result<()> {
+    pub async fn add_notification_channel(
+        &self,
+        channel: Box<dyn NotificationChannel>,
+    ) -> Result<()> {
         let mut channels = self.notification_channels.write().await;
         channels.push(channel);
         Ok(())
@@ -782,7 +846,10 @@ impl AlertManager {
         match condition {
             AlertCondition::Threshold { threshold, .. } => Some(*threshold),
             AlertCondition::RateOfChange { rate_threshold, .. } => Some(*rate_threshold),
-            AlertCondition::Correlation { correlation_threshold, .. } => Some(*correlation_threshold),
+            AlertCondition::Correlation {
+                correlation_threshold,
+                ..
+            } => Some(*correlation_threshold),
             _ => None,
         }
     }
@@ -795,7 +862,12 @@ impl AlertManager {
         }
     }
 
-    async fn generate_alert_description(&self, rule: &AlertRule, current_value: f64, threshold_value: Option<f64>) -> Result<String> {
+    async fn generate_alert_description(
+        &self,
+        rule: &AlertRule,
+        current_value: f64,
+        threshold_value: Option<f64>,
+    ) -> Result<String> {
         let threshold_text = if let Some(threshold) = threshold_value {
             format!(" (threshold: {})", threshold)
         } else {
@@ -831,22 +903,28 @@ impl AlertManager {
     async fn update_alert_stats(&self, alert: &Alert) -> Result<()> {
         let mut stats = self.alert_stats.lock().await;
         stats.total_alerts += 1;
-        
-        *stats.alerts_by_severity.entry(alert.severity.clone()).or_insert(0) += 1;
-        *stats.alerts_by_category.entry(alert.category.clone()).or_insert(0) += 1;
+
+        *stats
+            .alerts_by_severity
+            .entry(alert.severity.clone())
+            .or_insert(0) += 1;
+        *stats
+            .alerts_by_category
+            .entry(alert.category.clone())
+            .or_insert(0) += 1;
 
         Ok(())
     }
 
     async fn start_alert_processor(&self) -> Result<()> {
         let is_running = self.is_running.clone();
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(30));
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let running = *is_running.read().await;
                 if !running {
                     break;
@@ -862,13 +940,13 @@ impl AlertManager {
 
     async fn start_escalation_processor(&self) -> Result<()> {
         let is_running = self.is_running.clone();
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(60));
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let running = *is_running.read().await;
                 if !running {
                     break;
@@ -885,13 +963,13 @@ impl AlertManager {
     async fn start_anomaly_detector(&self) -> Result<()> {
         let anomaly_detector = self.anomaly_detector.clone();
         let is_running = self.is_running.clone();
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(300)); // 5 minutes
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let running = *is_running.read().await;
                 if !running {
                     break;
@@ -902,7 +980,7 @@ impl AlertManager {
                 if let Err(e) = detector.update_models().await {
                     tracing::error!("Failed to update anomaly detection models: {}", e);
                 }
-                
+
                 tracing::debug!("Anomaly detector cycle completed");
             }
         });
@@ -1027,21 +1105,24 @@ impl Default for AnomalyDetectionStats {
 // Notification channel implementations
 
 impl NotificationChannel for EmailChannel {
-    fn send_notification<'a>(&'a self, alert: &'a Alert) -> Pin<Box<dyn Future<Output = Result<NotificationRecord>> + Send + 'a>> {
+    fn send_notification<'a>(
+        &'a self,
+        alert: &'a Alert,
+    ) -> Pin<Box<dyn Future<Output = Result<NotificationRecord>> + Send + 'a>> {
         Box::pin(async move {
-        // Implementation would send actual email
-        let record = NotificationRecord {
-            id: Uuid::new_v4().to_string(),
-            method: NotificationMethodType::Email,
-            recipient: "admin@example.com".to_string(),
-            sent_at: Utc::now(),
-            delivered: true,
-            delivery_time: Some(Duration::from_secs(2)),
-            error_message: None,
-        };
+            // Implementation would send actual email
+            let record = NotificationRecord {
+                id: Uuid::new_v4().to_string(),
+                method: NotificationMethodType::Email,
+                recipient: "admin@example.com".to_string(),
+                sent_at: Utc::now(),
+                delivered: true,
+                delivery_time: Some(Duration::from_secs(2)),
+                error_message: None,
+            };
 
-        tracing::info!("Email notification sent for alert {}", alert.id);
-        Ok(record)
+            tracing::info!("Email notification sent for alert {}", alert.id);
+            Ok(record)
         })
     }
 
@@ -1063,21 +1144,24 @@ impl NotificationChannel for EmailChannel {
 }
 
 impl NotificationChannel for SlackChannel {
-    fn send_notification<'a>(&'a self, alert: &'a Alert) -> Pin<Box<dyn Future<Output = Result<NotificationRecord>> + Send + 'a>> {
+    fn send_notification<'a>(
+        &'a self,
+        alert: &'a Alert,
+    ) -> Pin<Box<dyn Future<Output = Result<NotificationRecord>> + Send + 'a>> {
         Box::pin(async move {
-        // Implementation would send actual Slack message
-        let record = NotificationRecord {
-            id: Uuid::new_v4().to_string(),
-            method: NotificationMethodType::Slack,
-            recipient: self.channel.clone(),
-            sent_at: Utc::now(),
-            delivered: true,
-            delivery_time: Some(Duration::from_secs(1)),
-            error_message: None,
-        };
+            // Implementation would send actual Slack message
+            let record = NotificationRecord {
+                id: Uuid::new_v4().to_string(),
+                method: NotificationMethodType::Slack,
+                recipient: self.channel.clone(),
+                sent_at: Utc::now(),
+                delivered: true,
+                delivery_time: Some(Duration::from_secs(1)),
+                error_message: None,
+            };
 
-        tracing::info!("Slack notification sent for alert {}", alert.id);
-        Ok(record)
+            tracing::info!("Slack notification sent for alert {}", alert.id);
+            Ok(record)
         })
     }
 
@@ -1098,21 +1182,24 @@ impl NotificationChannel for SlackChannel {
 }
 
 impl NotificationChannel for WebhookChannel {
-    fn send_notification<'a>(&'a self, alert: &'a Alert) -> Pin<Box<dyn Future<Output = Result<NotificationRecord>> + Send + 'a>> {
+    fn send_notification<'a>(
+        &'a self,
+        alert: &'a Alert,
+    ) -> Pin<Box<dyn Future<Output = Result<NotificationRecord>> + Send + 'a>> {
         Box::pin(async move {
-        // Implementation would send actual webhook
-        let record = NotificationRecord {
-            id: Uuid::new_v4().to_string(),
-            method: NotificationMethodType::Webhook,
-            recipient: self.url.clone(),
-            sent_at: Utc::now(),
-            delivered: true,
-            delivery_time: Some(Duration::from_millis(500)),
-            error_message: None,
-        };
+            // Implementation would send actual webhook
+            let record = NotificationRecord {
+                id: Uuid::new_v4().to_string(),
+                method: NotificationMethodType::Webhook,
+                recipient: self.url.clone(),
+                sent_at: Utc::now(),
+                delivered: true,
+                delivery_time: Some(Duration::from_millis(500)),
+                error_message: None,
+            };
 
-        tracing::info!("Webhook notification sent for alert {}", alert.id);
-        Ok(record)
+            tracing::info!("Webhook notification sent for alert {}", alert.id);
+            Ok(record)
         })
     }
 
@@ -1145,7 +1232,7 @@ mod tests {
     #[tokio::test]
     async fn test_alert_rule_registration() {
         let manager = AlertManager::new(Duration::from_secs(300)).await.unwrap();
-        
+
         let rule = AlertRule::new("test_rule")
             .condition(AlertCondition::Threshold {
                 metric: "cpu_usage_percent".to_string(),
@@ -1156,7 +1243,7 @@ mod tests {
             .severity(AlertSeverity::Warning);
 
         manager.register_rule(rule).await.unwrap();
-        
+
         let rules = manager.alert_rules.read().await;
         assert!(rules.contains_key("test_rule"));
     }
@@ -1226,7 +1313,7 @@ mod tests {
     #[tokio::test]
     async fn test_alert_acknowledgment() {
         let manager = AlertManager::new(Duration::from_secs(300)).await.unwrap();
-        
+
         let alert = Alert {
             id: "test-alert".to_string(),
             rule_id: "test-rule".to_string(),
@@ -1263,7 +1350,10 @@ mod tests {
         active_alerts.insert("test-alert".to_string(), alert);
         drop(active_alerts);
 
-        manager.acknowledge_alert("test-alert", "test-user").await.unwrap();
+        manager
+            .acknowledge_alert("test-alert", "test-user")
+            .await
+            .unwrap();
 
         let active_alerts = manager.active_alerts.read().await;
         let alert = active_alerts.get("test-alert").unwrap();
@@ -1274,39 +1364,45 @@ mod tests {
     #[tokio::test]
     async fn test_anomaly_detection() {
         let mut detector = AnomalyDetector::new();
-        
+
         // Add baseline data
-        detector.baseline_data.insert("test_metric".to_string(), BaselineData {
-            mean: 50.0,
-            std_dev: 10.0,
-            percentiles: BTreeMap::new(),
-            seasonal_patterns: SeasonalPatterns {
-                hourly: Vec::new(),
-                daily: Vec::new(),
-                weekly: Vec::new(),
-                monthly: Vec::new(),
+        detector.baseline_data.insert(
+            "test_metric".to_string(),
+            BaselineData {
+                mean: 50.0,
+                std_dev: 10.0,
+                percentiles: BTreeMap::new(),
+                seasonal_patterns: SeasonalPatterns {
+                    hourly: Vec::new(),
+                    daily: Vec::new(),
+                    weekly: Vec::new(),
+                    monthly: Vec::new(),
+                },
+                trend_data: TrendData {
+                    slope: 0.0,
+                    r_squared: 0.0,
+                    confidence_interval: (0.0, 0.0),
+                },
+                last_updated: Utc::now(),
             },
-            trend_data: TrendData {
-                slope: 0.0,
-                r_squared: 0.0,
-                confidence_interval: (0.0, 0.0),
-            },
-            last_updated: Utc::now(),
-        });
+        );
 
         // Test normal value
         let is_anomaly = detector.is_anomaly("test_metric", 55.0, 1.0).await.unwrap();
         assert!(!is_anomaly);
 
         // Test anomalous value
-        let is_anomaly = detector.is_anomaly("test_metric", 100.0, 1.0).await.unwrap();
+        let is_anomaly = detector
+            .is_anomaly("test_metric", 100.0, 1.0)
+            .await
+            .unwrap();
         assert!(is_anomaly);
     }
 
     #[tokio::test]
     async fn test_comparison_operators() {
         let manager = AlertManager::new(Duration::from_secs(300)).await.unwrap();
-        
+
         assert!(manager.compare_values(10.0, 5.0, &ComparisonOperator::GreaterThan));
         assert!(manager.compare_values(5.0, 10.0, &ComparisonOperator::LessThan));
         assert!(manager.compare_values(10.0, 10.0, &ComparisonOperator::Equal));

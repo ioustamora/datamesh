@@ -44,7 +44,10 @@ pub struct Cli {
     #[arg(long, default_value = "0")]
     pub port: u16,
     /// Network preset or custom connection (local, public, test, or peer_id@address)
-    #[arg(long, help = "Network preset: local, public, test, or custom connection")]
+    #[arg(
+        long,
+        help = "Network preset: local, public, test, or custom connection"
+    )]
     pub network: Option<String>,
     /// Path to the directory containing key files
     #[arg(long, help = "Path to keys directory")]
@@ -53,7 +56,10 @@ pub struct Cli {
     #[arg(long, help = "Name of the key file to use")]
     pub key_name: Option<String>,
     /// Whether to run in non-interactive mode
-    #[arg(long, help = "Non-interactive mode (auto-generate/select keys without prompts)")]
+    #[arg(
+        long,
+        help = "Non-interactive mode (auto-generate/select keys without prompts)"
+    )]
     pub non_interactive: bool,
     /// The subcommand to execute
     #[command(subcommand)]
@@ -69,10 +75,16 @@ pub enum Commands {
         #[arg(value_name = "FILE")]
         path: PathBuf,
         /// Public key for encryption (optional)
-        #[arg(long, help = "Public key hex string for encryption (if not specified, uses default key)")]
+        #[arg(
+            long,
+            help = "Public key hex string for encryption (if not specified, uses default key)"
+        )]
         public_key: Option<String>,
         /// Human-readable name for the file (optional)
-        #[arg(long, help = "Human-readable name for the file (auto-generated if not specified)")]
+        #[arg(
+            long,
+            help = "Human-readable name for the file (auto-generated if not specified)"
+        )]
         name: Option<String>,
         /// Tags to associate with the file (comma-separated)
         #[arg(long, help = "Tags to associate with the file (comma-separated)")]
@@ -93,7 +105,10 @@ pub enum Commands {
     /// List files accessible with the current key
     List {
         /// Public key to list files for (optional)
-        #[arg(long, help = "Public key hex string to list files for (if not specified, uses default key)")]
+        #[arg(
+            long,
+            help = "Public key hex string to list files for (if not specified, uses default key)"
+        )]
         public_key: Option<String>,
         /// Filter by tags (comma-separated)
         #[arg(long, help = "Filter files by tags (comma-separated)")]
@@ -214,9 +229,8 @@ pub enum Commands {
         #[arg(long, default_value = "30", help = "Test duration in seconds")]
         duration: u64,
     },
-    
+
     // === File Management & Operations ===
-    
     /// Synchronize a local directory with the DFS network
     Sync {
         /// Local directory to synchronize
@@ -235,7 +249,7 @@ pub enum Commands {
         #[arg(long, default_value = "3", help = "Number of parallel operations")]
         parallel: usize,
     },
-    
+
     /// Create versioned backups with automatic tagging
     Backup {
         /// Source directory or file to backup
@@ -257,7 +271,7 @@ pub enum Commands {
         #[arg(long, help = "Exclude files matching patterns (comma-separated)")]
         exclude: Option<String>,
     },
-    
+
     /// Restore from backups with version selection
     Restore {
         /// Backup name to restore from
@@ -276,7 +290,7 @@ pub enum Commands {
         #[arg(long, help = "List available backup versions")]
         list_versions: bool,
     },
-    
+
     /// Create copies of existing files
     Duplicate {
         /// File name or key to duplicate
@@ -289,7 +303,7 @@ pub enum Commands {
         #[arg(long, help = "New tags for the duplicate (comma-separated)")]
         new_tags: Option<String>,
     },
-    
+
     /// Rename files without re-uploading
     Rename {
         /// Current file name
@@ -299,9 +313,8 @@ pub enum Commands {
         #[arg(value_name = "NEW_NAME")]
         new_name: String,
     },
-    
+
     // === Search & Discovery ===
-    
     /// Advanced file search with multiple criteria
     Search {
         /// Search query
@@ -323,7 +336,7 @@ pub enum Commands {
         #[arg(long, default_value = "50", help = "Limit number of results")]
         limit: usize,
     },
-    
+
     /// Show recently uploaded/accessed files
     Recent {
         /// Number of files to show
@@ -336,19 +349,22 @@ pub enum Commands {
         #[arg(long, help = "Filter by file type")]
         file_type: Option<String>,
     },
-    
+
     /// Show most frequently accessed files
     Popular {
         /// Time frame for popularity calculation
-        #[arg(long, default_value = "week", help = "Time frame (day, week, month, year)")]
+        #[arg(
+            long,
+            default_value = "week",
+            help = "Time frame (day, week, month, year)"
+        )]
         timeframe: String,
         /// Number of files to show
         #[arg(long, default_value = "20", help = "Number of files to show")]
         count: usize,
     },
-    
+
     // === Batch Operations ===
-    
     /// Upload multiple files matching patterns
     BatchPut {
         /// File pattern to match
@@ -367,7 +383,7 @@ pub enum Commands {
         #[arg(long, help = "Tag pattern with placeholders")]
         tag_pattern: Option<String>,
     },
-    
+
     /// Download multiple files to local directory
     BatchGet {
         /// File pattern to match
@@ -383,7 +399,7 @@ pub enum Commands {
         #[arg(long, help = "Preserve directory structure")]
         preserve_structure: bool,
     },
-    
+
     /// Bulk tag operations
     BatchTag {
         /// File pattern to match
@@ -399,9 +415,8 @@ pub enum Commands {
         #[arg(long, help = "Show matching files without making changes")]
         dry_run: bool,
     },
-    
+
     // === Health & Maintenance ===
-    
     /// Repair corrupted or low-redundancy files
     Repair {
         /// Specific file name or key to repair
@@ -414,10 +429,14 @@ pub enum Commands {
         #[arg(long, help = "Verify integrity of all files")]
         verify_all: bool,
         /// Minimum health threshold for auto repair
-        #[arg(long, default_value = "50", help = "Minimum health threshold for auto repair")]
+        #[arg(
+            long,
+            default_value = "50",
+            help = "Minimum health threshold for auto repair"
+        )]
         threshold: u8,
     },
-    
+
     /// Clean up storage and optimize database
     Cleanup {
         /// Remove orphaned chunks and metadata
@@ -436,7 +455,7 @@ pub enum Commands {
         #[arg(long, help = "Force cleanup without confirmation")]
         force: bool,
     },
-    
+
     /// Manage storage quotas and usage
     Quota {
         /// Show current usage
@@ -449,9 +468,8 @@ pub enum Commands {
         #[arg(long, help = "Warning threshold percentage")]
         warn: Option<u8>,
     },
-    
+
     // === Import/Export ===
-    
     /// Export files to standard archive formats
     Export {
         /// Destination file for export
@@ -470,7 +488,7 @@ pub enum Commands {
         #[arg(long, help = "File pattern to export (default: all files)")]
         pattern: Option<String>,
     },
-    
+
     /// Import from standard archive formats
     Import {
         /// Archive file to import
@@ -486,9 +504,8 @@ pub enum Commands {
         #[arg(long, help = "Tag prefix for imported files")]
         tag_prefix: Option<String>,
     },
-    
+
     // === Quick Actions ===
-    
     /// Pin important files for guaranteed availability
     Pin {
         /// File name or key to pin
@@ -501,14 +518,14 @@ pub enum Commands {
         #[arg(long, default_value = "5", help = "Pin priority")]
         priority: u8,
     },
-    
+
     /// Remove pin from files
     Unpin {
         /// File name or key to unpin
         #[arg(value_name = "NAME_OR_KEY")]
         target: String,
     },
-    
+
     /// Generate sharing links or keys
     Share {
         /// File name or key to share
@@ -527,9 +544,8 @@ pub enum Commands {
         #[arg(long, help = "Generate QR code for share link")]
         qr_code: bool,
     },
-    
+
     // === Performance & Optimization ===
-    
     /// Optimize storage and network performance
     Optimize {
         /// Defragment local database
@@ -545,7 +561,7 @@ pub enum Commands {
         #[arg(long, help = "Show optimization recommendations")]
         analyze: bool,
     },
-    
+
     /// Run comprehensive performance benchmarks
     Benchmark {
         /// Run full benchmark suite
@@ -561,9 +577,8 @@ pub enum Commands {
         #[arg(long, default_value = "30", help = "Duration for each test")]
         duration: u64,
     },
-    
+
     // === API Server ===
-    
     /// Start the REST API server
     ApiServer {
         /// Server host address
@@ -585,7 +600,7 @@ pub enum Commands {
         #[arg(long, help = "Disable Swagger UI")]
         no_swagger: bool,
     },
-    
+
     /// Test advanced DataMesh systems
     Advanced {
         /// Test system status
@@ -616,45 +631,51 @@ impl Cli {
     }
 
     /// Parse bootstrap peers from CLI format (peer_id@address)
-    pub fn parse_bootstrap_peers(&self) -> Result<Vec<crate::bootstrap_manager::BootstrapPeer>, Box<dyn std::error::Error>> {
+    pub fn parse_bootstrap_peers(
+        &self,
+    ) -> Result<Vec<crate::bootstrap_manager::BootstrapPeer>, Box<dyn std::error::Error>> {
         use crate::bootstrap_manager::BootstrapPeer;
         use std::str::FromStr;
-        
+
         let mut peers = Vec::new();
-        
+
         if let Some(ref bootstrap_peers) = self.bootstrap_peers {
             for peer_str in bootstrap_peers {
                 let parts: Vec<&str> = peer_str.split('@').collect();
                 if parts.len() != 2 {
-                    return Err(format!("Invalid bootstrap peer format '{}'. Expected format: peer_id@address", peer_str).into());
+                    return Err(format!(
+                        "Invalid bootstrap peer format '{}'. Expected format: peer_id@address",
+                        peer_str
+                    )
+                    .into());
                 }
-                
+
                 let peer_id = PeerId::from_str(parts[0])?;
                 let address = Multiaddr::from_str(parts[1])?;
-                
-                let peer = BootstrapPeer::new(peer_id, vec![address])
-                    .with_priority(1); // CLI peers get high priority
-                
+
+                let peer = BootstrapPeer::new(peer_id, vec![address]).with_priority(1); // CLI peers get high priority
+
                 peers.push(peer);
             }
         }
-        
+
         Ok(peers)
     }
 
     /// Get all bootstrap peers (CLI format + individual peer/addr)
-    pub fn get_all_bootstrap_peers(&self) -> Result<Vec<crate::bootstrap_manager::BootstrapPeer>, Box<dyn std::error::Error>> {
+    pub fn get_all_bootstrap_peers(
+        &self,
+    ) -> Result<Vec<crate::bootstrap_manager::BootstrapPeer>, Box<dyn std::error::Error>> {
         use crate::bootstrap_manager::BootstrapPeer;
-        
+
         let mut peers = self.parse_bootstrap_peers()?;
-        
+
         // Add individual peer/addr if specified
         if let (Some(peer_id), Some(addr)) = (self.bootstrap_peer, self.bootstrap_addr.clone()) {
-            let peer = BootstrapPeer::new(peer_id, vec![addr])
-                .with_priority(1); // CLI peers get high priority
+            let peer = BootstrapPeer::new(peer_id, vec![addr]).with_priority(1); // CLI peers get high priority
             peers.push(peer);
         }
-        
+
         Ok(peers)
     }
 }

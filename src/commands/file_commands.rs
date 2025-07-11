@@ -1,13 +1,12 @@
+use anyhow::Result;
 /// File operation command handlers
-/// 
+///
 /// This module contains handlers for all file-related operations:
 /// put, get, list, info, stats
-
 use std::error::Error;
 use std::path::PathBuf;
-use anyhow::Result;
 
-use crate::commands::{CommandHandler, CommandContext};
+use crate::commands::{CommandContext, CommandHandler};
 use crate::file_storage;
 use crate::thread_safe_command_context::ThreadSafeCommandContext;
 
@@ -29,15 +28,14 @@ impl CommandHandler for PutCommand {
             context.cli.clone(),
             context.key_manager.clone(),
             std::sync::Arc::new(config),
-        ).await?;
-        
-        let result = thread_safe_context.store_file(
-            &self.path,
-            &self.public_key,
-            &self.name,
-            &self.tags,
-        ).await.map_err(|e| Box::new(e) as Box<dyn Error>)?;
-        
+        )
+        .await?;
+
+        let result = thread_safe_context
+            .store_file(&self.path, &self.public_key, &self.name, &self.tags)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)?;
+
         println!("File stored successfully with key: {}", result);
         if let Some(name) = &self.name {
             println!("Name: {}", name);
@@ -45,10 +43,10 @@ impl CommandHandler for PutCommand {
         if let Some(tags) = &self.tags {
             println!("Tags: {}", tags.join(","));
         }
-        
+
         Ok(())
     }
-    
+
     fn command_name(&self) -> &'static str {
         "file_put"
     }
@@ -71,19 +69,22 @@ impl CommandHandler for GetCommand {
             context.cli.clone(),
             context.key_manager.clone(),
             std::sync::Arc::new(config),
-        ).await?;
-        
-        thread_safe_context.retrieve_file(
-            &self.identifier,
-            &self.output_path,
-            &self.private_key,
-        ).await.map_err(|e| Box::new(e) as Box<dyn Error>)?;
-        
-        println!("File retrieved successfully to: {}", self.output_path.display());
-        
+        )
+        .await?;
+
+        thread_safe_context
+            .retrieve_file(&self.identifier, &self.output_path, &self.private_key)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)?;
+
+        println!(
+            "File retrieved successfully to: {}",
+            self.output_path.display()
+        );
+
         Ok(())
     }
-    
+
     fn command_name(&self) -> &'static str {
         "file_get"
     }
@@ -100,14 +101,11 @@ pub struct ListCommand {
 impl CommandHandler for ListCommand {
     async fn execute(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
         let tags_str = self.tags.as_ref().map(|tags| tags.join(","));
-        file_storage::handle_list_command(
-            &context.key_manager,
-            &self.public_key,
-            &tags_str,
-        ).await
-        .map_err(|e| Box::new(e) as Box<dyn Error>)
+        file_storage::handle_list_command(&context.key_manager, &self.public_key, &tags_str)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)
     }
-    
+
     fn command_name(&self) -> &'static str {
         "file_list"
     }
@@ -122,13 +120,11 @@ pub struct InfoCommand {
 #[async_trait::async_trait]
 impl CommandHandler for InfoCommand {
     async fn execute(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
-        file_storage::handle_info_command(
-            &context.key_manager,
-            &self.identifier,
-        ).await
-        .map_err(|e| Box::new(e) as Box<dyn Error>)
+        file_storage::handle_info_command(&context.key_manager, &self.identifier)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)
     }
-    
+
     fn command_name(&self) -> &'static str {
         "file_info"
     }
@@ -141,10 +137,11 @@ pub struct StatsCommand;
 #[async_trait::async_trait]
 impl CommandHandler for StatsCommand {
     async fn execute(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
-        file_storage::handle_stats_command(&context.key_manager).await
+        file_storage::handle_stats_command(&context.key_manager)
+            .await
             .map_err(|e| Box::new(e) as Box<dyn Error>)
     }
-    
+
     fn command_name(&self) -> &'static str {
         "file_stats"
     }

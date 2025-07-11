@@ -1,10 +1,10 @@
-use std::collections::{HashMap, BTreeMap};
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
-use anyhow::Result;
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
 
 use super::SystemMetrics;
 
@@ -248,7 +248,7 @@ impl TimeSeriesDB {
     /// Store multiple time series points
     pub async fn store_points(&self, points: &[TimeSeriesPoint]) -> Result<()> {
         let mut storage = self.storage_backend.write().await;
-        
+
         for point in points {
             // Add to write-ahead log first
             storage.write_ahead_log.push(WriteAheadLogEntry {
@@ -259,10 +259,11 @@ impl TimeSeriesDB {
             });
 
             // Store in hot storage
-            let metric_map = storage.hot_storage
+            let metric_map = storage
+                .hot_storage
                 .entry(point.timestamp)
                 .or_insert_with(HashMap::new);
-            
+
             metric_map.insert(point.metric_name.clone(), point.value);
         }
 
@@ -274,7 +275,11 @@ impl TimeSeriesDB {
     }
 
     /// Query time series data within a time range
-    pub async fn query_range(&self, start_time: DateTime<Utc>, end_time: DateTime<Utc>) -> Result<TimeSeriesData> {
+    pub async fn query_range(
+        &self,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+    ) -> Result<TimeSeriesData> {
         let query = TimeSeriesQuery {
             metric_names: vec![], // All metrics
             start_time,
@@ -316,7 +321,9 @@ impl TimeSeriesDB {
 
         // Apply aggregation if specified
         if let Some(agg_func) = &query.aggregation {
-            points = self.apply_aggregation(&points, agg_func, query.sampling_interval).await?;
+            points = self
+                .apply_aggregation(&points, agg_func, query.sampling_interval)
+                .await?;
         }
 
         // Sort and limit results
@@ -337,7 +344,10 @@ impl TimeSeriesDB {
             time_range: if points.is_empty() {
                 (query.start_time, query.end_time)
             } else {
-                (points.first().unwrap().timestamp, points.last().unwrap().timestamp)
+                (
+                    points.first().unwrap().timestamp,
+                    points.last().unwrap().timestamp,
+                )
             },
             metrics_included: self.extract_metric_names(&points),
             data_quality_score: self.calculate_data_quality_score(&points).await?,
@@ -365,7 +375,11 @@ impl TimeSeriesDB {
     }
 
     /// Get available metrics within a time range
-    pub async fn get_available_metrics(&self, start_time: DateTime<Utc>, end_time: DateTime<Utc>) -> Result<Vec<String>> {
+    pub async fn get_available_metrics(
+        &self,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+    ) -> Result<Vec<String>> {
         let index = self.index.read().await;
         let mut metrics = Vec::new();
 
@@ -401,11 +415,15 @@ impl TimeSeriesDB {
         }
 
         // Remove from hot storage
-        storage.hot_storage.retain(|timestamp, _| *timestamp >= before_time);
+        storage
+            .hot_storage
+            .retain(|timestamp, _| *timestamp >= before_time);
 
         // Compress the data
         let compressed_block = self.compress_data_block(&data_to_compact).await?;
-        storage.cold_storage.insert(compressed_block.timestamp_range.0, compressed_block);
+        storage
+            .cold_storage
+            .insert(compressed_block.timestamp_range.0, compressed_block);
 
         // Update stats
         storage.stats.compression_ratio = self.calculate_compression_ratio(&storage).await?;
@@ -422,13 +440,19 @@ impl TimeSeriesDB {
         let mut storage = self.storage_backend.write().await;
 
         // Remove from hot storage
-        storage.hot_storage.retain(|timestamp, _| *timestamp > cutoff_time);
+        storage
+            .hot_storage
+            .retain(|timestamp, _| *timestamp > cutoff_time);
 
         // Remove from cold storage
-        storage.cold_storage.retain(|timestamp, _| *timestamp > cutoff_time);
+        storage
+            .cold_storage
+            .retain(|timestamp, _| *timestamp > cutoff_time);
 
         // Clean up write-ahead log
-        storage.write_ahead_log.retain(|entry| entry.timestamp > cutoff_time);
+        storage
+            .write_ahead_log
+            .retain(|entry| entry.timestamp > cutoff_time);
 
         // Update index
         self.cleanup_index(cutoff_time).await?;
@@ -440,7 +464,10 @@ impl TimeSeriesDB {
 
     // Private helper methods
 
-    async fn convert_system_metrics_to_points(&self, metrics: &SystemMetrics) -> Result<Vec<TimeSeriesPoint>> {
+    async fn convert_system_metrics_to_points(
+        &self,
+        metrics: &SystemMetrics,
+    ) -> Result<Vec<TimeSeriesPoint>> {
         let mut points = Vec::new();
         let timestamp = metrics.timestamp;
         let tags = self.create_base_tags(metrics);
@@ -508,9 +535,11 @@ impl TimeSeriesDB {
 
         for point in points {
             // Update metric ranges
-            let entry = index.metric_ranges.entry(point.metric_name.clone())
+            let entry = index
+                .metric_ranges
+                .entry(point.metric_name.clone())
                 .or_insert((point.timestamp, point.timestamp));
-            
+
             if point.timestamp < entry.0 {
                 entry.0 = point.timestamp;
             }
@@ -520,11 +549,12 @@ impl TimeSeriesDB {
 
             // Update tag index
             for (tag_key, tag_value) in &point.tags {
-                let tag_entry = index.tag_index.entry(tag_key.clone())
+                let tag_entry = index
+                    .tag_index
+                    .entry(tag_key.clone())
                     .or_insert_with(HashMap::new);
-                let timestamp_list = tag_entry.entry(tag_value.clone())
-                    .or_insert_with(Vec::new);
-                
+                let timestamp_list = tag_entry.entry(tag_value.clone()).or_insert_with(Vec::new);
+
                 if !timestamp_list.contains(&point.timestamp) {
                     timestamp_list.push(point.timestamp);
                 }
@@ -562,15 +592,20 @@ impl TimeSeriesDB {
         let storage = self.storage_backend.read().await;
         let mut points = Vec::new();
 
-        for (_, compressed_block) in storage.cold_storage.range(query.start_time..=query.end_time) {
-            if compressed_block.timestamp_range.0 <= query.end_time && 
-               compressed_block.timestamp_range.1 >= query.start_time {
-                
+        for (_, compressed_block) in storage
+            .cold_storage
+            .range(query.start_time..=query.end_time)
+        {
+            if compressed_block.timestamp_range.0 <= query.end_time
+                && compressed_block.timestamp_range.1 >= query.start_time
+            {
                 // Decompress and filter data
                 let decompressed_points = self.decompress_data_block(compressed_block).await?;
                 for point in decompressed_points {
                     if point.timestamp >= query.start_time && point.timestamp <= query.end_time {
-                        if query.metric_names.is_empty() || query.metric_names.contains(&point.metric_name) {
+                        if query.metric_names.is_empty()
+                            || query.metric_names.contains(&point.metric_name)
+                        {
                             points.push(point);
                         }
                     }
@@ -595,7 +630,10 @@ impl TimeSeriesDB {
         for point in points {
             let time_bucket = self.round_to_interval(point.timestamp, interval);
             let key = (time_bucket, point.metric_name.clone());
-            grouped_points.entry(key).or_insert_with(Vec::new).push(point.value);
+            grouped_points
+                .entry(key)
+                .or_insert_with(Vec::new)
+                .push(point.value);
         }
 
         // Apply aggregation function
@@ -614,7 +652,8 @@ impl TimeSeriesDB {
                 }
                 AggregationFunction::StdDev => {
                     let mean = values.iter().sum::<f64>() / values.len() as f64;
-                    let variance = values.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / values.len() as f64;
+                    let variance = values.iter().map(|x| (x - mean).powi(2)).sum::<f64>()
+                        / values.len() as f64;
                     variance.sqrt()
                 }
                 AggregationFunction::Variance => {
@@ -661,17 +700,20 @@ impl TimeSeriesDB {
         DateTime::from_timestamp(rounded_secs, 0).unwrap_or(timestamp)
     }
 
-    async fn compress_data_block(&self, data: &BTreeMap<DateTime<Utc>, HashMap<String, f64>>) -> Result<CompressedDataBlock> {
+    async fn compress_data_block(
+        &self,
+        data: &BTreeMap<DateTime<Utc>, HashMap<String, f64>>,
+    ) -> Result<CompressedDataBlock> {
         let serialized = bincode::serialize(data)?;
         let original_size = serialized.len() as u64;
-        
+
         // Simple compression simulation (would use actual compression library)
         let compressed_data = serialized; // Placeholder
         let compressed_size = compressed_data.len() as u64;
-        
+
         let start_time = data.keys().next().cloned().unwrap_or(Utc::now());
         let end_time = data.keys().next_back().cloned().unwrap_or(Utc::now());
-        
+
         let metrics_count = data.values().map(|m| m.len() as u64).sum::<u64>();
 
         Ok(CompressedDataBlock {
@@ -684,11 +726,14 @@ impl TimeSeriesDB {
         })
     }
 
-    async fn decompress_data_block(&self, block: &CompressedDataBlock) -> Result<Vec<TimeSeriesPoint>> {
+    async fn decompress_data_block(
+        &self,
+        block: &CompressedDataBlock,
+    ) -> Result<Vec<TimeSeriesPoint>> {
         // Decompress data (placeholder implementation)
-        let decompressed: BTreeMap<DateTime<Utc>, HashMap<String, f64>> = 
+        let decompressed: BTreeMap<DateTime<Utc>, HashMap<String, f64>> =
             bincode::deserialize(&block.compressed_data)?;
-        
+
         let mut points = Vec::new();
         for (timestamp, metrics) in decompressed {
             for (metric_name, value) in metrics {
@@ -711,7 +756,10 @@ impl TimeSeriesDB {
             query.start_time.timestamp(),
             query.end_time.timestamp(),
             query.metric_names.join(","),
-            query.aggregation.as_ref().map_or("none".to_string(), |a| format!("{:?}", a))
+            query
+                .aggregation
+                .as_ref()
+                .map_or("none".to_string(), |a| format!("{:?}", a))
         )
     }
 
@@ -723,7 +771,9 @@ impl TimeSeriesDB {
 
     async fn cache_query_result(&self, cache_key: &str, data: &TimeSeriesData) -> Result<()> {
         let mut index = self.index.write().await;
-        index.query_cache.insert(cache_key.to_string(), data.clone());
+        index
+            .query_cache
+            .insert(cache_key.to_string(), data.clone());
         Ok(())
     }
 
@@ -732,7 +782,8 @@ impl TimeSeriesDB {
     }
 
     fn extract_metric_names(&self, points: &[TimeSeriesPoint]) -> Vec<String> {
-        let mut names: Vec<String> = points.iter()
+        let mut names: Vec<String> = points
+            .iter()
             .map(|p| p.metric_name.clone())
             .collect::<std::collections::HashSet<_>>()
             .into_iter()
@@ -746,14 +797,15 @@ impl TimeSeriesDB {
             return Ok(0.0);
         }
 
-        let quality_scores: Vec<f64> = points.iter().map(|p| {
-            match p.quality {
+        let quality_scores: Vec<f64> = points
+            .iter()
+            .map(|p| match p.quality {
                 DataQuality::High => 1.0,
                 DataQuality::Medium => 0.7,
                 DataQuality::Low => 0.4,
                 DataQuality::Suspect => 0.1,
-            }
-        }).collect();
+            })
+            .collect();
 
         Ok(quality_scores.iter().sum::<f64>() / quality_scores.len() as f64)
     }
@@ -779,7 +831,11 @@ impl TimeSeriesDB {
         }
 
         let total_original: u64 = storage.cold_storage.values().map(|b| b.original_size).sum();
-        let total_compressed: u64 = storage.cold_storage.values().map(|b| b.compressed_size).sum();
+        let total_compressed: u64 = storage
+            .cold_storage
+            .values()
+            .map(|b| b.compressed_size)
+            .sum();
 
         if total_compressed == 0 {
             Ok(1.0)
@@ -794,14 +850,20 @@ impl TimeSeriesDB {
     }
 
     async fn calculate_cold_storage_size(&self, storage: &StorageBackend) -> Result<u64> {
-        Ok(storage.cold_storage.values().map(|b| b.compressed_size).sum())
+        Ok(storage
+            .cold_storage
+            .values()
+            .map(|b| b.compressed_size)
+            .sum())
     }
 
     async fn cleanup_index(&self, cutoff_time: DateTime<Utc>) -> Result<()> {
         let mut index = self.index.write().await;
 
         // Clean up metric ranges
-        index.metric_ranges.retain(|_, (start, _)| *start > cutoff_time);
+        index
+            .metric_ranges
+            .retain(|_, (start, _)| *start > cutoff_time);
 
         // Clean up tag index
         for (_, tag_values) in index.tag_index.iter_mut() {
@@ -830,23 +892,29 @@ impl TimeSeriesDB {
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(cleanup_interval);
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let running = *is_running.read().await;
                 if !running {
                     break;
                 }
 
                 let cutoff_time = Utc::now() - retention_period;
-                
+
                 // Clean up old data
                 let mut storage = storage_backend.write().await;
-                storage.hot_storage.retain(|timestamp, _| *timestamp > cutoff_time);
-                storage.cold_storage.retain(|timestamp, _| *timestamp > cutoff_time);
-                storage.write_ahead_log.retain(|entry| entry.timestamp > cutoff_time);
-                
+                storage
+                    .hot_storage
+                    .retain(|timestamp, _| *timestamp > cutoff_time);
+                storage
+                    .cold_storage
+                    .retain(|timestamp, _| *timestamp > cutoff_time);
+                storage
+                    .write_ahead_log
+                    .retain(|entry| entry.timestamp > cutoff_time);
+
                 tracing::debug!("Cleanup task completed");
             }
         });
@@ -860,10 +928,10 @@ impl TimeSeriesDB {
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(6 * 3600));
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let running = *is_running.read().await;
                 if !running {
                     break;
@@ -871,7 +939,7 @@ impl TimeSeriesDB {
 
                 // Compact data older than 24 hours
                 let _compact_before = Utc::now() - Duration::from_secs(24 * 3600);
-                
+
                 // Would implement actual compaction logic here
                 tracing::debug!("Compaction task completed");
             }
@@ -1002,7 +1070,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_store_and_query_metrics() {
-        let db = TimeSeriesDB::new(Duration::from_secs(30 * 24 * 60 * 60)).await.unwrap();
+        let db = TimeSeriesDB::new(Duration::from_secs(30 * 24 * 60 * 60))
+            .await
+            .unwrap();
         db.start().await.unwrap();
 
         let metrics = SystemMetrics {
@@ -1048,14 +1118,19 @@ mod tests {
         let data = db.query_range(start_time, end_time).await.unwrap();
 
         assert!(!data.metrics.is_empty());
-        assert!(data.metrics.iter().any(|p| p.metric_name == "throughput_mbps"));
+        assert!(data
+            .metrics
+            .iter()
+            .any(|p| p.metric_name == "throughput_mbps"));
 
         db.stop().await.unwrap();
     }
 
     #[tokio::test]
     async fn test_aggregation() {
-        let db = TimeSeriesDB::new(Duration::from_secs(30 * 24 * 60 * 60)).await.unwrap();
+        let db = TimeSeriesDB::new(Duration::from_secs(30 * 24 * 60 * 60))
+            .await
+            .unwrap();
         db.start().await.unwrap();
 
         // Store multiple data points
@@ -1165,14 +1240,14 @@ mod tests {
 
         let stats = db.get_storage_stats().await.unwrap();
         // Data should be cleaned up due to short retention period
-        
+
         db.stop().await.unwrap();
     }
 
     #[tokio::test]
     async fn test_bloom_filter() {
         let mut filter = BloomFilter::new(1000, 3);
-        
+
         filter.insert("test_metric");
         assert!(filter.contains("test_metric"));
         assert!(!filter.contains("nonexistent_metric"));
@@ -1181,11 +1256,11 @@ mod tests {
     #[tokio::test]
     async fn test_lru_cache() {
         let mut cache = LRUCache::new(2);
-        
+
         cache.insert("key1", "value1");
         cache.insert("key2", "value2");
         cache.insert("key3", "value3"); // Should evict key1
-        
+
         assert_eq!(cache.get(&"key1"), None);
         assert_eq!(cache.get(&"key2"), Some("value2"));
         assert_eq!(cache.get(&"key3"), Some("value3"));

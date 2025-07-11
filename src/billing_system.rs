@@ -1,22 +1,21 @@
+use anyhow::{anyhow, Result};
+use chrono::{DateTime, Datelike, Utc};
+use serde::{Deserialize, Serialize};
 /// Comprehensive Billing and Payment System
 ///
 /// This module implements a complete billing system with subscription management,
 /// payment processing, and usage tracking for the DataMesh network.
-
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::time::interval;
-use tracing::{info, warn, debug};
-use serde::{Deserialize, Serialize};
-use anyhow::{Result, anyhow};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
-use chrono::{DateTime, Utc, Datelike};
 
+use crate::database::DatabaseManager;
 use crate::economics::EconomicModel;
 use crate::governance::UserId;
-use crate::database::DatabaseManager;
 
 /// Subscription tiers
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -31,11 +30,23 @@ pub enum SubscriptionTier {
 /// Payment methods
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PaymentMethod {
-    CreditCard { last_four: String, expiry: String },
-    PayPal { email: String },
-    Crypto { wallet_address: String, currency: String },
-    BankTransfer { account_number: String },
-    Token { balance: f64 },
+    CreditCard {
+        last_four: String,
+        expiry: String,
+    },
+    PayPal {
+        email: String,
+    },
+    Crypto {
+        wallet_address: String,
+        currency: String,
+    },
+    BankTransfer {
+        account_number: String,
+    },
+    Token {
+        balance: f64,
+    },
 }
 
 /// Billing cycle
@@ -225,18 +236,18 @@ impl BillingSystem {
     /// Start the billing system
     pub async fn start(&self) -> Result<()> {
         info!("Starting billing system");
-        
+
         // Load existing data
         self.load_subscriptions().await?;
         self.load_usage_records().await?;
         self.load_invoices().await?;
-        
+
         // Start billing processes
         self.start_usage_tracking().await?;
         self.start_invoice_generation().await?;
         self.start_payment_processing().await?;
         self.start_subscription_management().await?;
-        
+
         Ok(())
     }
 
@@ -250,9 +261,9 @@ impl BillingSystem {
     ) -> Result<Subscription> {
         let subscription_id = Uuid::new_v4();
         let now = Utc::now();
-        
+
         let (price, usage_limits) = self.get_tier_details(&tier, &billing_cycle);
-        
+
         let expires_at = match billing_cycle {
             BillingCycle::Monthly => now + chrono::Duration::days(30),
             BillingCycle::Quarterly => now + chrono::Duration::days(90),
@@ -278,16 +289,24 @@ impl BillingSystem {
         // Store subscription
         let mut subscriptions = self.subscriptions.write().await;
         subscriptions.insert(user_id, subscription.clone());
-        
+
         // Generate initial invoice
-        self.generate_invoice_for_subscription(&subscription).await?;
-        
-        info!("Created subscription {} for user {}", subscription_id, user_id);
+        self.generate_invoice_for_subscription(&subscription)
+            .await?;
+
+        info!(
+            "Created subscription {} for user {}",
+            subscription_id, user_id
+        );
         Ok(subscription)
     }
 
     /// Get tier details
-    fn get_tier_details(&self, tier: &SubscriptionTier, billing_cycle: &BillingCycle) -> (f64, UsageLimits) {
+    fn get_tier_details(
+        &self,
+        tier: &SubscriptionTier,
+        billing_cycle: &BillingCycle,
+    ) -> (f64, UsageLimits) {
         let base_price = match tier {
             SubscriptionTier::Free => 0.0,
             SubscriptionTier::Basic => 9.99,
@@ -299,7 +318,7 @@ impl BillingSystem {
         let cycle_multiplier = match billing_cycle {
             BillingCycle::Monthly => 1.0,
             BillingCycle::Quarterly => 2.7, // 10% discount
-            BillingCycle::Yearly => 10.0, // 17% discount
+            BillingCycle::Yearly => 10.0,   // 17% discount
             BillingCycle::PayAsYouGo => 0.0,
         };
 
@@ -353,8 +372,10 @@ impl BillingSystem {
         unit: String,
         metadata: HashMap<String, String>,
     ) -> Result<()> {
-        let cost = self.calculate_usage_cost(&resource_type, amount, &user_id).await?;
-        
+        let cost = self
+            .calculate_usage_cost(&resource_type, amount, &user_id)
+            .await?;
+
         let usage_record = UsageRecord {
             id: Uuid::new_v4(),
             user_id,
@@ -394,19 +415,19 @@ impl BillingSystem {
             (ResourceType::Storage, Some(SubscriptionTier::Pro)) => 0.0,
             (ResourceType::Storage, Some(SubscriptionTier::Enterprise)) => 0.0,
             (ResourceType::Storage, _) => 0.1, // $0.10 per GB
-            
+
             (ResourceType::Bandwidth, Some(SubscriptionTier::Free)) => 0.0,
             (ResourceType::Bandwidth, Some(SubscriptionTier::Basic)) => 0.0,
             (ResourceType::Bandwidth, Some(SubscriptionTier::Pro)) => 0.0,
             (ResourceType::Bandwidth, Some(SubscriptionTier::Enterprise)) => 0.0,
             (ResourceType::Bandwidth, _) => 0.05, // $0.05 per GB
-            
+
             (ResourceType::ApiCalls, Some(SubscriptionTier::Free)) => 0.0,
             (ResourceType::ApiCalls, Some(SubscriptionTier::Basic)) => 0.0,
             (ResourceType::ApiCalls, Some(SubscriptionTier::Pro)) => 0.0,
             (ResourceType::ApiCalls, Some(SubscriptionTier::Enterprise)) => 0.0,
             (ResourceType::ApiCalls, _) => 0.001, // $0.001 per API call
-            
+
             (ResourceType::ProcessingTime, _) => 0.1, // $0.10 per hour
             (ResourceType::PremiumFeatures, _) => 1.0, // $1.00 per feature use
         };
@@ -435,7 +456,10 @@ impl BillingSystem {
                     .sum();
 
                 if total_storage > storage_limit {
-                    warn!("User {} exceeded storage limit: {} GB > {} GB", user_id, total_storage, storage_limit);
+                    warn!(
+                        "User {} exceeded storage limit: {} GB > {} GB",
+                        user_id, total_storage, storage_limit
+                    );
                     // Could trigger limit enforcement here
                 }
             }
@@ -449,7 +473,10 @@ impl BillingSystem {
                     .sum();
 
                 if total_bandwidth > bandwidth_limit {
-                    warn!("User {} exceeded bandwidth limit: {} GB > {} GB", user_id, total_bandwidth, bandwidth_limit);
+                    warn!(
+                        "User {} exceeded bandwidth limit: {} GB > {} GB",
+                        user_id, total_bandwidth, bandwidth_limit
+                    );
                 }
             }
 
@@ -462,7 +489,10 @@ impl BillingSystem {
                     .sum();
 
                 if total_api_calls > api_limit as f64 {
-                    warn!("User {} exceeded API call limit: {} > {}", user_id, total_api_calls, api_limit);
+                    warn!(
+                        "User {} exceeded API call limit: {} > {}",
+                        user_id, total_api_calls, api_limit
+                    );
                 }
             }
         }
@@ -471,12 +501,15 @@ impl BillingSystem {
     }
 
     /// Generate invoice for subscription
-    async fn generate_invoice_for_subscription(&self, subscription: &Subscription) -> Result<Invoice> {
+    async fn generate_invoice_for_subscription(
+        &self,
+        subscription: &Subscription,
+    ) -> Result<Invoice> {
         let invoice_id = Uuid::new_v4();
         let now = Utc::now();
-        
+
         let mut line_items = Vec::new();
-        
+
         // Add subscription fee
         line_items.push(LineItem {
             description: format!("{:?} subscription", subscription.tier),
@@ -527,14 +560,18 @@ impl BillingSystem {
         let mut invoices = self.invoices.write().await;
         invoices.insert(invoice_id, invoice.clone());
 
-        info!("Generated invoice {} for user {} (${:.2})", invoice_id, subscription.user_id, final_amount);
+        info!(
+            "Generated invoice {} for user {} (${:.2})",
+            invoice_id, subscription.user_id, final_amount
+        );
         Ok(invoice)
     }
 
     /// Process payment for invoice
     pub async fn process_payment(&self, invoice_id: Uuid) -> Result<PaymentTransaction> {
         let mut invoices = self.invoices.write().await;
-        let invoice = invoices.get_mut(&invoice_id)
+        let invoice = invoices
+            .get_mut(&invoice_id)
             .ok_or_else(|| anyhow!("Invoice not found"))?;
 
         if invoice.status != InvoiceStatus::Issued {
@@ -564,12 +601,16 @@ impl BillingSystem {
         tokio::spawn(async move {
             // Simulate payment processing delay
             tokio::time::sleep(Duration::from_secs(2)).await;
-            
+
             // Simulate payment success/failure
             let success = fastrand::f64() > 0.1; // 90% success rate
-            
+
             // Update transaction status (in real implementation, this would be done through callbacks)
-            info!("Payment {} {}", transaction_id, if success { "succeeded" } else { "failed" });
+            info!(
+                "Payment {} {}",
+                transaction_id,
+                if success { "succeeded" } else { "failed" }
+            );
         });
 
         Ok(transaction)
@@ -614,28 +655,31 @@ impl BillingSystem {
     async fn start_invoice_generation(&self) -> Result<()> {
         let subscriptions = self.subscriptions.clone();
         let invoice_generation_day = self.config.invoice_generation_day;
-        
+
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(24 * 60 * 60)); // Daily check
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let now = Utc::now();
                 if now.day() == invoice_generation_day {
                     info!("Generating monthly invoices");
-                    
+
                     let subs = subscriptions.read().await;
                     for subscription in subs.values() {
                         if subscription.status == SubscriptionStatus::Active {
                             // Generate invoice (simplified)
-                            debug!("Would generate invoice for subscription {}", subscription.id);
+                            debug!(
+                                "Would generate invoice for subscription {}",
+                                subscription.id
+                            );
                         }
                     }
                 }
             }
         });
-        
+
         Ok(())
     }
 
@@ -649,18 +693,20 @@ impl BillingSystem {
     /// Start subscription management
     async fn start_subscription_management(&self) -> Result<()> {
         let subscriptions = self.subscriptions.clone();
-        
+
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(60 * 60)); // Hourly check
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let now = Utc::now();
                 let mut subs = subscriptions.write().await;
-                
+
                 for subscription in subs.values_mut() {
-                    if subscription.expires_at <= now && subscription.status == SubscriptionStatus::Active {
+                    if subscription.expires_at <= now
+                        && subscription.status == SubscriptionStatus::Active
+                    {
                         if subscription.auto_renew {
                             subscription.expires_at = now + chrono::Duration::days(30);
                             info!("Auto-renewed subscription {}", subscription.id);
@@ -672,7 +718,7 @@ impl BillingSystem {
                 }
             }
         });
-        
+
         Ok(())
     }
 
@@ -702,22 +748,25 @@ impl BillingSystem {
         let subscriptions = self.subscriptions.read().await;
         let usage_records = self.usage_records.read().await;
         let invoices = self.invoices.read().await;
-        
+
         let total_subscriptions = subscriptions.len();
-        let active_subscriptions = subscriptions.values()
+        let active_subscriptions = subscriptions
+            .values()
             .filter(|s| s.status == SubscriptionStatus::Active)
             .count();
-        
-        let total_revenue: f64 = invoices.values()
+
+        let total_revenue: f64 = invoices
+            .values()
             .filter(|i| i.status == InvoiceStatus::Paid)
             .map(|i| i.amount)
             .sum();
-        
-        let pending_revenue: f64 = invoices.values()
+
+        let pending_revenue: f64 = invoices
+            .values()
             .filter(|i| i.status == InvoiceStatus::Issued)
             .map(|i| i.amount)
             .sum();
-        
+
         Ok(BillingStats {
             total_subscriptions,
             active_subscriptions,
@@ -750,23 +799,22 @@ mod tests {
         let db_path = get_default_db_path().unwrap();
         let db = Arc::new(DatabaseManager::new(&db_path).unwrap());
         let economic_model = Arc::new(EconomicModel::new());
-        
-        let billing_system = BillingSystem::new(
-            BillingConfig::default(),
-            db,
-            economic_model,
-        );
+
+        let billing_system = BillingSystem::new(BillingConfig::default(), db, economic_model);
 
         let user_id = uuid::Uuid::new_v4();
-        let subscription = billing_system.create_subscription(
-            user_id,
-            SubscriptionTier::Basic,
-            BillingCycle::Monthly,
-            PaymentMethod::CreditCard {
-                last_four: "1234".to_string(),
-                expiry: "12/25".to_string(),
-            },
-        ).await.unwrap();
+        let subscription = billing_system
+            .create_subscription(
+                user_id,
+                SubscriptionTier::Basic,
+                BillingCycle::Monthly,
+                PaymentMethod::CreditCard {
+                    last_four: "1234".to_string(),
+                    expiry: "12/25".to_string(),
+                },
+            )
+            .await
+            .unwrap();
 
         assert_eq!(subscription.user_id, user_id);
         assert_eq!(subscription.tier, SubscriptionTier::Basic);
@@ -778,21 +826,19 @@ mod tests {
         let db_path = get_default_db_path().unwrap();
         let db = Arc::new(DatabaseManager::new(&db_path).unwrap());
         let economic_model = Arc::new(EconomicModel::new());
-        
-        let billing_system = BillingSystem::new(
-            BillingConfig::default(),
-            db,
-            economic_model,
-        );
+
+        let billing_system = BillingSystem::new(BillingConfig::default(), db, economic_model);
 
         let user_id = uuid::Uuid::new_v4();
-        let result = billing_system.record_usage(
-            user_id,
-            ResourceType::Storage,
-            10.0,
-            "GB".to_string(),
-            HashMap::new(),
-        ).await;
+        let result = billing_system
+            .record_usage(
+                user_id,
+                ResourceType::Storage,
+                10.0,
+                "GB".to_string(),
+                HashMap::new(),
+            )
+            .await;
 
         assert!(result.is_ok());
     }
@@ -802,17 +848,11 @@ mod tests {
         let db_path = get_default_db_path().unwrap();
         let db = Arc::new(DatabaseManager::new(&db_path).unwrap());
         let economic_model = Arc::new(EconomicModel::new());
-        
-        let billing_system = BillingSystem::new(
-            BillingConfig::default(),
-            db,
-            economic_model,
-        );
 
-        let (price, limits) = billing_system.get_tier_details(
-            &SubscriptionTier::Basic,
-            &BillingCycle::Monthly,
-        );
+        let billing_system = BillingSystem::new(BillingConfig::default(), db, economic_model);
+
+        let (price, limits) =
+            billing_system.get_tier_details(&SubscriptionTier::Basic, &BillingCycle::Monthly);
 
         assert_eq!(price, 9.99);
         assert_eq!(limits.storage_gb, Some(100.0));

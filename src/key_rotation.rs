@@ -1,18 +1,17 @@
+use crate::error::DfsResult;
+use chrono::{DateTime, Utc};
+use ecies::SecretKey;
+use rand::rngs::OsRng;
+use serde::{Deserialize, Serialize};
 /// Key Rotation Module for Perfect Forward Secrecy
 ///
 /// This module implements automatic key rotation to provide perfect forward secrecy.
 /// Keys are rotated on a configurable schedule to ensure that compromise of current
 /// keys does not affect past encrypted data.
-
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
-use chrono::{DateTime, Utc};
-use ecies::SecretKey;
-use rand::rngs::OsRng;
-use serde::{Deserialize, Serialize};
 use tokio::time::interval;
-use tracing::{info, error};
-use crate::error::DfsResult;
+use tracing::{error, info};
 
 /// Key rotation configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,7 +30,7 @@ impl Default for KeyRotationConfig {
     fn default() -> Self {
         Self {
             rotation_interval_hours: 24, // Rotate daily by default
-            key_history_size: 7, // Keep 7 days of keys
+            key_history_size: 7,         // Keep 7 days of keys
             auto_rotation_enabled: true,
             min_manual_rotation_interval_minutes: 60, // Minimum 1 hour between manual rotations
         }
@@ -64,10 +63,13 @@ impl VersionedKey {
             is_current: false,
         }
     }
-    
+
     /// Convert back to SecretKey
     pub fn to_secret_key(&self) -> Result<SecretKey, Box<dyn std::error::Error>> {
-        let key_array: [u8; 32] = self.key_bytes.clone().try_into()
+        let key_array: [u8; 32] = self
+            .key_bytes
+            .clone()
+            .try_into()
             .map_err(|_| "Invalid key length")?;
         SecretKey::parse(&key_array)
             .map_err(|e| format!("Failed to parse secret key: {:?}", e).into())
@@ -114,7 +116,7 @@ impl KeyRotationManager {
     /// Create a new key rotation manager
     pub fn new(config: KeyRotationConfig) -> Self {
         let initial_key = VersionedKey::new(1);
-        
+
         Self {
             config,
             current_version: 1,
@@ -130,7 +132,9 @@ impl KeyRotationManager {
         keys.iter()
             .find(|k| k.is_current && !k.is_expired())
             .cloned()
-            .ok_or_else(|| crate::error::DfsError::Crypto("No current encryption key available".to_string()))
+            .ok_or_else(|| {
+                crate::error::DfsError::Crypto("No current encryption key available".to_string())
+            })
     }
 
     /// Get a decryption key by version
@@ -149,19 +153,23 @@ impl KeyRotationManager {
     pub fn rotate_key_manual(&mut self) -> DfsResult<u64> {
         // Check minimum interval for manual rotation
         if let Some(last_manual) = *self.last_manual_rotation.read().unwrap() {
-            let min_interval = Duration::from_secs(self.config.min_manual_rotation_interval_minutes * 60);
+            let min_interval =
+                Duration::from_secs(self.config.min_manual_rotation_interval_minutes * 60);
             if last_manual.elapsed() < min_interval {
-                return Err(crate::error::DfsError::Config(
-                    format!("Manual rotation attempted too soon. Wait {} minutes.", 
-                           self.config.min_manual_rotation_interval_minutes)
-                ));
+                return Err(crate::error::DfsError::Config(format!(
+                    "Manual rotation attempted too soon. Wait {} minutes.",
+                    self.config.min_manual_rotation_interval_minutes
+                )));
             }
         }
 
         let new_version = self.rotate_key_internal()?;
         *self.last_manual_rotation.write().unwrap() = Some(Instant::now());
-        
-        info!("Manual key rotation completed. New version: {}", new_version);
+
+        info!(
+            "Manual key rotation completed. New version: {}",
+            new_version
+        );
         Ok(new_version)
     }
 
@@ -172,7 +180,7 @@ impl KeyRotationManager {
 
         {
             let mut keys = self.keys.write().unwrap();
-            
+
             // Mark current key as no longer current
             for key in keys.iter_mut() {
                 if key.is_current {
@@ -180,10 +188,10 @@ impl KeyRotationManager {
                     key.expire();
                 }
             }
-            
+
             // Add new key
             keys.push(new_key);
-            
+
             // Clean up old keys beyond history size
             if keys.len() > self.config.key_history_size {
                 let to_remove = keys.len() - self.config.key_history_size;
@@ -194,7 +202,7 @@ impl KeyRotationManager {
 
         self.current_version = new_version;
         *self.last_rotation.write().unwrap() = Instant::now();
-        
+
         info!("Key rotation completed. New version: {}", new_version);
         Ok(new_version)
     }
@@ -207,7 +215,7 @@ impl KeyRotationManager {
 
         let last_rotation = *self.last_rotation.read().unwrap();
         let rotation_interval = Duration::from_secs(self.config.rotation_interval_hours * 3600);
-        
+
         last_rotation.elapsed() >= rotation_interval
     }
 
@@ -215,7 +223,10 @@ impl KeyRotationManager {
     pub fn try_auto_rotate(&mut self) -> DfsResult<Option<u64>> {
         if self.needs_rotation() {
             let new_version = self.rotate_key_internal()?;
-            info!("Automatic key rotation completed. New version: {}", new_version);
+            info!(
+                "Automatic key rotation completed. New version: {}",
+                new_version
+            );
             Ok(Some(new_version))
         } else {
             Ok(None)
@@ -231,7 +242,7 @@ impl KeyRotationManager {
 
         loop {
             interval_timer.tick().await;
-            
+
             let needs_rotation = {
                 let mgr = manager.read().unwrap();
                 mgr.needs_rotation()
@@ -256,14 +267,15 @@ impl KeyRotationManager {
     pub fn get_rotation_stats(&self) -> RotationStats {
         let keys = self.keys.read().unwrap();
         let last_rotation = *self.last_rotation.read().unwrap();
-        
+
         RotationStats {
             current_version: self.current_version,
             total_keys: keys.len(),
             active_keys: keys.iter().filter(|k| !k.is_expired()).count(),
             last_rotation_ago: last_rotation.elapsed(),
             next_rotation_in: if self.config.auto_rotation_enabled {
-                let rotation_interval = Duration::from_secs(self.config.rotation_interval_hours * 3600);
+                let rotation_interval =
+                    Duration::from_secs(self.config.rotation_interval_hours * 3600);
                 Some(rotation_interval.saturating_sub(last_rotation.elapsed()))
             } else {
                 None
@@ -303,7 +315,7 @@ impl RotatingKeyManager {
         rotation_config: KeyRotationConfig,
     ) -> Self {
         let rotation_manager = KeyRotationManager::new(rotation_config);
-        
+
         Self {
             base_key_manager: base_manager,
             rotation_manager: Arc::new(RwLock::new(rotation_manager)),
@@ -314,13 +326,20 @@ impl RotatingKeyManager {
     pub fn get_encryption_key(&self) -> DfsResult<(SecretKey, u64)> {
         let manager = self.rotation_manager.read().unwrap();
         let versioned_key = manager.get_current_key()?;
-        Ok((versioned_key.to_secret_key().map_err(|e| crate::error::DfsError::KeyManagement(e.to_string()))?, versioned_key.version))
+        Ok((
+            versioned_key
+                .to_secret_key()
+                .map_err(|e| crate::error::DfsError::KeyManagement(e.to_string()))?,
+            versioned_key.version,
+        ))
     }
 
     /// Get a decryption key by version
     pub fn get_decryption_key(&self, version: u64) -> Option<SecretKey> {
         let manager = self.rotation_manager.read().unwrap();
-        manager.get_key_by_version(version).and_then(|k| k.to_secret_key().ok())
+        manager
+            .get_key_by_version(version)
+            .and_then(|k| k.to_secret_key().ok())
     }
 
     /// Manually rotate keys
@@ -360,7 +379,7 @@ mod tests {
     fn test_key_expiration() {
         let mut key = VersionedKey::new(1);
         assert!(!key.is_expired());
-        
+
         key.expire();
         assert!(key.is_expired());
         assert!(!key.is_current);
@@ -370,18 +389,18 @@ mod tests {
     fn test_key_rotation_manager() {
         let config = KeyRotationConfig::default();
         let mut manager = KeyRotationManager::new(config);
-        
+
         // Test initial state
         let current_key = manager.get_current_key().unwrap();
         assert_eq!(current_key.version, 1);
-        
+
         // Test manual rotation
         let new_version = manager.rotate_key_manual().unwrap();
         assert_eq!(new_version, 2);
-        
+
         let current_key = manager.get_current_key().unwrap();
         assert_eq!(current_key.version, 2);
-        
+
         // Test key retrieval by version
         let old_key = manager.get_key_by_version(1).unwrap();
         assert_eq!(old_key.version, 1);
@@ -396,15 +415,15 @@ mod tests {
             ..Default::default()
         };
         let mut manager = KeyRotationManager::new(config);
-        
+
         // Rotate multiple times
         for _ in 0..5 {
             manager.rotate_key_manual().unwrap();
         }
-        
+
         let all_keys = manager.get_all_keys();
         assert_eq!(all_keys.len(), 2); // Should only keep 2 keys
-        
+
         // Should have versions 5 and 6 (latest 2)
         let versions: Vec<u64> = all_keys.iter().map(|k| k.version).collect();
         assert!(versions.contains(&5));
@@ -419,10 +438,10 @@ mod tests {
             ..Default::default()
         };
         let manager = KeyRotationManager::new(config);
-        
+
         // Should not need rotation immediately
         assert!(!manager.needs_rotation());
-        
+
         // Test with short interval for quick testing
         let short_config = KeyRotationConfig {
             rotation_interval_hours: 0, // 0 hours (immediate)
@@ -430,7 +449,7 @@ mod tests {
             ..Default::default()
         };
         let short_manager = KeyRotationManager::new(short_config);
-        
+
         // Sleep briefly to ensure time has passed
         sleep(Duration::from_millis(10));
         assert!(short_manager.needs_rotation());

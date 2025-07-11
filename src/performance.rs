@@ -1,7 +1,7 @@
-use std::time::{Duration, Instant};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use serde::{Deserialize, Serialize};
+use std::time::{Duration, Instant};
 use tracing::info;
 
 /// Performance metrics for DFS operations
@@ -67,7 +67,7 @@ impl PerformanceMonitor {
             duration_ms: duration.as_millis() as u64,
             bytes_processed,
             success,
-            error_type: error_type.clone(),  // Clone to avoid borrow checker issues
+            error_type: error_type.clone(), // Clone to avoid borrow checker issues
             timestamp: chrono::Local::now(),
         };
 
@@ -113,12 +113,14 @@ impl PerformanceMonitor {
         // Update operation counters
         {
             let mut counters = self.operation_counters.lock().unwrap();
-            let stats = counters.entry(operation.to_string()).or_insert(OperationStats {
-                total_operations: 0,
-                successful_operations: 0,
-                total_duration_ms: 0,
-                total_bytes: 0,
-            });
+            let stats = counters
+                .entry(operation.to_string())
+                .or_insert(OperationStats {
+                    total_operations: 0,
+                    successful_operations: 0,
+                    total_duration_ms: 0,
+                    total_bytes: 0,
+                });
 
             stats.total_operations += 1;
             if success {
@@ -155,16 +157,19 @@ impl PerformanceMonitor {
                 0.0
             };
 
-            summary.insert(operation.clone(), OperationSummary {
-                operation: operation.clone(),
-                total_operations: stats.total_operations,
-                successful_operations: stats.successful_operations,
-                success_rate,
-                total_duration_ms: stats.total_duration_ms,
-                avg_duration_ms,
-                total_bytes: stats.total_bytes,
-                avg_throughput_bps,
-            });
+            summary.insert(
+                operation.clone(),
+                OperationSummary {
+                    operation: operation.clone(),
+                    total_operations: stats.total_operations,
+                    successful_operations: stats.successful_operations,
+                    success_rate,
+                    total_duration_ms: stats.total_duration_ms,
+                    avg_duration_ms,
+                    total_bytes: stats.total_bytes,
+                    avg_throughput_bps,
+                },
+            );
         }
 
         summary
@@ -184,10 +189,10 @@ impl PerformanceMonitor {
     /// Print performance summary to console
     pub fn print_summary(&self) {
         let summary = self.get_summary();
-        
+
         println!("\n🚀 Performance Summary");
         println!("======================");
-        
+
         for (operation, stats) in summary.iter() {
             println!("📊 Operation: {}", operation);
             println!("   Total: {} operations", stats.total_operations);
@@ -195,7 +200,10 @@ impl PerformanceMonitor {
             println!("   Avg Duration: {:.1}ms", stats.avg_duration_ms);
             if stats.total_bytes > 0 {
                 println!("   Total Data: {} bytes", stats.total_bytes);
-                println!("   Avg Throughput: {:.1} bytes/sec", stats.avg_throughput_bps);
+                println!(
+                    "   Avg Throughput: {:.1} bytes/sec",
+                    stats.avg_throughput_bps
+                );
             }
             println!();
         }
@@ -219,29 +227,24 @@ impl OperationTimer {
     /// Complete the operation successfully
     pub fn complete_success(self, bytes_processed: Option<usize>) {
         let duration = self.start_time.elapsed();
-        self.monitor.record_operation(
-            &self.operation,
-            duration,
-            bytes_processed,
-            true,
-            None,
-        );
+        self.monitor
+            .record_operation(&self.operation, duration, bytes_processed, true, None);
     }
 
     /// Complete the operation with failure
     pub fn complete_failure(self, error_type: String) {
         let duration = self.start_time.elapsed();
-        self.monitor.record_operation(
-            &self.operation,
-            duration,
-            None,
-            false,
-            Some(error_type),
-        );
+        self.monitor
+            .record_operation(&self.operation, duration, None, false, Some(error_type));
     }
 
     /// Complete the operation with custom result
-    pub fn complete(self, success: bool, bytes_processed: Option<usize>, error_type: Option<String>) {
+    pub fn complete(
+        self,
+        success: bool,
+        bytes_processed: Option<usize>,
+        error_type: Option<String>,
+    ) {
         let duration = self.start_time.elapsed();
         self.monitor.record_operation(
             &self.operation,
@@ -282,26 +285,22 @@ pub fn start_operation(operation: &str) -> OperationTimer {
 /// Convenience macro for timing operations
 #[macro_export]
 macro_rules! time_operation {
-    ($op:expr, $block:block) => {
-        {
-            let timer = $crate::performance::start_operation($op);
-            let result = $block;
-            match &result {
-                Ok(_) => timer.complete_success(None),
-                Err(e) => timer.complete_failure(e.to_string()),
-            }
-            result
+    ($op:expr, $block:block) => {{
+        let timer = $crate::performance::start_operation($op);
+        let result = $block;
+        match &result {
+            Ok(_) => timer.complete_success(None),
+            Err(e) => timer.complete_failure(e.to_string()),
         }
-    };
-    ($op:expr, $bytes:expr, $block:block) => {
-        {
-            let timer = $crate::performance::start_operation($op);
-            let result = $block;
-            match &result {
-                Ok(_) => timer.complete_success(Some($bytes)),
-                Err(e) => timer.complete_failure(e.to_string()),
-            }
-            result
+        result
+    }};
+    ($op:expr, $bytes:expr, $block:block) => {{
+        let timer = $crate::performance::start_operation($op);
+        let result = $block;
+        match &result {
+            Ok(_) => timer.complete_success(Some($bytes)),
+            Err(e) => timer.complete_failure(e.to_string()),
         }
-    };
+        result
+    }};
 }

@@ -1,3 +1,8 @@
+use anyhow::{anyhow, Result};
+use futures::StreamExt;
+use libp2p::kad::{Event as KademliaEvent, GetRecordOk, QueryResult, Quorum, Record, RecordKey};
+use libp2p::swarm::SwarmEvent;
+use libp2p::{PeerId, Swarm};
 /// Concurrent Chunk Operations Module
 ///
 /// This module implements the Concurrent Chunk Operations system as outlined
@@ -8,21 +13,15 @@
 /// - Timeout handling and retry mechanisms
 /// - Multi-peer chunk retrieval with failover
 /// - Performance monitoring and metrics collection
-
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
 use std::sync::Arc;
-use anyhow::{Result, anyhow};
-use libp2p::{PeerId, Swarm};
-use libp2p::kad::{Record, RecordKey, Quorum, Event as KademliaEvent, GetRecordOk, QueryResult};
-use libp2p::swarm::SwarmEvent;
-use tokio::sync::{Semaphore, RwLock};
+use std::time::{Duration, Instant};
+use tokio::sync::{RwLock, Semaphore};
 use tokio::time::timeout;
-use futures::StreamExt;
-use tracing::{info, debug};
+use tracing::{debug, info};
 
-use crate::network::{MyBehaviour, MyBehaviourEvent};
 use crate::file_storage::StoredFile;
+use crate::network::{MyBehaviour, MyBehaviourEvent};
 
 /// Configuration for concurrent chunk operations
 #[derive(Debug, Clone)]
@@ -121,7 +120,7 @@ impl PeerStats {
         self.total_requests += 1;
         self.successful_requests += 1;
         self.last_seen = Instant::now();
-        
+
         // Update average response time
         if self.successful_requests == 1 {
             self.average_response_time = response_time;
@@ -150,8 +149,8 @@ impl PeerStats {
 
     fn is_responsive(&self) -> bool {
         // Consider peer responsive if it has good success rate and recent activity
-        self.success_rate() > 0.7 && 
-        self.last_seen.elapsed() < Duration::from_secs(300) // 5 minutes
+        self.success_rate() > 0.7 && self.last_seen.elapsed() < Duration::from_secs(300)
+        // 5 minutes
     }
 }
 
@@ -160,7 +159,7 @@ impl ConcurrentChunkManager {
     pub fn new(config: ConcurrentChunkConfig) -> Self {
         let retrieval_semaphore = Arc::new(Semaphore::new(config.max_concurrent_retrievals));
         let upload_semaphore = Arc::new(Semaphore::new(config.max_concurrent_uploads));
-        
+
         Self {
             config,
             retrieval_semaphore,
@@ -188,20 +187,20 @@ impl ConcurrentChunkManager {
     ) -> Result<Vec<u8>> {
         // Get chunk keys for the file
         let chunk_keys = self.get_chunk_keys(file_key, swarm.clone()).await?;
-        
+
         // Retrieve all chunks concurrently
         let chunk_results = self.retrieve_chunks_concurrent(chunk_keys, swarm).await?;
-        
+
         // Reconstruct file from chunks (this would be handled by the calling code)
         // For now, return the concatenated chunk data as a placeholder
         let mut file_data = Vec::new();
         for chunk in chunk_results {
             file_data.extend(chunk.data);
         }
-        
+
         Ok(file_data)
     }
-    
+
     /// Get chunk keys for a file from its metadata
     async fn get_chunk_keys(
         &self,
@@ -210,34 +209,32 @@ impl ConcurrentChunkManager {
     ) -> Result<Vec<RecordKey>> {
         let key_bytes = hex::decode(file_key)?;
         let record_key = RecordKey::from(key_bytes);
-        
+
         // Retrieve file metadata
         let metadata = self.retrieve_file_metadata(record_key, swarm).await?;
-        
+
         // Convert chunk key bytes to RecordKeys
-        let chunk_keys = metadata.chunk_keys
+        let chunk_keys = metadata
+            .chunk_keys
             .into_iter()
             .map(|key_bytes| RecordKey::from(key_bytes))
             .collect();
-        
+
         Ok(chunk_keys)
     }
-    
+
     /// Retrieve file metadata from DHT
     async fn retrieve_file_metadata(
         &self,
         file_key: RecordKey,
         swarm: Arc<RwLock<Swarm<MyBehaviour>>>,
     ) -> Result<StoredFile> {
-        let metadata_result = Self::retrieve_chunk_from_dht(
-            file_key,
-            swarm,
-            self.config.clone(),
-        ).await?;
-        
+        let metadata_result =
+            Self::retrieve_chunk_from_dht(file_key, swarm, self.config.clone()).await?;
+
         // Parse metadata
         let stored_file: StoredFile = serde_json::from_slice(&metadata_result.data)?;
-        
+
         Ok(stored_file)
     }
 
@@ -248,51 +245,48 @@ impl ConcurrentChunkManager {
         swarm: Arc<RwLock<Swarm<MyBehaviour>>>,
     ) -> Result<Vec<ChunkResult>> {
         let operation_start = Instant::now();
-        info!("Starting concurrent retrieval of {} chunks", chunk_keys.len());
-        
+        info!(
+            "Starting concurrent retrieval of {} chunks",
+            chunk_keys.len()
+        );
+
         let mut tasks = Vec::new();
-        
+
         // Create futures for all chunk retrievals without spawning tasks
         for chunk_key in chunk_keys {
             let swarm = swarm.clone();
             let semaphore = self.retrieval_semaphore.clone();
             let config = self.config.clone();
             let peer_stats = self.peer_stats.clone();
-            
+
             let future = async move {
                 let _permit = semaphore.acquire().await.unwrap();
-                
-                Self::retrieve_single_chunk_with_retry(
-                    chunk_key.clone(),
-                    swarm,
-                    config,
-                    peer_stats,
-                ).await
+
+                Self::retrieve_single_chunk_with_retry(chunk_key.clone(), swarm, config, peer_stats)
+                    .await
             };
-            
+
             tasks.push(future);
         }
-        
+
         // Execute all futures concurrently using futures::future::join_all
         let results = futures::future::join_all(tasks).await;
-        
+
         // Update operation statistics
         let operation_time = operation_start.elapsed();
         self.update_operation_stats(&results, operation_time).await;
-        
+
         // Filter successful results
-        let successful_results: Vec<ChunkResult> = results
-            .into_iter()
-            .filter_map(|r| r.ok())
-            .collect();
-        
+        let successful_results: Vec<ChunkResult> =
+            results.into_iter().filter_map(|r| r.ok()).collect();
+
         info!(
             "Concurrent chunk retrieval completed: {}/{} chunks retrieved in {:?}",
             successful_results.len(),
             self.operation_stats.read().await.total_chunks,
             operation_time
         );
-        
+
         Ok(successful_results)
     }
 
@@ -305,23 +299,25 @@ impl ConcurrentChunkManager {
     ) -> Result<ChunkResult> {
         let mut attempt = 0;
         let mut _last_error = None;
-        
+
         while attempt < config.retry_failed_chunks {
             attempt += 1;
-            
+
             match Self::retrieve_chunk_from_multiple_peers(
                 chunk_key.clone(),
                 swarm.clone(),
                 config.clone(),
                 peer_stats.clone(),
-            ).await {
+            )
+            .await
+            {
                 Ok(mut result) => {
                     result.attempt_count = attempt;
                     return Ok(result);
                 }
                 Err(e) => {
                     _last_error = Some(e);
-                    
+
                     // Exponential backoff between retries
                     if attempt < config.retry_failed_chunks {
                         let backoff_delay = Duration::from_millis(100 * (2_u64.pow(attempt - 1)));
@@ -330,8 +326,13 @@ impl ConcurrentChunkManager {
                 }
             }
         }
-        
-        Err(_last_error.unwrap_or_else(|| anyhow!("Failed to retrieve chunk after {} attempts", config.retry_failed_chunks)))
+
+        Err(_last_error.unwrap_or_else(|| {
+            anyhow!(
+                "Failed to retrieve chunk after {} attempts",
+                config.retry_failed_chunks
+            )
+        }))
     }
 
     /// Retrieve chunk from multiple peers concurrently using select_ok
@@ -342,7 +343,7 @@ impl ConcurrentChunkManager {
         peer_stats: Arc<RwLock<HashMap<PeerId, PeerStats>>>,
     ) -> Result<ChunkResult> {
         debug!("Retrieving chunk from multiple peers: {:?}", chunk_key);
-        
+
         // Get list of responsive peers
         let responsive_peers = {
             let stats = peer_stats.read().await;
@@ -351,51 +352,58 @@ impl ConcurrentChunkManager {
                 .filter(|(_, stat)| stat.is_responsive())
                 .map(|(peer_id, _)| *peer_id)
                 .collect();
-            
+
             // Sort by preference if enabled
             if config.prefer_fast_peers {
                 peers.sort_by(|a, b| {
-                    let a_time = stats.get(a).map(|s| s.average_response_time).unwrap_or(Duration::from_secs(999));
-                    let b_time = stats.get(b).map(|s| s.average_response_time).unwrap_or(Duration::from_secs(999));
+                    let a_time = stats
+                        .get(a)
+                        .map(|s| s.average_response_time)
+                        .unwrap_or(Duration::from_secs(999));
+                    let b_time = stats
+                        .get(b)
+                        .map(|s| s.average_response_time)
+                        .unwrap_or(Duration::from_secs(999));
                     a_time.cmp(&b_time)
                 });
             }
-            
+
             peers
         };
-        
+
         if responsive_peers.is_empty() {
             // Fallback to DHT query if no responsive peers
             return Self::retrieve_chunk_from_dht(chunk_key, swarm, config).await;
         }
-        
+
         // Create futures for querying multiple peers
         let mut futures = Vec::new();
-        
-        for peer_id in responsive_peers.iter().take(3) { // Query top 3 peers
+
+        for peer_id in responsive_peers.iter().take(3) {
+            // Query top 3 peers
             let chunk_key = chunk_key.clone();
             let swarm = swarm.clone();
             let config = config.clone();
             let peer_stats = peer_stats.clone();
             let peer_id = *peer_id;
-            
+
             let future = async move {
                 Self::retrieve_chunk_from_peer(chunk_key, peer_id, swarm, config, peer_stats).await
             };
-            
+
             futures.push(future);
         }
-        
+
         // Execute all futures and return the first successful result
         let results = futures::future::join_all(futures).await;
-        
+
         // Find first successful result
         for result in results {
             if result.is_ok() {
                 return result;
             }
         }
-        
+
         // If all peer queries fail, fallback to DHT
         Self::retrieve_chunk_from_dht(chunk_key, swarm, config).await
     }
@@ -409,22 +417,22 @@ impl ConcurrentChunkManager {
         peer_stats: Arc<RwLock<HashMap<PeerId, PeerStats>>>,
     ) -> Result<ChunkResult> {
         let request_start = Instant::now();
-        
+
         // TODO: Implement direct peer query
         // For now, fallback to DHT query
         let result = Self::retrieve_chunk_from_dht(chunk_key, swarm, config).await;
-        
+
         let response_time = request_start.elapsed();
-        
+
         // Update peer statistics
         let mut stats = peer_stats.write().await;
         let peer_stat = stats.entry(peer_id).or_insert_with(PeerStats::new);
-        
+
         match &result {
             Ok(_) => peer_stat.update_success(response_time),
             Err(_) => peer_stat.update_failure(),
         }
-        
+
         result
     }
 
@@ -435,13 +443,13 @@ impl ConcurrentChunkManager {
         config: ConcurrentChunkConfig,
     ) -> Result<ChunkResult> {
         let request_start = Instant::now();
-        
+
         // Issue DHT query
         {
             let mut swarm = swarm.write().await;
             swarm.behaviour_mut().kad.get_record(chunk_key.clone());
         }
-        
+
         // Wait for response with timeout
         let result = timeout(config.chunk_timeout, async {
             loop {
@@ -451,9 +459,11 @@ impl ConcurrentChunkManager {
                         match kad_event {
                             KademliaEvent::OutboundQueryProgressed { result, .. } => {
                                 match result {
-                                    QueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(peer_record))) => {
+                                    QueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(
+                                        peer_record,
+                                    ))) => {
                                         let record = &peer_record.record;
-                                        
+
                                         // Check if this is the chunk we're looking for
                                         if record.key == chunk_key {
                                             return ChunkResult {
@@ -466,7 +476,10 @@ impl ConcurrentChunkManager {
                                         }
                                     }
                                     QueryResult::GetRecord(Err(err)) => {
-                                        debug!("DHT query failed for chunk {:?}: {:?}", chunk_key, err);
+                                        debug!(
+                                            "DHT query failed for chunk {:?}: {:?}",
+                                            chunk_key, err
+                                        );
                                         continue;
                                     }
                                     _ => continue,
@@ -478,11 +491,15 @@ impl ConcurrentChunkManager {
                     _ => continue,
                 }
             }
-        }).await;
-        
+        })
+        .await;
+
         match result {
             Ok(chunk_result) => Ok(chunk_result),
-            Err(_) => Err(anyhow!("Chunk retrieval timed out for key: {:?}", chunk_key)),
+            Err(_) => Err(anyhow!(
+                "Chunk retrieval timed out for key: {:?}",
+                chunk_key
+            )),
         }
     }
 
@@ -494,49 +511,42 @@ impl ConcurrentChunkManager {
     ) -> Result<Vec<ChunkUploadResult>> {
         let operation_start = Instant::now();
         info!("Starting concurrent upload of {} chunks", chunks.len());
-        
+
         let mut _results: Vec<ChunkUploadResult> = Vec::new();
         let mut tasks = Vec::new();
-        
+
         // Create futures for all chunk uploads without spawning tasks
         for (chunk_key, data) in chunks {
             let swarm = swarm.clone();
             let config = self.config.clone();
             let semaphore = self.upload_semaphore.clone();
-            
+
             let future = async move {
                 let _permit = semaphore.acquire().await.unwrap();
-                
-                Self::upload_single_chunk_with_retry(
-                    chunk_key.clone(),
-                    data,
-                    swarm,
-                    config,
-                ).await
+
+                Self::upload_single_chunk_with_retry(chunk_key.clone(), data, swarm, config).await
             };
-            
+
             tasks.push(future);
         }
-        
+
         // Execute all futures concurrently using futures::future::join_all
         let upload_results = futures::future::join_all(tasks).await;
-        
+
         let operation_time = operation_start.elapsed();
         let successful_uploads = upload_results.iter().filter(|r| r.is_ok()).count();
-        
+
         info!(
             "Concurrent chunk upload completed: {}/{} chunks uploaded in {:?}",
             successful_uploads,
             upload_results.len(),
             operation_time
         );
-        
+
         // Filter successful results
-        let successful_results: Vec<ChunkUploadResult> = upload_results
-            .into_iter()
-            .filter_map(|r| r.ok())
-            .collect();
-        
+        let successful_results: Vec<ChunkUploadResult> =
+            upload_results.into_iter().filter_map(|r| r.ok()).collect();
+
         Ok(successful_results)
     }
 
@@ -550,23 +560,25 @@ impl ConcurrentChunkManager {
         let mut attempt = 0;
         let mut _last_error = None;
         let upload_start = Instant::now();
-        
+
         while attempt < config.retry_failed_chunks {
             attempt += 1;
-            
+
             match Self::upload_chunk_to_dht(
                 chunk_key.clone(),
                 data.clone(),
                 swarm.clone(),
                 config.clone(),
-            ).await {
+            )
+            .await
+            {
                 Ok(mut result) => {
                     result.attempt_count = attempt;
                     return Ok(result);
                 }
                 Err(e) => {
                     _last_error = Some(e);
-                    
+
                     // Exponential backoff between retries
                     if attempt < config.retry_failed_chunks {
                         let backoff_delay = Duration::from_millis(100 * (2_u64.pow(attempt - 1)));
@@ -575,7 +587,7 @@ impl ConcurrentChunkManager {
                 }
             }
         }
-        
+
         Ok(ChunkUploadResult {
             chunk_key,
             success: false,
@@ -593,7 +605,7 @@ impl ConcurrentChunkManager {
         config: ConcurrentChunkConfig,
     ) -> Result<ChunkUploadResult> {
         let upload_start = Instant::now();
-        
+
         // Create record
         let record = Record {
             key: chunk_key.clone(),
@@ -601,17 +613,17 @@ impl ConcurrentChunkManager {
             publisher: None,
             expires: None,
         };
-        
+
         // Upload to DHT
         {
             let mut swarm = swarm.write().await;
             swarm.behaviour_mut().kad.put_record(record, Quorum::One)?;
         }
-        
+
         // Wait for confirmation with timeout
         let result = timeout(config.chunk_timeout, async {
             let peers_contacted = Vec::new();
-            
+
             loop {
                 let mut swarm = swarm.write().await;
                 match swarm.select_next_some().await {
@@ -621,11 +633,17 @@ impl ConcurrentChunkManager {
                                 match result {
                                     QueryResult::PutRecord(Ok(put_record_ok)) => {
                                         // Note: PutRecordOk doesn't provide peer info, so we'll track differently
-                                        debug!("Successfully stored chunk {:?} with key {:?}", chunk_key, put_record_ok.key);
+                                        debug!(
+                                            "Successfully stored chunk {:?} with key {:?}",
+                                            chunk_key, put_record_ok.key
+                                        );
                                         return (true, peers_contacted);
                                     }
                                     QueryResult::PutRecord(Err(err)) => {
-                                        debug!("DHT put failed for chunk {:?}: {:?}", chunk_key, err);
+                                        debug!(
+                                            "DHT put failed for chunk {:?}: {:?}",
+                                            chunk_key, err
+                                        );
                                         return (false, peers_contacted);
                                     }
                                     _ => continue,
@@ -637,10 +655,11 @@ impl ConcurrentChunkManager {
                     _ => continue,
                 }
             }
-        }).await;
-        
+        })
+        .await;
+
         let response_time = upload_start.elapsed();
-        
+
         match result {
             Ok((success, peers_contacted)) => Ok(ChunkUploadResult {
                 chunk_key,
@@ -660,45 +679,36 @@ impl ConcurrentChunkManager {
         operation_time: Duration,
     ) {
         let mut stats = self.operation_stats.write().await;
-        
+
         stats.total_chunks = results.len();
         stats.successful_chunks = results.iter().filter(|r| r.is_ok()).count();
         stats.failed_chunks = results.len() - stats.successful_chunks;
         stats.total_operation_time = operation_time;
-        
+
         // Calculate average response time
-        let successful_results: Vec<&ChunkResult> = results
-            .iter()
-            .filter_map(|r| r.as_ref().ok())
-            .collect();
-        
+        let successful_results: Vec<&ChunkResult> =
+            results.iter().filter_map(|r| r.as_ref().ok()).collect();
+
         if !successful_results.is_empty() {
-            let total_time: Duration = successful_results
-                .iter()
-                .map(|r| r.response_time)
-                .sum();
-            
+            let total_time: Duration = successful_results.iter().map(|r| r.response_time).sum();
+
             stats.average_response_time = total_time / successful_results.len() as u32;
-            
+
             // Find fastest and slowest peers
-            if let Some(fastest) = successful_results
-                .iter()
-                .min_by_key(|r| r.response_time)
-            {
+            if let Some(fastest) = successful_results.iter().min_by_key(|r| r.response_time) {
                 stats.fastest_peer = fastest.peer_id;
             }
-            
-            if let Some(slowest) = successful_results
-                .iter()
-                .max_by_key(|r| r.response_time)
-            {
+
+            if let Some(slowest) = successful_results.iter().max_by_key(|r| r.response_time) {
                 stats.slowest_peer = slowest.peer_id;
             }
-            
+
             // Update peer response times
             for result in successful_results {
                 if let Some(peer_id) = result.peer_id {
-                    stats.peer_response_times.insert(peer_id, result.response_time);
+                    stats
+                        .peer_response_times
+                        .insert(peer_id, result.response_time);
                 }
             }
         }
@@ -727,7 +737,7 @@ impl ConcurrentChunkManager {
             slowest_peer: None,
             peer_response_times: HashMap::new(),
         };
-        
+
         let mut peer_stats = self.peer_stats.write().await;
         peer_stats.clear();
     }
@@ -736,14 +746,14 @@ impl ConcurrentChunkManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::str::FromStr;
     use libp2p::identity::Keypair;
+    use std::str::FromStr;
 
     #[tokio::test]
     async fn test_concurrent_chunk_manager_creation() {
         let config = ConcurrentChunkConfig::default();
         let manager = ConcurrentChunkManager::new(config);
-        
+
         assert_eq!(manager.config.max_concurrent_retrievals, 8);
         assert_eq!(manager.config.max_concurrent_uploads, 4);
     }
@@ -751,19 +761,19 @@ mod tests {
     #[tokio::test]
     async fn test_peer_stats_tracking() {
         let mut peer_stats = PeerStats::new();
-        
+
         // Test success tracking
         peer_stats.update_success(Duration::from_millis(100));
         assert_eq!(peer_stats.successful_requests, 1);
         assert_eq!(peer_stats.total_requests, 1);
         assert_eq!(peer_stats.success_rate(), 1.0);
-        
+
         // Test failure tracking
         peer_stats.update_failure();
         assert_eq!(peer_stats.failed_requests, 1);
         assert_eq!(peer_stats.total_requests, 2);
         assert_eq!(peer_stats.success_rate(), 0.5);
-        
+
         // Test responsiveness
         assert!(peer_stats.is_responsive());
     }
@@ -771,7 +781,7 @@ mod tests {
     #[test]
     fn test_concurrent_chunk_config_default() {
         let config = ConcurrentChunkConfig::default();
-        
+
         assert_eq!(config.max_concurrent_retrievals, 8);
         assert_eq!(config.max_concurrent_uploads, 4);
         assert_eq!(config.chunk_timeout, Duration::from_secs(10));

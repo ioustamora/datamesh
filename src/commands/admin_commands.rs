@@ -1,13 +1,12 @@
+use anyhow::Result;
 /// Administrative command handlers
-/// 
+///
 /// This module contains handlers for administrative operations:
 /// config, metrics, networks
-
 use std::error::Error;
 use std::path::PathBuf;
-use anyhow::Result;
 
-use crate::commands::{CommandHandler, CommandContext};
+use crate::commands::{CommandContext, CommandHandler};
 use crate::{config, performance, presets};
 
 /// Config command handler
@@ -21,18 +20,24 @@ pub struct ConfigCommand {
 impl CommandHandler for ConfigCommand {
     async fn execute(&self, _context: &CommandContext) -> Result<(), Box<dyn Error>> {
         if self.generate {
-            let path = self.config_path.clone().unwrap_or_else(|| PathBuf::from("datamesh.toml"));
+            let path = self
+                .config_path
+                .clone()
+                .unwrap_or_else(|| PathBuf::from("datamesh.toml"));
             config::generate_config(&path)?;
             println!("Generated default configuration at: {}", path.display());
         } else {
-            let path = self.config_path.clone().unwrap_or_else(|| PathBuf::from("datamesh.toml"));
+            let path = self
+                .config_path
+                .clone()
+                .unwrap_or_else(|| PathBuf::from("datamesh.toml"));
             let config = config::Config::load_or_default(Some(path.clone()))?;
             println!("Configuration loaded from: {}", path.display());
             println!("{:#?}", config);
         }
         Ok(())
     }
-    
+
     fn command_name(&self) -> &'static str {
         "admin_config"
     }
@@ -49,12 +54,12 @@ pub struct MetricsCommand {
 impl CommandHandler for MetricsCommand {
     async fn execute(&self, _context: &CommandContext) -> Result<(), Box<dyn Error>> {
         let monitor = performance::global_monitor();
-        
+
         if self.summary {
             let summary = monitor.get_summary();
             println!("📊 Performance Summary");
             println!("─────────────────────");
-            
+
             // Calculate totals across all operations
             let total_operations: usize = summary.values().map(|s| s.total_operations).sum();
             let total_successful: usize = summary.values().map(|s| s.successful_operations).sum();
@@ -64,25 +69,25 @@ impl CommandHandler for MetricsCommand {
                 0.0
             };
             let avg_duration: f64 = if !summary.is_empty() {
-                summary.values()
-                    .map(|s| s.avg_duration_ms)
-                    .sum::<f64>() / summary.len() as f64
+                summary.values().map(|s| s.avg_duration_ms).sum::<f64>() / summary.len() as f64
             } else {
                 0.0
             };
-            
+
             println!("Total Operations: {}", total_operations);
             println!("Success Rate: {:.1}%", overall_success_rate);
             println!("Average Duration: {:.2}ms", avg_duration);
-            
+
             // Show recent operations from the performance monitor
             let recent_metrics = monitor.get_recent_metrics(10);
             if !recent_metrics.is_empty() {
                 println!("\n📈 Recent Operations:");
-                println!("{:<15} {:<12} {:<10} {:<8} {:<20}", 
-                    "Operation", "Duration", "Success", "Bytes", "Timestamp");
+                println!(
+                    "{:<15} {:<12} {:<10} {:<8} {:<20}",
+                    "Operation", "Duration", "Success", "Bytes", "Timestamp"
+                );
                 println!("{}", "─".repeat(70));
-                
+
                 for metric in &recent_metrics {
                     let duration_str = format!("{:.2}ms", metric.duration_ms);
                     let success_str = if metric.success { "✓" } else { "✗" };
@@ -92,28 +97,30 @@ impl CommandHandler for MetricsCommand {
                         "-".to_string()
                     };
                     let timestamp_str = metric.timestamp.format("%H:%M:%S");
-                    
-                    println!("{:<15} {:<12} {:<10} {:<8} {:<20}", 
-                        metric.operation, duration_str, success_str, bytes_str, timestamp_str);
+
+                    println!(
+                        "{:<15} {:<12} {:<10} {:<8} {:<20}",
+                        metric.operation, duration_str, success_str, bytes_str, timestamp_str
+                    );
                 }
             } else {
                 println!("\nNo recent operations recorded");
             }
         }
-        
+
         if self.export {
             let metrics_json = monitor.export_metrics();
             println!("Metrics JSON:");
             println!("{}", metrics_json);
         }
-        
+
         if !self.summary && !self.export {
             println!("Use --summary to show performance summary or --export to export metrics");
         }
-        
+
         Ok(())
     }
-    
+
     fn command_name(&self) -> &'static str {
         "admin_metrics"
     }
@@ -128,26 +135,26 @@ impl CommandHandler for NetworksCommand {
     async fn execute(&self, _context: &CommandContext) -> Result<(), Box<dyn Error>> {
         println!("🌐 Available Network Configurations");
         println!("────────────────────────────────────");
-        
+
         let networks = presets::get_available_networks();
         for (name, network) in networks {
             println!("\n📡 {}", name);
             println!("   Description: {}", network.description);
             println!("   Bootstrap Nodes: {}", network.bootstrap_nodes.len());
-            
+
             for (i, node) in network.bootstrap_nodes.iter().enumerate() {
                 println!("   {}. {}", i + 1, node);
             }
-            
+
             if let Some(ref features) = network.features {
                 println!("   Features: {}", features.join(", "));
             }
         }
-        
+
         println!("\n💡 Use --network <name> to connect to a specific network");
         Ok(())
     }
-    
+
     fn command_name(&self) -> &'static str {
         "admin_networks"
     }

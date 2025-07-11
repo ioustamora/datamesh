@@ -1,14 +1,14 @@
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
-use anyhow::Result;
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use super::{SystemMetrics, PerformanceTrend, TrendDirection, OptimizationRecommendation};
-use super::time_series::{TimeSeriesDB, TimeSeriesData, TimeSeriesQuery, AggregationFunction};
+use super::time_series::{AggregationFunction, TimeSeriesDB, TimeSeriesData, TimeSeriesQuery};
+use super::{OptimizationRecommendation, PerformanceTrend, SystemMetrics, TrendDirection};
 
 /// Advanced analytics engine with ML-based insights and predictive capabilities
 /// Implements sophisticated analysis algorithms for performance optimization
@@ -557,8 +557,9 @@ impl Default for MLModels {
 
 impl AnalyticsEngine {
     pub async fn new(analysis_window: Duration) -> Result<Self> {
-        let time_series_db = Arc::new(TimeSeriesDB::new(Duration::from_secs(30 * 24 * 60 * 60)).await?);
-        
+        let time_series_db =
+            Arc::new(TimeSeriesDB::new(Duration::from_secs(30 * 24 * 60 * 60)).await?);
+
         Ok(Self {
             analysis_window,
             time_series_db,
@@ -632,13 +633,13 @@ impl AnalyticsEngine {
     pub async fn start(&self) -> Result<()> {
         let mut running = self.is_running.write().await;
         *running = true;
-        
+
         // Initialize ML models
         self.initialize_ml_models().await?;
-        
+
         // Start analysis loop
         self.start_analysis_loop().await?;
-        
+
         tracing::info!("Analytics Engine started successfully");
         Ok(())
     }
@@ -647,7 +648,7 @@ impl AnalyticsEngine {
     pub async fn stop(&self) -> Result<()> {
         let mut running = self.is_running.write().await;
         *running = false;
-        
+
         tracing::info!("Analytics Engine stopped");
         Ok(())
     }
@@ -658,7 +659,7 @@ impl AnalyticsEngine {
         {
             let mut pattern_detector = self.pattern_detector.write().await;
             pattern_detector.pattern_buffer.push_back(metrics.clone());
-            
+
             // Keep only recent data
             if pattern_detector.pattern_buffer.len() > 1000 {
                 pattern_detector.pattern_buffer.pop_front();
@@ -683,17 +684,21 @@ impl AnalyticsEngine {
     /// Get current performance trends
     pub async fn get_performance_trends(&self) -> Result<Vec<PerformanceTrend>> {
         let cache = self.insight_cache.read().await;
-        
-        Ok(cache.trend_summaries.iter().map(|summary| {
-            PerformanceTrend {
-                metric_name: summary.metric_name.clone(),
-                trend_direction: summary.trend_direction.clone(),
-                trend_strength: summary.trend_strength,
-                confidence: summary.forecast_accuracy,
-                prediction_window: self.analysis_window,
-                predicted_values: vec![], // Would be populated with actual predictions
-            }
-        }).collect())
+
+        Ok(cache
+            .trend_summaries
+            .iter()
+            .map(|summary| {
+                PerformanceTrend {
+                    metric_name: summary.metric_name.clone(),
+                    trend_direction: summary.trend_direction.clone(),
+                    trend_strength: summary.trend_strength,
+                    confidence: summary.forecast_accuracy,
+                    prediction_window: self.analysis_window,
+                    predicted_values: vec![], // Would be populated with actual predictions
+                }
+            })
+            .collect())
     }
 
     /// Generate comprehensive insights report
@@ -718,7 +723,9 @@ impl AnalyticsEngine {
         // Analyze different aspects
         let performance_insights = self.analyze_performance_insights(&historical_data).await?;
         let usage_patterns = self.analyze_usage_patterns(&historical_data).await?;
-        let optimization_opportunities = self.identify_optimization_opportunities(&historical_data).await?;
+        let optimization_opportunities = self
+            .identify_optimization_opportunities(&historical_data)
+            .await?;
         let predictive_alerts = self.generate_predictive_analysis(&historical_data).await?;
 
         // Cache the insights
@@ -744,16 +751,24 @@ impl AnalyticsEngine {
     }
 
     /// Get optimization recommendations
-    pub async fn get_optimization_recommendations(&self) -> Result<Vec<OptimizationRecommendation>> {
+    pub async fn get_optimization_recommendations(
+        &self,
+    ) -> Result<Vec<OptimizationRecommendation>> {
         let cache = self.insight_cache.read().await;
-        
-        Ok(cache.optimization_opportunities.iter().map(|opportunity| {
-            OptimizationRecommendation {
+
+        Ok(cache
+            .optimization_opportunities
+            .iter()
+            .map(|opportunity| OptimizationRecommendation {
                 id: opportunity.id,
                 priority: match opportunity.priority {
-                    OpportunityPriority::Critical => crate::monitoring::RecommendationPriority::Critical,
+                    OpportunityPriority::Critical => {
+                        crate::monitoring::RecommendationPriority::Critical
+                    }
                     OpportunityPriority::High => crate::monitoring::RecommendationPriority::High,
-                    OpportunityPriority::Medium => crate::monitoring::RecommendationPriority::Medium,
+                    OpportunityPriority::Medium => {
+                        crate::monitoring::RecommendationPriority::Medium
+                    }
                     OpportunityPriority::Low => crate::monitoring::RecommendationPriority::Low,
                 },
                 category: crate::monitoring::RecommendationCategory::Performance,
@@ -783,49 +798,57 @@ impl AnalyticsEngine {
                 ],
                 success_metrics: opportunity.success_metrics.clone(),
                 automated_fix_available: opportunity.automated_fix_available,
-            }
-        }).collect())
+            })
+            .collect())
     }
 
     // Private implementation methods
     async fn initialize_ml_models(&self) -> Result<()> {
         // Initialize and train ML models
         let mut models = self.ml_models.write().await;
-        
+
         // Set up performance model
-        models.performance_model.parameters.insert("n_estimators".to_string(), 100.0);
-        models.performance_model.parameters.insert("max_depth".to_string(), 10.0);
-        
+        models
+            .performance_model
+            .parameters
+            .insert("n_estimators".to_string(), 100.0);
+        models
+            .performance_model
+            .parameters
+            .insert("max_depth".to_string(), 10.0);
+
         // Set up anomaly model
         models.anomaly_model.sensitivity = 0.8;
         models.anomaly_model.threshold = 0.1;
-        
+
         // Initialize trend model
         models.trend_model.coefficients = vec![0.1, 0.2, 0.3];
         models.trend_model.r_squared = 0.85;
-        
+
         models.last_trained = Utc::now();
-        
+
         Ok(())
     }
 
     async fn start_analysis_loop(&self) -> Result<()> {
         let insight_cache = self.insight_cache.clone();
         let analysis_window = self.analysis_window;
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(300)); // 5 minutes
-            
+
             loop {
                 interval.tick().await;
-                
+
                 // Perform periodic analysis
-                if let Err(e) = Self::perform_periodic_analysis(&insight_cache, analysis_window).await {
+                if let Err(e) =
+                    Self::perform_periodic_analysis(&insight_cache, analysis_window).await
+                {
                     tracing::error!("Error in periodic analysis: {}", e);
                 }
             }
         });
-        
+
         Ok(())
     }
 
@@ -836,25 +859,39 @@ impl AnalyticsEngine {
         // Perform periodic analysis and update cache
         let mut cache = insight_cache.write().await;
         cache.last_analysis = Utc::now();
-        
+
         // This would contain actual analysis logic
         tracing::debug!("Performed periodic analysis");
-        
+
         Ok(())
     }
 
     async fn detect_real_time_anomalies(&self, metrics: &SystemMetrics) -> Result<()> {
         let anomaly_detector = self.anomaly_detector.read().await;
-        
+
         // Check for anomalies in key metrics
-        let cpu_anomaly = self.check_metric_anomaly("cpu_usage", metrics.cpu_usage_percent, &anomaly_detector).await?;
-        let memory_anomaly = self.check_metric_anomaly("memory_usage", metrics.memory_usage_mb as f64, &anomaly_detector).await?;
-        let response_time_anomaly = self.check_metric_anomaly("response_time", metrics.avg_response_time_ms, &anomaly_detector).await?;
-        
+        let cpu_anomaly = self
+            .check_metric_anomaly("cpu_usage", metrics.cpu_usage_percent, &anomaly_detector)
+            .await?;
+        let memory_anomaly = self
+            .check_metric_anomaly(
+                "memory_usage",
+                metrics.memory_usage_mb as f64,
+                &anomaly_detector,
+            )
+            .await?;
+        let response_time_anomaly = self
+            .check_metric_anomaly(
+                "response_time",
+                metrics.avg_response_time_ms,
+                &anomaly_detector,
+            )
+            .await?;
+
         if cpu_anomaly || memory_anomaly || response_time_anomaly {
             tracing::warn!("Anomaly detected in system metrics");
         }
-        
+
         Ok(())
     }
 
@@ -871,29 +908,37 @@ impl AnalyticsEngine {
             "response_time" => 500.0,
             _ => 0.0,
         };
-        
+
         let threshold = baseline * 2.0; // 2x baseline is anomalous
         Ok(current_value > threshold)
     }
 
     async fn update_trend_analysis(&self, metrics: &SystemMetrics) -> Result<()> {
         let mut trend_analyzer = self.trend_analyzer.write().await;
-        
+
         // Update correlation matrix
         trend_analyzer.correlation_matrix.insert(
             "cpu_memory".to_string(),
             HashMap::from([
                 ("correlation".to_string(), 0.7),
                 ("significance".to_string(), 0.95),
-            ])
+            ]),
         );
-        
+
         // Calculate trends for key metrics
-        let cpu_trend = self.calculate_metric_trend("cpu_usage", metrics.cpu_usage_percent).await?;
-        let memory_trend = self.calculate_metric_trend("memory_usage", metrics.memory_usage_mb as f64).await?;
-        
-        tracing::debug!("Updated trend analysis: CPU={:.2}, Memory={:.2}", cpu_trend, memory_trend);
-        
+        let cpu_trend = self
+            .calculate_metric_trend("cpu_usage", metrics.cpu_usage_percent)
+            .await?;
+        let memory_trend = self
+            .calculate_metric_trend("memory_usage", metrics.memory_usage_mb as f64)
+            .await?;
+
+        tracing::debug!(
+            "Updated trend analysis: CPU={:.2}, Memory={:.2}",
+            cpu_trend,
+            memory_trend
+        );
+
         Ok(())
     }
 
@@ -905,60 +950,63 @@ impl AnalyticsEngine {
 
     async fn detect_new_patterns(&self) -> Result<()> {
         let pattern_detector = self.pattern_detector.read().await;
-        
+
         if pattern_detector.pattern_buffer.len() >= pattern_detector.min_pattern_length {
             // Analyze patterns in the buffer
-            let patterns = self.analyze_patterns(&pattern_detector.pattern_buffer).await?;
-            
+            let patterns = self
+                .analyze_patterns(&pattern_detector.pattern_buffer)
+                .await?;
+
             if !patterns.is_empty() {
                 tracing::info!("Detected {} new patterns", patterns.len());
             }
         }
-        
+
         Ok(())
     }
 
-    async fn analyze_patterns(&self, _metrics_buffer: &VecDeque<SystemMetrics>) -> Result<Vec<UsagePattern>> {
+    async fn analyze_patterns(
+        &self,
+        _metrics_buffer: &VecDeque<SystemMetrics>,
+    ) -> Result<Vec<UsagePattern>> {
         // Simplified pattern analysis
-        Ok(vec![
-            UsagePattern {
-                id: Uuid::new_v4(),
-                pattern_type: PatternType::Cyclical,
-                description: "Daily usage cycle detected".to_string(),
-                frequency: 24.0, // 24 hours
-                strength: 0.8,
-                user_segments: vec!["regular_users".to_string()],
-                time_periods: vec![TimePeriod {
-                    start_hour: 9,
-                    end_hour: 17,
-                    days_of_week: vec![1, 2, 3, 4, 5],
-                    frequency: 0.9,
-                }],
-                metrics_data: HashMap::new(),
-                statistical_significance: 0.95,
-                business_impact: BusinessImpact {
-                    revenue_impact: 0.15,
-                    user_satisfaction_impact: 0.1,
-                    operational_cost_impact: -0.05,
-                    strategic_importance: 0.2,
-                    competitive_advantage: 0.1,
-                },
-                detected_at: Utc::now(),
-            }
-        ])
+        Ok(vec![UsagePattern {
+            id: Uuid::new_v4(),
+            pattern_type: PatternType::Cyclical,
+            description: "Daily usage cycle detected".to_string(),
+            frequency: 24.0, // 24 hours
+            strength: 0.8,
+            user_segments: vec!["regular_users".to_string()],
+            time_periods: vec![TimePeriod {
+                start_hour: 9,
+                end_hour: 17,
+                days_of_week: vec![1, 2, 3, 4, 5],
+                frequency: 0.9,
+            }],
+            metrics_data: HashMap::new(),
+            statistical_significance: 0.95,
+            business_impact: BusinessImpact {
+                revenue_impact: 0.15,
+                user_satisfaction_impact: 0.1,
+                operational_cost_impact: -0.05,
+                strategic_importance: 0.2,
+                competitive_advantage: 0.1,
+            },
+            detected_at: Utc::now(),
+        }])
     }
 
     async fn generate_predictive_alerts(&self, metrics: &SystemMetrics) -> Result<()> {
         let predictor = self.performance_predictor.read().await;
-        
+
         // Predict potential issues
         let capacity_alert = self.predict_capacity_issues(metrics, &predictor).await?;
         let performance_alert = self.predict_performance_issues(metrics, &predictor).await?;
-        
+
         if capacity_alert || performance_alert {
             tracing::warn!("Predictive alert generated");
         }
-        
+
         Ok(())
     }
 
@@ -970,7 +1018,7 @@ impl AnalyticsEngine {
         // Simplified capacity prediction
         let storage_utilization = metrics.disk_usage_gb as f64 / 1000.0; // Assume 1TB total
         let memory_utilization = metrics.memory_usage_mb as f64 / 16384.0; // Assume 16GB total
-        
+
         Ok(storage_utilization > 0.8 || memory_utilization > 0.85)
     }
 
@@ -983,161 +1031,169 @@ impl AnalyticsEngine {
         let cpu_high = metrics.cpu_usage_percent > 80.0;
         let response_slow = metrics.avg_response_time_ms > 1000.0;
         let success_low = metrics.success_rate < 0.95;
-        
+
         Ok(cpu_high || response_slow || success_low)
     }
 
-    async fn analyze_performance_insights(&self, _data: &TimeSeriesData) -> Result<Vec<PerformanceInsight>> {
-        Ok(vec![
-            PerformanceInsight {
-                id: Uuid::new_v4(),
-                category: InsightCategory::Performance,
-                severity: InsightSeverity::High,
-                title: "Response Time Degradation Pattern".to_string(),
-                description: "Response times show increasing trend during peak hours".to_string(),
-                metrics_involved: vec!["avg_response_time_ms".to_string(), "active_connections".to_string()],
-                confidence_score: 0.87,
-                impact_assessment: ImpactAssessment {
-                    performance_impact: 0.3,
-                    user_impact: 0.4,
-                    cost_impact: 0.1,
-                    operational_impact: 0.2,
-                    security_impact: 0.0,
-                    overall_score: 0.25,
-                },
-                time_range: (Utc::now() - Duration::from_secs(3600), Utc::now()),
-                correlation_strength: 0.75,
-                actionable_recommendations: vec![
-                    "Implement connection pooling".to_string(),
-                    "Scale horizontally during peak hours".to_string(),
-                    "Optimize database queries".to_string(),
-                ],
-                expected_improvement: 0.35,
-                generated_at: Utc::now(),
-            }
-        ])
+    async fn analyze_performance_insights(
+        &self,
+        _data: &TimeSeriesData,
+    ) -> Result<Vec<PerformanceInsight>> {
+        Ok(vec![PerformanceInsight {
+            id: Uuid::new_v4(),
+            category: InsightCategory::Performance,
+            severity: InsightSeverity::High,
+            title: "Response Time Degradation Pattern".to_string(),
+            description: "Response times show increasing trend during peak hours".to_string(),
+            metrics_involved: vec![
+                "avg_response_time_ms".to_string(),
+                "active_connections".to_string(),
+            ],
+            confidence_score: 0.87,
+            impact_assessment: ImpactAssessment {
+                performance_impact: 0.3,
+                user_impact: 0.4,
+                cost_impact: 0.1,
+                operational_impact: 0.2,
+                security_impact: 0.0,
+                overall_score: 0.25,
+            },
+            time_range: (Utc::now() - Duration::from_secs(3600), Utc::now()),
+            correlation_strength: 0.75,
+            actionable_recommendations: vec![
+                "Implement connection pooling".to_string(),
+                "Scale horizontally during peak hours".to_string(),
+                "Optimize database queries".to_string(),
+            ],
+            expected_improvement: 0.35,
+            generated_at: Utc::now(),
+        }])
     }
 
     async fn analyze_usage_patterns(&self, _data: &TimeSeriesData) -> Result<Vec<UsagePattern>> {
-        Ok(vec![
-            UsagePattern {
-                id: Uuid::new_v4(),
-                pattern_type: PatternType::Seasonal,
-                description: "Weekly usage pattern with Monday peaks".to_string(),
-                frequency: 7.0, // 7 days
-                strength: 0.9,
-                user_segments: vec!["business_users".to_string()],
-                time_periods: vec![TimePeriod {
-                    start_hour: 8,
-                    end_hour: 10,
-                    days_of_week: vec![1], // Monday
-                    frequency: 0.95,
-                }],
-                metrics_data: HashMap::new(),
-                statistical_significance: 0.98,
-                business_impact: BusinessImpact {
-                    revenue_impact: 0.2,
-                    user_satisfaction_impact: 0.15,
-                    operational_cost_impact: 0.1,
-                    strategic_importance: 0.3,
-                    competitive_advantage: 0.1,
-                },
-                detected_at: Utc::now(),
-            }
-        ])
+        Ok(vec![UsagePattern {
+            id: Uuid::new_v4(),
+            pattern_type: PatternType::Seasonal,
+            description: "Weekly usage pattern with Monday peaks".to_string(),
+            frequency: 7.0, // 7 days
+            strength: 0.9,
+            user_segments: vec!["business_users".to_string()],
+            time_periods: vec![TimePeriod {
+                start_hour: 8,
+                end_hour: 10,
+                days_of_week: vec![1], // Monday
+                frequency: 0.95,
+            }],
+            metrics_data: HashMap::new(),
+            statistical_significance: 0.98,
+            business_impact: BusinessImpact {
+                revenue_impact: 0.2,
+                user_satisfaction_impact: 0.15,
+                operational_cost_impact: 0.1,
+                strategic_importance: 0.3,
+                competitive_advantage: 0.1,
+            },
+            detected_at: Utc::now(),
+        }])
     }
 
-    async fn identify_optimization_opportunities(&self, _data: &TimeSeriesData) -> Result<Vec<OptimizationOpportunity>> {
-        Ok(vec![
-            OptimizationOpportunity {
-                id: Uuid::new_v4(),
-                opportunity_type: OpportunityType::PerformanceImprovement,
-                priority: OpportunityPriority::High,
-                title: "Implement Adaptive Caching Strategy".to_string(),
-                description: "Analysis shows 40% of requests could benefit from intelligent caching".to_string(),
-                current_state: StateMetrics {
-                    performance_score: 0.75,
-                    efficiency_score: 0.65,
-                    reliability_score: 0.9,
-                    user_satisfaction: 0.8,
-                    cost_efficiency: 0.7,
-                    resource_utilization: 0.85,
-                },
-                potential_state: StateMetrics {
-                    performance_score: 0.9,
-                    efficiency_score: 0.85,
-                    reliability_score: 0.95,
-                    user_satisfaction: 0.9,
-                    cost_efficiency: 0.8,
-                    resource_utilization: 0.75,
-                },
-                implementation_effort: EffortLevel::Medium,
-                expected_roi: 0.35,
-                risk_assessment: RiskAssessment {
-                    implementation_risk: 0.3,
-                    performance_risk: 0.2,
-                    security_risk: 0.1,
-                    operational_risk: 0.25,
-                    overall_risk: 0.2,
-                    mitigation_strategies: vec![
-                        "Gradual rollout with monitoring".to_string(),
-                        "Fallback to existing system".to_string(),
-                    ],
-                },
-                dependencies: vec!["Redis cluster setup".to_string()],
-                timeline_estimate: Duration::from_secs(14 * 24 * 60 * 60), // 14 days
-                success_metrics: vec![
-                    "30% improvement in response times".to_string(),
-                    "20% reduction in database load".to_string(),
+    async fn identify_optimization_opportunities(
+        &self,
+        _data: &TimeSeriesData,
+    ) -> Result<Vec<OptimizationOpportunity>> {
+        Ok(vec![OptimizationOpportunity {
+            id: Uuid::new_v4(),
+            opportunity_type: OpportunityType::PerformanceImprovement,
+            priority: OpportunityPriority::High,
+            title: "Implement Adaptive Caching Strategy".to_string(),
+            description: "Analysis shows 40% of requests could benefit from intelligent caching"
+                .to_string(),
+            current_state: StateMetrics {
+                performance_score: 0.75,
+                efficiency_score: 0.65,
+                reliability_score: 0.9,
+                user_satisfaction: 0.8,
+                cost_efficiency: 0.7,
+                resource_utilization: 0.85,
+            },
+            potential_state: StateMetrics {
+                performance_score: 0.9,
+                efficiency_score: 0.85,
+                reliability_score: 0.95,
+                user_satisfaction: 0.9,
+                cost_efficiency: 0.8,
+                resource_utilization: 0.75,
+            },
+            implementation_effort: EffortLevel::Medium,
+            expected_roi: 0.35,
+            risk_assessment: RiskAssessment {
+                implementation_risk: 0.3,
+                performance_risk: 0.2,
+                security_risk: 0.1,
+                operational_risk: 0.25,
+                overall_risk: 0.2,
+                mitigation_strategies: vec![
+                    "Gradual rollout with monitoring".to_string(),
+                    "Fallback to existing system".to_string(),
                 ],
-                automated_fix_available: false,
-                identified_at: Utc::now(),
-            }
-        ])
+            },
+            dependencies: vec!["Redis cluster setup".to_string()],
+            timeline_estimate: Duration::from_secs(14 * 24 * 60 * 60), // 14 days
+            success_metrics: vec![
+                "30% improvement in response times".to_string(),
+                "20% reduction in database load".to_string(),
+            ],
+            automated_fix_available: false,
+            identified_at: Utc::now(),
+        }])
     }
 
-    async fn generate_predictive_analysis(&self, _data: &TimeSeriesData) -> Result<Vec<PredictiveAlert>> {
-        Ok(vec![
-            PredictiveAlert {
-                id: Uuid::new_v4(),
-                alert_type: PredictiveAlertType::CapacityExhaustion,
-                predicted_issue: "Storage capacity expected to reach 90% within 7 days".to_string(),
-                probability: 0.82,
-                time_to_occurrence: Duration::from_secs(7 * 24 * 60 * 60), // 7 days
-                affected_metrics: vec!["disk_usage_gb".to_string(), "storage_efficiency".to_string()],
-                severity_forecast: SeverityForecast {
-                    current_severity: 0.6,
-                    predicted_severity: 0.9,
-                    peak_severity: 0.95,
-                    severity_timeline: vec![
-                        (Utc::now() + Duration::from_secs(24 * 60 * 60), 0.65),
-                        (Utc::now() + Duration::from_secs(3 * 24 * 60 * 60), 0.75),
-                        (Utc::now() + Duration::from_secs(7 * 24 * 60 * 60), 0.9),
-                    ],
-                },
-                prevention_actions: vec![
-                    PreventionAction {
-                        action_type: "Storage Cleanup".to_string(),
-                        description: "Remove old log files and temporary data".to_string(),
-                        effectiveness: 0.7,
-                        implementation_cost: 0.2,
-                        urgency: 0.8,
-                        automated: true,
-                    },
-                    PreventionAction {
-                        action_type: "Capacity Expansion".to_string(),
-                        description: "Add additional storage nodes".to_string(),
-                        effectiveness: 0.95,
-                        implementation_cost: 0.8,
-                        urgency: 0.6,
-                        automated: false,
-                    },
+    async fn generate_predictive_analysis(
+        &self,
+        _data: &TimeSeriesData,
+    ) -> Result<Vec<PredictiveAlert>> {
+        Ok(vec![PredictiveAlert {
+            id: Uuid::new_v4(),
+            alert_type: PredictiveAlertType::CapacityExhaustion,
+            predicted_issue: "Storage capacity expected to reach 90% within 7 days".to_string(),
+            probability: 0.82,
+            time_to_occurrence: Duration::from_secs(7 * 24 * 60 * 60), // 7 days
+            affected_metrics: vec![
+                "disk_usage_gb".to_string(),
+                "storage_efficiency".to_string(),
+            ],
+            severity_forecast: SeverityForecast {
+                current_severity: 0.6,
+                predicted_severity: 0.9,
+                peak_severity: 0.95,
+                severity_timeline: vec![
+                    (Utc::now() + Duration::from_secs(24 * 60 * 60), 0.65),
+                    (Utc::now() + Duration::from_secs(3 * 24 * 60 * 60), 0.75),
+                    (Utc::now() + Duration::from_secs(7 * 24 * 60 * 60), 0.9),
                 ],
-                confidence_interval: (0.75, 0.89),
-                model_accuracy: 0.91,
-                created_at: Utc::now(),
-            }
-        ])
+            },
+            prevention_actions: vec![
+                PreventionAction {
+                    action_type: "Storage Cleanup".to_string(),
+                    description: "Remove old log files and temporary data".to_string(),
+                    effectiveness: 0.7,
+                    implementation_cost: 0.2,
+                    urgency: 0.8,
+                    automated: true,
+                },
+                PreventionAction {
+                    action_type: "Capacity Expansion".to_string(),
+                    description: "Add additional storage nodes".to_string(),
+                    effectiveness: 0.95,
+                    implementation_cost: 0.8,
+                    urgency: 0.6,
+                    automated: false,
+                },
+            ],
+            confidence_interval: (0.75, 0.89),
+            model_accuracy: 0.91,
+            created_at: Utc::now(),
+        }])
     }
 
     async fn generate_executive_summary(&self, _data: &TimeSeriesData) -> Result<ExecutiveSummary> {

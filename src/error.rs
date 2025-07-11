@@ -1,5 +1,5 @@
-use std::fmt;
 use std::error::Error as StdError;
+use std::fmt;
 
 /// Custom error types for the DFS system
 #[derive(Debug)]

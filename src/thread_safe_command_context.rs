@@ -1,18 +1,17 @@
+use anyhow::Result;
+use std::path::PathBuf;
 /// Thread-Safe Command Context
-/// 
+///
 /// This module provides thread-safe command context for actor-based commands
 /// that can be shared across threads without Send/Sync issues.
-
 use std::sync::Arc;
-use std::path::PathBuf;
-use anyhow::Result;
 
 use crate::cli::Cli;
-use crate::key_manager::KeyManager;
 use crate::config::Config;
+use crate::error::DfsResult;
+use crate::key_manager::KeyManager;
 use crate::network_actor::NetworkHandle;
 use crate::thread_safe_database::ThreadSafeDatabaseManager;
-use crate::error::DfsResult;
 
 /// Thread-safe context for actor-based command handlers
 #[derive(Clone, Debug)]
@@ -29,11 +28,11 @@ impl ThreadSafeCommandContext {
     pub async fn new(cli: Cli, key_manager: Arc<KeyManager>, config: Arc<Config>) -> Result<Self> {
         // Create network handle
         let network = Arc::new(NetworkHandle::new(&cli, &config).await?);
-        
+
         // Create thread-safe database manager
         let db_path = crate::database::get_default_db_path()?;
         let database = Arc::new(ThreadSafeDatabaseManager::new(&db_path.to_string_lossy())?);
-        
+
         Ok(ThreadSafeCommandContext {
             cli,
             key_manager,
@@ -42,19 +41,23 @@ impl ThreadSafeCommandContext {
             database,
         })
     }
-    
+
     /// Get network statistics
     pub async fn get_network_stats(&self) -> Result<crate::network_actor::NetworkStats> {
-        self.network.get_network_stats().await
+        self.network
+            .get_network_stats()
+            .await
             .map_err(|e| anyhow::anyhow!(e))
     }
-    
+
     /// Bootstrap the network
     pub async fn bootstrap(&self) -> Result<()> {
-        self.network.bootstrap().await
+        self.network
+            .bootstrap()
+            .await
             .map_err(|e| anyhow::anyhow!(e))
     }
-    
+
     /// Store a file using the actor-based system
     pub async fn store_file(
         &self,
@@ -73,9 +76,10 @@ impl ThreadSafeCommandContext {
             tags,
             self.network.clone(),
             self.database.clone(),
-        ).await
+        )
+        .await
     }
-    
+
     /// Retrieve a file using the actor-based system
     pub async fn retrieve_file(
         &self,
@@ -92,7 +96,8 @@ impl ThreadSafeCommandContext {
             private_key,
             self.network.clone(),
             self.database.clone(),
-        ).await
+        )
+        .await
     }
 }
 

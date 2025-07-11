@@ -9,15 +9,14 @@
 /// - Interactive prompts and confirmations
 /// - Real-time status displays
 /// - Professional-grade CLI experience
-
 use colored::*;
-use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
-use std::time::Duration;
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use std::io::{self, Write};
+use std::time::Duration;
 
 use crate::database::{DatabaseStats, FileEntry};
 use crate::network_diagnostics::{
-    PeerInfo, NetworkHealth, FileDistribution, BandwidthTest, NetworkTopology, DiscoveryResult
+    BandwidthTest, DiscoveryResult, FileDistribution, NetworkHealth, NetworkTopology, PeerInfo,
 };
 
 /// Progress bar manager for file operations
@@ -36,7 +35,7 @@ impl ProgressManager {
                 .progress_chars("#>-"),
         );
         bar.set_message("Uploading");
-        
+
         Self { bar }
     }
 
@@ -50,7 +49,7 @@ impl ProgressManager {
                 .progress_chars("#>-"),
         );
         bar.set_message("Downloading");
-        
+
         Self { bar }
     }
 
@@ -100,7 +99,7 @@ impl MultiOperationProgress {
                 .progress_chars("#>-"),
         );
         pb.set_prefix(name.to_string());
-        
+
         let index = self.operations.len();
         self.operations.push(pb);
         index
@@ -152,12 +151,13 @@ pub fn print_header(title: &str) {
     let width = 80;
     let title_len = title.len();
     let padding = (width - title_len - 2) / 2;
-    
+
     println!();
     println!("{}", "═".repeat(width).bright_cyan());
-    println!("{}{} {}{}", 
-        " ".repeat(padding), 
-        "│".bright_cyan(), 
+    println!(
+        "{}{} {}{}",
+        " ".repeat(padding),
+        "│".bright_cyan(),
         title.bold().bright_white(),
         " ".repeat(width - padding - title_len - 2)
     );
@@ -184,7 +184,7 @@ pub fn print_operation_status(operation: &str, status: &str, details: Option<&st
     };
 
     let status_text = format!("{} {}", icon, operation).color(color).bold();
-    
+
     if let Some(details) = details {
         println!("  {} {}", status_text, details.dimmed());
     } else {
@@ -195,7 +195,8 @@ pub fn print_operation_status(operation: &str, status: &str, details: Option<&st
 /// Display a step in a process
 pub fn print_step(step_num: usize, total_steps: usize, description: &str) {
     let progress = format!("[{}/{}]", step_num, total_steps);
-    println!("  {} {} {}", 
+    println!(
+        "  {} {} {}",
         progress.bright_cyan().bold(),
         "→".bright_blue(),
         description
@@ -204,16 +205,13 @@ pub fn print_step(step_num: usize, total_steps: usize, description: &str) {
 
 /// Display key-value information in a formatted way
 pub fn print_key_value(key: &str, value: &str) {
-    println!("  {}: {}", 
-        key.bold().bright_white(), 
-        value.bright_green()
-    );
+    println!("  {}: {}", key.bold().bright_white(), value.bright_green());
 }
 
 /// Display a list of items with bullets
 pub fn print_list_item(item: &str, sub_items: Option<&[&str]>) {
     println!("  {} {}", "•".bright_blue(), item);
-    
+
     if let Some(sub_items) = sub_items {
         for sub_item in sub_items {
             println!("    {} {}", "◦".bright_cyan(), sub_item.dimmed());
@@ -229,7 +227,7 @@ pub fn print_table(headers: &[&str], rows: &[Vec<String>]) {
 
     // Calculate column widths
     let mut col_widths: Vec<usize> = headers.iter().map(|h| h.len()).collect();
-    
+
     for row in rows {
         for (i, cell) in row.iter().enumerate() {
             if i < col_widths.len() {
@@ -241,7 +239,11 @@ pub fn print_table(headers: &[&str], rows: &[Vec<String>]) {
     // Print header
     print!("  ");
     for (i, header) in headers.iter().enumerate() {
-        print!("{:<width$}", header.bold().bright_cyan(), width = col_widths[i] + 2);
+        print!(
+            "{:<width$}",
+            header.bold().bright_cyan(),
+            width = col_widths[i] + 2
+        );
     }
     println!();
 
@@ -272,7 +274,7 @@ pub fn create_spinner(message: &str) -> ProgressBar {
         ProgressStyle::default_spinner()
             .template("{spinner:.green} {msg}")
             .unwrap()
-            .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
+            .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]),
     );
     spinner.set_message(message.to_string());
     spinner.enable_steady_tick(Duration::from_millis(100));
@@ -282,27 +284,48 @@ pub fn create_spinner(message: &str) -> ProgressBar {
 /// Display network connection status
 pub fn print_network_status(connected_peers: usize, bootstrap_connected: bool) {
     print_section("Network Status");
-    
+
     print_operation_status(
-        "Peer Connections", 
-        if connected_peers > 0 { "Connected" } else { "Searching" },
-        Some(&format!("{} peers connected", connected_peers))
+        "Peer Connections",
+        if connected_peers > 0 {
+            "Connected"
+        } else {
+            "Searching"
+        },
+        Some(&format!("{} peers connected", connected_peers)),
     );
-    
-    let bootstrap_status = if bootstrap_connected { "Connected" } else { "Disconnected" };
+
+    let bootstrap_status = if bootstrap_connected {
+        "Connected"
+    } else {
+        "Disconnected"
+    };
     print_operation_status("Bootstrap Node", bootstrap_status, None);
 }
 
 /// Display file operation summary
-pub fn print_file_operation_summary(operation: &str, files_processed: usize, total_files: usize, 
-                                   duration: Duration, errors: usize) {
+pub fn print_file_operation_summary(
+    operation: &str,
+    files_processed: usize,
+    total_files: usize,
+    duration: Duration,
+    errors: usize,
+) {
     print_section(&format!("{} Summary", operation));
-    
-    print_key_value("Files Processed", &format!("{}/{}", files_processed, total_files));
-    print_key_value("Success Rate", &format!("{:.1}%", 
-        (files_processed - errors) as f64 / total_files as f64 * 100.0));
+
+    print_key_value(
+        "Files Processed",
+        &format!("{}/{}", files_processed, total_files),
+    );
+    print_key_value(
+        "Success Rate",
+        &format!(
+            "{:.1}%",
+            (files_processed - errors) as f64 / total_files as f64 * 100.0
+        ),
+    );
     print_key_value("Duration", &format_duration(duration));
-    
+
     if errors > 0 {
         print_key_value("Errors", &errors.to_string());
     }
@@ -312,19 +335,19 @@ pub fn print_file_operation_summary(operation: &str, files_processed: usize, tot
 pub fn format_file_size(size: u64) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
     const THRESHOLD: f64 = 1024.0;
-    
+
     if size == 0 {
         return "0 B".to_string();
     }
-    
+
     let mut size_f = size as f64;
     let mut unit_index = 0;
-    
+
     while size_f >= THRESHOLD && unit_index < UNITS.len() - 1 {
         size_f /= THRESHOLD;
         unit_index += 1;
     }
-    
+
     if unit_index == 0 {
         format!("{} {}", size, UNITS[unit_index])
     } else {
@@ -375,7 +398,7 @@ pub fn print_file_list(files: &[FileEntry]) {
 
     println!("{}", "📋 Your Files:".bold().cyan());
     println!();
-    
+
     for file in files {
         let health_indicator = if file.chunks_healthy == file.chunks_total {
             "✅".green()
@@ -384,7 +407,7 @@ pub fn print_file_list(files: &[FileEntry]) {
         } else {
             "❌".red()
         };
-        
+
         let size_str = format_file_size(file.file_size);
         let age = chrono::Local::now().signed_duration_since(file.upload_time);
         let age_str = if age.num_days() > 0 {
@@ -396,15 +419,34 @@ pub fn print_file_list(files: &[FileEntry]) {
         } else {
             "just now".to_string()
         };
-        
-        println!("  {} {} ({})", health_indicator, file.name.bold(), file.original_filename.dimmed());
-        println!("    {} • {} • {}", size_str, age_str, format!("{}% healthy", (file.chunks_healthy * 100 / file.chunks_total)).dimmed());
-        
+
+        println!(
+            "  {} {} ({})",
+            health_indicator,
+            file.name.bold(),
+            file.original_filename.dimmed()
+        );
+        println!(
+            "    {} • {} • {}",
+            size_str,
+            age_str,
+            format!(
+                "{}% healthy",
+                (file.chunks_healthy * 100 / file.chunks_total)
+            )
+            .dimmed()
+        );
+
         if !file.tags.is_empty() {
-            let tags_str = file.tags.iter().map(|t| format!("#{}", t)).collect::<Vec<_>>().join(" ");
+            let tags_str = file
+                .tags
+                .iter()
+                .map(|t| format!("#{}", t))
+                .collect::<Vec<_>>()
+                .join(" ");
             println!("    {}", tags_str.dimmed());
         }
-        
+
         println!();
     }
 }
@@ -414,17 +456,22 @@ pub fn print_file_info(file: &FileEntry) {
     println!("{}", format!("📄 {}", file.name).bold().cyan());
     println!("├─ Original: {}", file.original_filename);
     println!("├─ Size: {}", format_file_size(file.file_size));
-    println!("├─ Uploaded: {}", file.upload_time.format("%Y-%m-%d %H:%M:%S"));
-    println!("├─ Health: {}/{} chunks ({}%)", 
-             file.chunks_healthy, 
-             file.chunks_total,
-             file.chunks_healthy * 100 / file.chunks_total);
+    println!(
+        "├─ Uploaded: {}",
+        file.upload_time.format("%Y-%m-%d %H:%M:%S")
+    );
+    println!(
+        "├─ Health: {}/{} chunks ({}%)",
+        file.chunks_healthy,
+        file.chunks_total,
+        file.chunks_healthy * 100 / file.chunks_total
+    );
     println!("├─ Key: {}", file.file_key.dimmed());
-    
+
     if !file.tags.is_empty() {
         println!("├─ Tags: {}", file.tags.join(", "));
     }
-    
+
     let health_status = if file.chunks_healthy == file.chunks_total {
         "✅ Fully redundant".green()
     } else if file.chunks_healthy >= 4 {
@@ -432,7 +479,7 @@ pub fn print_file_info(file: &FileEntry) {
     } else {
         "❌ At risk".red()
     };
-    
+
     println!("└─ Status: {}", health_status);
 }
 
@@ -447,7 +494,7 @@ pub fn print_database_stats(stats: &DatabaseStats) {
 /// Print a formatted error with suggestions
 pub fn print_error_with_suggestions(error: &str, suggestions: &[&str]) {
     print_error(error);
-    
+
     if !suggestions.is_empty() {
         println!("{}", "💡 Suggestions:".bold().yellow());
         for suggestion in suggestions {
@@ -457,14 +504,18 @@ pub fn print_error_with_suggestions(error: &str, suggestions: &[&str]) {
 }
 
 /// Print detailed network status with peer information
-pub fn print_detailed_network_status(peer_id: &str, listening_addresses: &[String], connected_peers: usize) {
+pub fn print_detailed_network_status(
+    peer_id: &str,
+    listening_addresses: &[String],
+    connected_peers: usize,
+) {
     println!("{}", "🌐 Network Status".bold().cyan());
     println!("├─ Peer ID: {}", peer_id.dimmed());
     println!("├─ Listening on:");
     for addr in listening_addresses {
         println!("│  └─ {}", addr.dimmed());
     }
-    
+
     let connection_status = if connected_peers == 0 {
         "❌ Disconnected".red()
     } else if connected_peers < 3 {
@@ -472,8 +523,11 @@ pub fn print_detailed_network_status(peer_id: &str, listening_addresses: &[Strin
     } else {
         "✅ Well connected".green()
     };
-    
-    println!("└─ Connected peers: {} ({})", connected_peers, connection_status);
+
+    println!(
+        "└─ Connected peers: {} ({})",
+        connected_peers, connection_status
+    );
 }
 
 /// Print connection status indicator
@@ -485,7 +539,7 @@ pub fn print_connection_status(connected_peers: usize) {
     } else {
         format!("✅ {} peers", connected_peers).green()
     };
-    
+
     println!("Network: {}", status);
 }
 
@@ -502,21 +556,66 @@ pub fn print_interactive_welcome(peer_id: &str, public_key: &str) {
     println!("Public Key: {}...", &public_key[..16].dimmed());
     println!();
     println!("{}", "Available Commands:".bold());
-    println!("  {} <file> [--name <alias>] [--tags <tag1,tag2>] - Store a file", "put".bold().green());
-    println!("  {} <name|key> <output>                          - Retrieve a file", "get".bold().green());
-    println!("  {} [--tags <tag>]                               - List your files", "list".bold().green());
-    println!("  {} <name|key>                                   - Show file details", "info".bold().green());
-    println!("  {}                                              - Show available keys", "keys".bold().green());
-    println!("  {}                                              - Show storage statistics", "stats".bold().green());
-    println!("  {}                                             - Show network status", "status".bold().green());
-    println!("  {} [--detailed]                                - Show connected peers", "peers".bold().cyan());
-    println!("  {} [--continuous] [--interval <sec>]           - Monitor network health", "health".bold().cyan());
-    println!("  {} [--depth <n>] [--visualize]                 - Analyze network topology", "network".bold().cyan());
-    println!("  {} [--timeout <sec>] [--bootstrap-all]         - Discover new peers", "discover".bold().cyan());
-    println!("  {} [--file-key <key>] [--public-key <key>]     - Analyze file distribution", "distribution".bold().cyan());
-    println!("  {} [--test-peer <id>] [--duration <sec>]       - Test network bandwidth", "bandwidth".bold().cyan());
-    println!("  {}                                              - Show this help", "help".bold().green());
-    println!("  {}                                              - Exit", "quit".bold().green());
+    println!(
+        "  {} <file> [--name <alias>] [--tags <tag1,tag2>] - Store a file",
+        "put".bold().green()
+    );
+    println!(
+        "  {} <name|key> <output>                          - Retrieve a file",
+        "get".bold().green()
+    );
+    println!(
+        "  {} [--tags <tag>]                               - List your files",
+        "list".bold().green()
+    );
+    println!(
+        "  {} <name|key>                                   - Show file details",
+        "info".bold().green()
+    );
+    println!(
+        "  {}                                              - Show available keys",
+        "keys".bold().green()
+    );
+    println!(
+        "  {}                                              - Show storage statistics",
+        "stats".bold().green()
+    );
+    println!(
+        "  {}                                             - Show network status",
+        "status".bold().green()
+    );
+    println!(
+        "  {} [--detailed]                                - Show connected peers",
+        "peers".bold().cyan()
+    );
+    println!(
+        "  {} [--continuous] [--interval <sec>]           - Monitor network health",
+        "health".bold().cyan()
+    );
+    println!(
+        "  {} [--depth <n>] [--visualize]                 - Analyze network topology",
+        "network".bold().cyan()
+    );
+    println!(
+        "  {} [--timeout <sec>] [--bootstrap-all]         - Discover new peers",
+        "discover".bold().cyan()
+    );
+    println!(
+        "  {} [--file-key <key>] [--public-key <key>]     - Analyze file distribution",
+        "distribution".bold().cyan()
+    );
+    println!(
+        "  {} [--test-peer <id>] [--duration <sec>]       - Test network bandwidth",
+        "bandwidth".bold().cyan()
+    );
+    println!(
+        "  {}                                              - Show this help",
+        "help".bold().green()
+    );
+    println!(
+        "  {}                                              - Exit",
+        "quit".bold().green()
+    );
     println!();
     println!("{}", "Enter commands below:".dimmed());
     print_separator();
@@ -547,18 +646,20 @@ pub fn print_progress(current: usize, total: usize, operation: &str) {
     let bar_length = 20;
     let filled = (current * bar_length / total).min(bar_length);
     let empty = bar_length - filled;
-    
-    let bar = format!("{}{}",
+
+    let bar = format!(
+        "{}{}",
         "█".repeat(filled).green(),
         "░".repeat(empty).dimmed()
     );
-    
-    println!("{} {} [{}] {}% ({}/{})", 
-        "🔄".cyan(), 
-        operation, 
-        bar, 
-        percentage, 
-        current, 
+
+    println!(
+        "{} {} [{}] {}% ({}/{})",
+        "🔄".cyan(),
+        operation,
+        bar,
+        percentage,
+        current,
         total
     );
 }
@@ -597,7 +698,7 @@ pub fn print_peer_table(peers: &[PeerInfo], detailed: bool) {
 
     println!("{}", "👥 Connected Peers".bold().cyan());
     print_separator();
-    
+
     if detailed {
         for peer in peers {
             println!("Peer: {}", peer.peer_id.bold());
@@ -605,20 +706,27 @@ pub fn print_peer_table(peers: &[PeerInfo], detailed: bool) {
             for addr in &peer.addresses {
                 println!("│  └─ {}", addr.dimmed());
             }
-            println!("├─ Connected: {} ({})", 
-                     peer.connected_at.format("%Y-%m-%d %H:%M:%S"),
-                     format_duration(peer.connection_duration));
-            println!("├─ Operations: {} successful, {} failed", 
-                     peer.successful_ops, peer.failed_ops);
+            println!(
+                "├─ Connected: {} ({})",
+                peer.connected_at.format("%Y-%m-%d %H:%M:%S"),
+                format_duration(peer.connection_duration)
+            );
+            println!(
+                "├─ Operations: {} successful, {} failed",
+                peer.successful_ops, peer.failed_ops
+            );
             println!("├─ Avg Response: {}ms", peer.avg_response_time);
-            println!("├─ Last Seen: {}", peer.last_seen.format("%Y-%m-%d %H:%M:%S"));
+            println!(
+                "├─ Last Seen: {}",
+                peer.last_seen.format("%Y-%m-%d %H:%M:%S")
+            );
             println!("└─ Reputation: {}%", peer.reputation);
             println!();
         }
     } else {
         println!("{:<52} {:<10} {:<8}", "Peer ID", "Duration", "Status");
         println!("{}", "─".repeat(80).dimmed());
-        
+
         for peer in peers {
             let duration_str = format_duration(peer.connection_duration);
             let status = if peer.reputation >= 80 {
@@ -628,11 +736,13 @@ pub fn print_peer_table(peers: &[PeerInfo], detailed: bool) {
             } else {
                 "❌ Poor".red()
             };
-            
-            println!("{:<52} {:<10} {}", 
-                     peer.peer_id.dimmed(),
-                     duration_str,
-                     status);
+
+            println!(
+                "{:<52} {:<10} {}",
+                peer.peer_id.dimmed(),
+                duration_str,
+                status
+            );
         }
     }
 }
@@ -641,7 +751,7 @@ pub fn print_peer_table(peers: &[PeerInfo], detailed: bool) {
 pub fn print_network_health(health: &NetworkHealth) {
     println!("{}", "🏥 Network Health".bold().cyan());
     print_separator();
-    
+
     let peer_status = if health.connected_peers >= 5 {
         "✅ Excellent".green()
     } else if health.connected_peers >= 3 {
@@ -651,16 +761,20 @@ pub fn print_network_health(health: &NetworkHealth) {
     } else {
         "❌ Isolated".red()
     };
-    
-    println!("Connected Peers: {} ({})", health.connected_peers, peer_status);
+
+    println!(
+        "Connected Peers: {} ({})",
+        health.connected_peers, peer_status
+    );
     println!("Bootstrap Peers: {}", health.active_bootstrap_peers);
     println!("Routing Table: {} entries", health.routing_table_size);
     println!("Avg Response: {}ms", health.avg_response_time);
     println!("Uptime: {:.1}%", health.uptime_percentage);
-    println!("Operations (1h): {} successful, {} failed", 
-             health.successful_ops_last_hour,
-             health.failed_ops_last_hour);
-    
+    println!(
+        "Operations (1h): {} successful, {} failed",
+        health.successful_ops_last_hour, health.failed_ops_last_hour
+    );
+
     let stability_status = if health.stability_score >= 90 {
         "✅ Excellent".green()
     } else if health.stability_score >= 70 {
@@ -668,30 +782,34 @@ pub fn print_network_health(health: &NetworkHealth) {
     } else {
         "❌ Poor".red()
     };
-    
-    println!("Stability: {}% ({})", health.stability_score, stability_status);
+
+    println!(
+        "Stability: {}% ({})",
+        health.stability_score, stability_status
+    );
 }
 
 /// Print file distribution information
 pub fn print_file_distribution(distribution: &FileDistribution) {
     println!("{}", "📊 File Distribution".bold().cyan());
     print_separator();
-    
+
     println!("File Key: {}", distribution.file_key.dimmed());
     println!("Total Chunks: {}", distribution.total_chunks);
     println!("Available Chunks: {}", distribution.available_chunks);
     println!("Replication Factor: {:.2}", distribution.replication_factor);
-    println!("Fault Tolerance: {} chunks can be lost", distribution.fault_tolerance);
-    
+    println!(
+        "Fault Tolerance: {} chunks can be lost",
+        distribution.fault_tolerance
+    );
+
     if !distribution.chunk_locations.is_empty() {
         println!("\nChunk Locations:");
         for (peer_id, chunks) in &distribution.chunk_locations {
-            println!("  {}: chunks {:?}", 
-                     peer_id.dimmed(),
-                     chunks);
+            println!("  {}: chunks {:?}", peer_id.dimmed(), chunks);
         }
     }
-    
+
     let health_status = if distribution.available_chunks == distribution.total_chunks {
         "✅ Fully Available".green()
     } else if distribution.available_chunks >= 4 {
@@ -699,7 +817,7 @@ pub fn print_file_distribution(distribution: &FileDistribution) {
     } else {
         "❌ At Risk".red()
     };
-    
+
     println!("\nStatus: {}", health_status);
 }
 
@@ -712,10 +830,13 @@ pub fn print_file_distributions(distributions: &[FileDistribution]) {
 
     println!("{}", "📊 File Distribution Summary".bold().cyan());
     print_separator();
-    
-    println!("{:<64} {:<8} {:<8} {:<10}", "File Key", "Chunks", "Avail", "Status");
+
+    println!(
+        "{:<64} {:<8} {:<8} {:<10}",
+        "File Key", "Chunks", "Avail", "Status"
+    );
     println!("{}", "─".repeat(100).dimmed());
-    
+
     for dist in distributions {
         let status = if dist.available_chunks == dist.total_chunks {
             "✅ Full".green()
@@ -724,12 +845,14 @@ pub fn print_file_distributions(distributions: &[FileDistribution]) {
         } else {
             "❌ Risk".red()
         };
-        
-        println!("{:<64} {:<8} {:<8} {}", 
-                 format!("{}...", &dist.file_key[..16]).dimmed(),
-                 dist.total_chunks,
-                 dist.available_chunks,
-                 status);
+
+        println!(
+            "{:<64} {:<8} {:<8} {}",
+            format!("{}...", &dist.file_key[..16]).dimmed(),
+            dist.total_chunks,
+            dist.available_chunks,
+            status
+        );
     }
 }
 
@@ -737,13 +860,13 @@ pub fn print_file_distributions(distributions: &[FileDistribution]) {
 pub fn print_network_topology(topology: &NetworkTopology) {
     println!("{}", "🕸️ Network Topology".bold().cyan());
     print_separator();
-    
+
     println!("Local Peer: {}", topology.local_peer.dimmed());
     println!("Direct Neighbors: {}", topology.neighbors.len());
     println!("Routing Buckets: {}", topology.routing_buckets.len());
     println!("Estimated Diameter: {}", topology.estimated_diameter);
     println!("Total Reachable: {}", topology.total_reachable);
-    
+
     if !topology.neighbors.is_empty() {
         println!("\nDirect Neighbors:");
         for neighbor in &topology.neighbors {
@@ -756,16 +879,28 @@ pub fn print_network_topology(topology: &NetworkTopology) {
 pub fn print_network_visualization(topology: &NetworkTopology) {
     println!("{}", "🎨 Network Visualization".bold().cyan());
     print_separator();
-    
+
     println!("        ┌─ {}", "YOU".bold().green());
     println!("        │");
-    
+
     for (i, neighbor) in topology.neighbors.iter().enumerate() {
-        let connector = if i == topology.neighbors.len() - 1 { "└" } else { "├" };
-        let short_id = if neighbor.len() >= 8 { &neighbor[..8] } else { neighbor };
-        println!("        {}─ {}", connector, format!("{}...", short_id).dimmed());
+        let connector = if i == topology.neighbors.len() - 1 {
+            "└"
+        } else {
+            "├"
+        };
+        let short_id = if neighbor.len() >= 8 {
+            &neighbor[..8]
+        } else {
+            neighbor
+        };
+        println!(
+            "        {}─ {}",
+            connector,
+            format!("{}...", short_id).dimmed()
+        );
     }
-    
+
     if topology.neighbors.is_empty() {
         println!("        └─ {}", "No connections".red());
     }
@@ -775,12 +910,15 @@ pub fn print_network_visualization(topology: &NetworkTopology) {
 pub fn print_discovery_result(result: &DiscoveryResult) {
     println!("{}", "🔍 Peer Discovery Results".bold().cyan());
     print_separator();
-    
+
     println!("New Peers Found: {}", result.new_peers.len());
     println!("Total Discovered: {}", result.total_discovered);
-    println!("Discovery Time: {}", format_duration(result.discovery_duration));
+    println!(
+        "Discovery Time: {}",
+        format_duration(result.discovery_duration)
+    );
     println!("Success Rate: {:.1}%", result.success_rate * 100.0);
-    
+
     if !result.new_peers.is_empty() {
         println!("\nNewly Discovered Peers:");
         for peer in &result.new_peers {
@@ -793,14 +931,17 @@ pub fn print_discovery_result(result: &DiscoveryResult) {
 pub fn print_bandwidth_test(test: &BandwidthTest) {
     println!("{}", "🚀 Bandwidth Test Results".bold().cyan());
     print_separator();
-    
+
     println!("Test Peer: {}", test.peer_id.dimmed());
-    println!("Download Speed: {}/s", format_file_size(test.download_speed));
+    println!(
+        "Download Speed: {}/s",
+        format_file_size(test.download_speed)
+    );
     println!("Upload Speed: {}/s", format_file_size(test.upload_speed));
     println!("Round Trip Time: {}ms", test.rtt);
     println!("Packet Loss: {:.2}%", test.packet_loss);
     println!("Test Duration: {}", format_duration(test.duration));
-    
+
     let quality = if test.rtt < 50 && test.packet_loss < 1.0 {
         "✅ Excellent".green()
     } else if test.rtt < 200 && test.packet_loss < 5.0 {
@@ -808,7 +949,7 @@ pub fn print_bandwidth_test(test: &BandwidthTest) {
     } else {
         "❌ Poor".red()
     };
-    
+
     println!("Connection Quality: {}", quality);
 }
 
@@ -821,16 +962,25 @@ pub fn print_bandwidth_tests(tests: &[BandwidthTest]) {
 
     println!("{}", "🚀 Bandwidth Test Summary".bold().cyan());
     print_separator();
-    
-    println!("{:<52} {:<12} {:<12} {:<8}", "Peer ID", "Download", "Upload", "RTT");
+
+    println!(
+        "{:<52} {:<12} {:<12} {:<8}",
+        "Peer ID", "Download", "Upload", "RTT"
+    );
     println!("{}", "─".repeat(90).dimmed());
-    
+
     for test in tests {
-        let short_id = if test.peer_id.len() >= 8 { &test.peer_id[..8] } else { &test.peer_id };
-        println!("{:<52} {:<12} {:<12} {}ms", 
-                 format!("{}...", short_id).dimmed(),
-                 format_file_size(test.download_speed),
-                 format_file_size(test.upload_speed),
-                 test.rtt);
+        let short_id = if test.peer_id.len() >= 8 {
+            &test.peer_id[..8]
+        } else {
+            &test.peer_id
+        };
+        println!(
+            "{:<52} {:<12} {:<12} {}ms",
+            format!("{}...", short_id).dimmed(),
+            format_file_size(test.download_speed),
+            format_file_size(test.upload_speed),
+            test.rtt
+        );
     }
 }

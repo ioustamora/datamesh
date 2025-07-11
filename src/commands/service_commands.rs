@@ -1,10 +1,10 @@
+use crate::commands::{CommandContext, CommandHandler};
 /// Service operation command handlers
-/// 
+///
 /// This module contains handlers for all service-related operations:
 /// bootstrap, interactive, service
-
 use std::error::Error;
-use crate::commands::{CommandHandler, CommandContext};
+use crate::{config, network};
 
 /// Bootstrap command handler
 #[derive(Debug, Clone)]
@@ -19,8 +19,14 @@ impl CommandHandler for BootstrapCommand {
     }
 
     async fn execute(&self, _context: &CommandContext) -> Result<(), Box<dyn Error>> {
-        println!("Bootstrap command temporarily disabled for refactoring");
-        println!("Please use interactive mode instead");
+        println!("Starting bootstrap node on port {}", self.port);
+        
+        // Load config
+        let config = config::Config::load_or_default(None)?;
+        
+        // Start bootstrap node using traditional network module
+        network::start_bootstrap_node(self.port, &config).await?;
+        
         Ok(())
     }
 }
@@ -66,13 +72,17 @@ impl CommandHandler for ServiceCommand {
     }
 
     async fn execute(&self, _context: &CommandContext) -> Result<(), Box<dyn Error>> {
-        println!("Service command temporarily disabled for refactoring");
-        println!("Bootstrap peer: {}", self.bootstrap_peer);
+        println!("Starting service node on port {}", self.port);
         if let Some(addr) = &self.bootstrap_addr {
             println!("Bootstrap address: {}", addr);
         }
-        println!("Port: {}", self.port);
         println!("Timeout: {}s", self.timeout);
+        
+        // For now, start a basic bootstrap node since this is used for testing
+        // In a real implementation, this would connect to the bootstrap node and run as a service
+        let config = config::Config::load_or_default(None)?;
+        network::start_bootstrap_node(self.port, &config).await?;
+        
         Ok(())
     }
 }

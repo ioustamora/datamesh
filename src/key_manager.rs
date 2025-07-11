@@ -1,3 +1,4 @@
+use crate::secure_random;
 /// Key Management Module
 ///
 /// This module handles cryptographic key management for the DFS application,
@@ -16,7 +17,6 @@ use anyhow::Result;
 use chrono::{DateTime, Local};
 use ecies::{PublicKey, SecretKey};
 use rand::rngs::OsRng;
-use crate::secure_random;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::fs;
@@ -62,43 +62,43 @@ impl KeyManager {
         if let Err(e) = Self::validate_key_strength(&key) {
             eprintln!("⚠️  Warning: Key strength validation failed: {}", e);
         }
-        
+
         let public_key = PublicKey::from_secret_key(&key);
         let integrity_hash = Self::calculate_key_integrity(&key);
-        
+
         let key_info = EciesKeyInfo {
             name,
             created: Local::now(),
             public_key_hex: hex::encode(public_key.serialize()),
             integrity_hash,
         };
-        
+
         Self { key, key_info }
     }
-    
+
     fn calculate_key_integrity(key: &SecretKey) -> String {
         let key_bytes = key.serialize();
         let hash = blake3::hash(&key_bytes);
         hex::encode(hash.as_bytes())
     }
-    
+
     fn validate_key_strength(key: &SecretKey) -> Result<(), String> {
         let key_bytes = key.serialize();
-        
+
         // Check key length
         if key_bytes.len() != 32 {
             return Err("Invalid key length - must be 32 bytes".to_string());
         }
-        
+
         // Check for weak keys (all zeros, all ones, etc.)
         if key_bytes.iter().all(|&x| x == 0) {
             return Err("Weak key detected - all zeros".to_string());
         }
-        
+
         if key_bytes.iter().all(|&x| x == 0xFF) {
             return Err("Weak key detected - all ones".to_string());
         }
-        
+
         // Check for patterns that indicate weak entropy
         let mut pattern_count = 0;
         for i in 0..key_bytes.len() - 1 {
@@ -106,82 +106,85 @@ impl KeyManager {
                 pattern_count += 1;
             }
         }
-        
+
         // If more than 75% of adjacent bytes are the same, it's likely weak
         if pattern_count > (key_bytes.len() * 3) / 4 {
             return Err("Weak key detected - low entropy".to_string());
         }
-        
+
         Ok(())
     }
-    
+
     pub fn save_to_file(&self, keys_dir: &Path) -> Result<(), Box<dyn Error>> {
         fs::create_dir_all(keys_dir)?;
-        
+
         let key_file = keys_dir.join(format!("{}.key", self.key_info.name));
         let info_file = keys_dir.join(format!("{}.info", self.key_info.name));
-        
+
         // Save the secret key (binary format)
         fs::write(&key_file, self.key.serialize())?;
-        
+
         // Save the key info (JSON format)
         let info_json = serde_json::to_string_pretty(&self.key_info)?;
         fs::write(&info_file, info_json)?;
-        
+
         // Set secure file permissions (Unix only)
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            
+
             // Set key file to 600 (read/write for owner only)
             let mut perms = fs::metadata(&key_file)?.permissions();
             perms.set_mode(0o600);
             fs::set_permissions(&key_file, perms)?;
-            
+
             // Set info file to 644 (read/write for owner, read for others)
             let mut perms = fs::metadata(&info_file)?.permissions();
             perms.set_mode(0o644);
             fs::set_permissions(&info_file, perms)?;
         }
-        
+
         println!("Key saved: {}", key_file.display());
         println!("Key info saved: {}", info_file.display());
-        
+
         Ok(())
     }
-    
+
     pub fn load_from_file(keys_dir: &Path, name: &str) -> Result<Self, Box<dyn Error>> {
         let key_file = keys_dir.join(format!("{}.key", name));
         let info_file = keys_dir.join(format!("{}.info", name));
-        
+
         // Load the secret key
         let key_bytes = fs::read(&key_file)?;
         let key = SecretKey::parse_slice(&key_bytes)
             .map_err(|e| anyhow::anyhow!("Failed to parse secret key: {:?}", e))?;
-        
+
         // Load the key info
         let info_json = fs::read_to_string(&info_file)?;
         let key_info: EciesKeyInfo = serde_json::from_str(&info_json)?;
-        
+
         // Verify key integrity
         let calculated_hash = Self::calculate_key_integrity(&key);
         if calculated_hash != key_info.integrity_hash {
-            return Err(anyhow::anyhow!("Key integrity verification failed - key may be corrupted").into());
+            return Err(anyhow::anyhow!(
+                "Key integrity verification failed - key may be corrupted"
+            )
+            .into());
         }
-        
+
         // Validate key strength
         if let Err(e) = Self::validate_key_strength(&key) {
             eprintln!("⚠️  Warning: Loaded key has weak strength: {}", e);
         }
-        
+
         Ok(Self { key, key_info })
     }
-    
+
     pub fn list_keys(keys_dir: &Path) -> Result<Vec<String>, Box<dyn Error>> {
         if !keys_dir.exists() {
             return Ok(Vec::new());
         }
-        
+
         let mut key_names = Vec::new();
         for entry in fs::read_dir(keys_dir)? {
             let entry = entry?;
@@ -198,26 +201,26 @@ impl KeyManager {
                 }
             }
         }
-        
+
         Ok(key_names)
     }
-    
+
     pub fn get_key_info(keys_dir: &Path, name: &str) -> Result<EciesKeyInfo, Box<dyn Error>> {
         let info_file = keys_dir.join(format!("{}.info", name));
         let info_json = fs::read_to_string(&info_file)?;
         let key_info: EciesKeyInfo = serde_json::from_str(&info_json)?;
         Ok(key_info)
     }
-    
+
     /// Securely delete a key file (legacy format)
     pub fn secure_delete_key(&self, keys_dir: &Path) -> Result<(), Box<dyn Error>> {
         let key_file = keys_dir.join(format!("{}.key", self.key_info.name));
         let info_file = keys_dir.join(format!("{}.info", self.key_info.name));
-        
+
         // Secure overwrite key file
         if key_file.exists() {
             let file_size = fs::metadata(&key_file)?.len() as usize;
-            
+
             // Multiple pass secure overwrite
             for pass in 0..3 {
                 let overwrite_data = match pass {
@@ -231,30 +234,28 @@ impl KeyManager {
                     }
                     _ => unreachable!(),
                 };
-                
+
                 fs::write(&key_file, &overwrite_data)?;
-                
+
                 // Force sync to disk
                 #[cfg(unix)]
                 {
                     use std::os::unix::io::AsRawFd;
-                    let file = std::fs::OpenOptions::new()
-                        .write(true)
-                        .open(&key_file)?;
+                    let file = std::fs::OpenOptions::new().write(true).open(&key_file)?;
                     unsafe {
                         libc::fsync(file.as_raw_fd());
                     }
                 }
             }
-            
+
             fs::remove_file(&key_file)?;
         }
-        
+
         // Remove info file
         if info_file.exists() {
             fs::remove_file(&info_file)?;
         }
-        
+
         Ok(())
     }
 }
@@ -270,7 +271,7 @@ pub fn get_default_keys_dir() -> Result<PathBuf, Box<dyn Error>> {
 fn prompt_user_input(prompt: &str) -> Result<String, Box<dyn Error>> {
     print!("{}", prompt);
     io::stdout().flush()?;
-    
+
     let mut input = String::new();
     io::stdin().read_line(&mut input)?;
     Ok(input.trim().to_string())
@@ -318,15 +319,19 @@ pub fn get_decryption_key(
     }
 }
 
-
-pub async fn setup_key_management_with_mode(cli: &Cli, mode: KeySelectionMode) -> Result<KeyManager, Box<dyn Error>> {
-    let keys_dir = cli.keys_dir.clone()
+pub async fn setup_key_management_with_mode(
+    cli: &Cli,
+    mode: KeySelectionMode,
+) -> Result<KeyManager, Box<dyn Error>> {
+    let keys_dir = cli
+        .keys_dir
+        .clone()
         .unwrap_or_else(|| get_default_keys_dir().unwrap_or_else(|_| PathBuf::from("./keys")));
-    
+
     if !matches!(mode, KeySelectionMode::NonInteractive) {
         println!("Using keys directory: {}", keys_dir.display());
     }
-    
+
     // If a specific key name is provided, try to load it
     if let Some(key_name) = &cli.key_name {
         match KeyManager::load_from_file(&keys_dir, key_name) {
@@ -334,7 +339,10 @@ pub async fn setup_key_management_with_mode(cli: &Cli, mode: KeySelectionMode) -
                 if !matches!(mode, KeySelectionMode::NonInteractive) {
                     println!("Loaded existing key: {}", key_name);
                     println!("Public key: {}", key_manager.key_info.public_key_hex);
-                    println!("Created: {}", key_manager.key_info.created.format("%Y-%m-%d %H:%M:%S"));
+                    println!(
+                        "Created: {}",
+                        key_manager.key_info.created.format("%Y-%m-%d %H:%M:%S")
+                    );
                 }
                 return Ok(key_manager);
             }
@@ -352,48 +360,51 @@ pub async fn setup_key_management_with_mode(cli: &Cli, mode: KeySelectionMode) -
             }
         }
     }
-    
+
     // List existing keys
     let available_keys = KeyManager::list_keys(&keys_dir)?;
-    
+
     if available_keys.is_empty() {
         if !matches!(mode, KeySelectionMode::NonInteractive) {
             println!("No ECIES keys found in the keys directory.");
             println!("You need to generate a new key to use the DFS system.");
         }
-        
+
         let key_name = if let Some(name) = &cli.key_name {
             name.clone()
         } else {
             match mode {
-                KeySelectionMode::NonInteractive => {
-                    generate_default_key_name()
-                }
+                KeySelectionMode::NonInteractive => generate_default_key_name(),
                 KeySelectionMode::Interactive => {
                     let default_name = generate_default_key_name();
                     let input = prompt_user_input(&format!(
-                        "Enter a name for the new key (default: {}): ", default_name
+                        "Enter a name for the new key (default: {}): ",
+                        default_name
                     ))?;
-                    if input.is_empty() { default_name } else { input }
+                    if input.is_empty() {
+                        default_name
+                    } else {
+                        input
+                    }
                 }
             }
         };
-        
+
         if !matches!(mode, KeySelectionMode::NonInteractive) {
             println!("Generating new ECIES key pair...");
         }
         let secret_key = SecretKey::random(&mut OsRng);
         let key_manager = KeyManager::new(secret_key, key_name);
-        
+
         key_manager.save_to_file(&keys_dir)?;
         if !matches!(mode, KeySelectionMode::NonInteractive) {
             println!("New key generated and saved successfully!");
             println!("Public key: {}", key_manager.key_info.public_key_hex);
         }
-        
+
         return Ok(key_manager);
     }
-    
+
     // Multiple keys available - handle based on mode
     match mode {
         KeySelectionMode::NonInteractive => {
@@ -407,31 +418,35 @@ pub async fn setup_key_management_with_mode(cli: &Cli, mode: KeySelectionMode) -
             println!("Found {} existing key(s):", available_keys.len());
             for (i, key_name) in available_keys.iter().enumerate() {
                 if let Ok(info) = KeyManager::get_key_info(&keys_dir, key_name) {
-                    println!("  {}. {} (created: {}, public: {}...)", 
-                        i + 1, 
-                        info.name, 
+                    println!(
+                        "  {}. {} (created: {}, public: {}...)",
+                        i + 1,
+                        info.name,
                         info.created.format("%Y-%m-%d %H:%M:%S"),
                         &info.public_key_hex[..16]
                     );
                 }
             }
             println!("  {}. Generate a new key", available_keys.len() + 1);
-            
+
             let choice = loop {
                 let input = prompt_user_input(&format!(
-                    "Choose a key (1-{}) or generate new ({}): ", 
-                    available_keys.len(), 
+                    "Choose a key (1-{}) or generate new ({}): ",
+                    available_keys.len(),
                     available_keys.len() + 1
                 ))?;
-                
+
                 if let Ok(choice) = input.parse::<usize>() {
                     if choice >= 1 && choice <= available_keys.len() + 1 {
                         break choice;
                     }
                 }
-                println!("Invalid choice. Please enter a number between 1 and {}.", available_keys.len() + 1);
+                println!(
+                    "Invalid choice. Please enter a number between 1 and {}.",
+                    available_keys.len() + 1
+                );
             };
-            
+
             if choice <= available_keys.len() {
                 // Load existing key
                 let key_name = &available_keys[choice - 1];
@@ -443,18 +458,23 @@ pub async fn setup_key_management_with_mode(cli: &Cli, mode: KeySelectionMode) -
                 // Generate new key
                 let default_name = generate_default_key_name();
                 let key_name = prompt_user_input(&format!(
-                    "Enter a name for the new key (default: {}): ", default_name
+                    "Enter a name for the new key (default: {}): ",
+                    default_name
                 ))?;
-                let key_name = if key_name.is_empty() { default_name } else { key_name };
-                
+                let key_name = if key_name.is_empty() {
+                    default_name
+                } else {
+                    key_name
+                };
+
                 println!("Generating new ECIES key pair...");
                 let secret_key = SecretKey::random(&mut OsRng);
                 let key_manager = KeyManager::new(secret_key, key_name);
-                
+
                 key_manager.save_to_file(&keys_dir)?;
                 println!("New key generated and saved successfully!");
                 println!("Public key: {}", key_manager.key_info.public_key_hex);
-                
+
                 Ok(key_manager)
             }
         }
@@ -464,42 +484,51 @@ pub async fn setup_key_management_with_mode(cli: &Cli, mode: KeySelectionMode) -
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_key_generation_and_serialization() {
         let temp_dir = TempDir::new().unwrap();
         let keys_dir = temp_dir.path();
-        
+
         // Test key creation
         let secret_key = SecretKey::random(&mut OsRng);
         let key_manager = KeyManager::new(secret_key, "test_key".to_string());
-        
+
         // Test saving
         key_manager.save_to_file(keys_dir).unwrap();
-        
+
         // Test loading
         let loaded_manager = KeyManager::load_from_file(keys_dir, "test_key").unwrap();
-        
+
         // Verify keys match
         assert_eq!(key_manager.key.serialize(), loaded_manager.key.serialize());
         assert_eq!(key_manager.key_info.name, loaded_manager.key_info.name);
-        assert_eq!(key_manager.key_info.public_key_hex, loaded_manager.key_info.public_key_hex);
+        assert_eq!(
+            key_manager.key_info.public_key_hex,
+            loaded_manager.key_info.public_key_hex
+        );
     }
 
     #[test]
     fn test_key_listing() {
         let temp_dir = TempDir::new().unwrap();
         let keys_dir = temp_dir.path();
-        
+
         // Create multiple keys
-        let key1 = KeyManager::new(SecretKey::random(&mut rand::thread_rng()), "key1".to_string());
-        let key2 = KeyManager::new(SecretKey::random(&mut rand::thread_rng()), "key2".to_string());
-        
+        let key1 = KeyManager::new(
+            SecretKey::random(&mut rand::thread_rng()),
+            "key1".to_string(),
+        );
+        let key2 = KeyManager::new(
+            SecretKey::random(&mut rand::thread_rng()),
+            "key2".to_string(),
+        );
+
         key1.save_to_file(keys_dir).unwrap();
         key2.save_to_file(keys_dir).unwrap();
-        
+
         // Test listing
         let keys = KeyManager::list_keys(keys_dir).unwrap();
         assert_eq!(keys.len(), 2);
@@ -512,7 +541,7 @@ mod tests {
         let secret_key = SecretKey::random(&mut OsRng);
         let public_key = PublicKey::from_secret_key(&secret_key);
         let public_key_hex = hex::encode(public_key.serialize());
-        
+
         // Test parsing
         let parsed_key = parse_public_key(&public_key_hex).unwrap();
         assert_eq!(public_key.serialize(), parsed_key.serialize());
@@ -522,7 +551,7 @@ mod tests {
     fn test_invalid_public_key() {
         // Test with invalid hex
         assert!(parse_public_key("invalid_hex").is_err());
-        
+
         // Test with wrong length
         assert!(parse_public_key("deadbeef").is_err());
     }
@@ -531,17 +560,18 @@ mod tests {
     fn test_get_encryption_key() {
         let secret_key = SecretKey::random(&mut OsRng);
         let key_manager = KeyManager::new(secret_key, "test".to_string());
-        
+
         // Test with no specific public key (should use default)
         let (pub_key, hex) = get_encryption_key(&None, &key_manager).unwrap();
         assert_eq!(hex, key_manager.key_info.public_key_hex);
-        
+
         // Test with specific public key
         let custom_key = SecretKey::random(&mut rand::thread_rng());
         let custom_pub = PublicKey::from_secret_key(&custom_key);
         let custom_hex = hex::encode(custom_pub.serialize());
-        
-        let (parsed_pub, parsed_hex) = get_encryption_key(&Some(custom_hex.clone()), &key_manager).unwrap();
+
+        let (parsed_pub, parsed_hex) =
+            get_encryption_key(&Some(custom_hex.clone()), &key_manager).unwrap();
         assert_eq!(parsed_hex, custom_hex);
         assert_eq!(parsed_pub.serialize(), custom_pub.serialize());
     }

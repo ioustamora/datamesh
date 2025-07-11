@@ -1,5 +1,5 @@
 /// REST API Server Module
-/// 
+///
 /// This module implements the REST API server as specified in the DataMesh
 /// Application & Network Improvements Roadmap. It provides:
 /// - RESTful API endpoints for file operations
@@ -7,7 +7,6 @@
 /// - Swagger UI for API documentation
 /// - Authentication and rate limiting
 /// - CORS and security headers
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -20,31 +19,28 @@ use axum::{
     Router,
 };
 // use axum_server::tls_rustls::RustlsConfig;
+use axum::http::Request;
+use axum::middleware::{self, Next};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tower::ServiceBuilder;
-use tower_http::{
-    cors::CorsLayer,
-    trace::TraceLayer,
-};
-use axum::middleware::{self, Next};
-use axum::http::Request;
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::{error, info};
 use utoipa::{OpenApi, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
 use uuid::Uuid;
 
+use crate::bootstrap_admin::BootstrapAdministrationService;
 use crate::cli::Cli;
 use crate::config::Config;
 use crate::database;
 use crate::error::{DfsError, DfsResult};
 use crate::file_storage;
+use crate::governance::{AuthService, UserRegistry};
+use crate::governance_service::GovernanceService;
 use crate::key_manager::KeyManager;
 use crate::smart_cache::SmartCacheManager;
-use crate::governance_service::GovernanceService;
-use crate::bootstrap_admin::BootstrapAdministrationService;
-use crate::governance::{AuthService, UserRegistry};
 
 /// JWT authentication configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -137,7 +133,10 @@ pub struct ApiState {
 }
 
 /// Extract user ID from Authorization header
-async fn extract_user_id(headers: &HeaderMap, state: &ApiState) -> Result<crate::governance::UserId, ApiError> {
+async fn extract_user_id(
+    headers: &HeaderMap,
+    state: &ApiState,
+) -> Result<crate::governance::UserId, ApiError> {
     let auth_header = headers
         .get(header::AUTHORIZATION)
         .ok_or_else(|| ApiError::Unauthorized("Missing authorization header".to_string()))?
@@ -149,15 +148,22 @@ async fn extract_user_id(headers: &HeaderMap, state: &ApiState) -> Result<crate:
         .strip_prefix("Bearer ")
         .ok_or_else(|| ApiError::Unauthorized("Invalid authorization scheme".to_string()))?;
 
-    state.auth_service.get_user_id_from_token(token)
+    state
+        .auth_service
+        .get_user_id_from_token(token)
         .map_err(|e| ApiError::Unauthorized(format!("Invalid token: {}", e)))
 }
 
 /// Verify user authentication and get user account
-async fn authenticate_user(headers: &HeaderMap, state: &ApiState) -> Result<crate::governance::UserAccount, ApiError> {
+async fn authenticate_user(
+    headers: &HeaderMap,
+    state: &ApiState,
+) -> Result<crate::governance::UserAccount, ApiError> {
     let user_id = extract_user_id(headers, state).await?;
-    
-    state.user_registry.get_user(&user_id)
+
+    state
+        .user_registry
+        .get_user(&user_id)
         .ok_or_else(|| ApiError::Unauthorized("User not found".to_string()))
 }
 
@@ -300,7 +306,7 @@ pub struct FileSearchRequest {
 /// Security headers middleware
 async fn add_security_headers(request: Request<axum::body::Body>, next: Next) -> impl IntoResponse {
     let mut response = next.run(request).await;
-    
+
     let headers = response.headers_mut();
     headers.insert(
         header::STRICT_TRANSPORT_SECURITY,
@@ -314,19 +320,13 @@ async fn add_security_headers(request: Request<axum::body::Body>, next: Next) ->
         header::X_CONTENT_TYPE_OPTIONS,
         HeaderValue::from_static("nosniff"),
     );
-    headers.insert(
-        header::X_FRAME_OPTIONS,
-        HeaderValue::from_static("DENY"),
-    );
+    headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
     headers.insert(
         header::REFERRER_POLICY,
         HeaderValue::from_static("strict-origin-when-cross-origin"),
     );
-    headers.insert(
-        header::SERVER,
-        HeaderValue::from_static("DataMesh"),
-    );
-    
+    headers.insert(header::SERVER, HeaderValue::from_static("DataMesh"));
+
     response
 }
 
@@ -375,15 +375,9 @@ pub enum WebSocketMessage {
         status: String,
     },
     /// System status update
-    SystemStatus {
-        status: String,
-        message: String,
-    },
+    SystemStatus { status: String, message: String },
     /// Cache statistics update
-    CacheStats {
-        hit_ratio: f64,
-        cache_size: u64,
-    },
+    CacheStats { hit_ratio: f64, cache_size: u64 },
 }
 
 /// Governance status response
@@ -622,25 +616,32 @@ impl ApiServer {
             .route("/governance/status", get(get_governance_status))
             .route("/governance/operators", get(list_operators))
             .route("/governance/operators/:operator_id", get(get_operator))
-            .route("/governance/operators/:operator_id/dashboard", get(get_operator_dashboard))
+            .route(
+                "/governance/operators/:operator_id/dashboard",
+                get(get_operator_dashboard),
+            )
             .route("/governance/network/health", get(get_network_health))
             // Admin endpoints
             .route("/admin/operators", post(register_operator))
-            .route("/admin/operators/:operator_id/services", post(register_service))
-            .route("/admin/operators/:operator_id/services/:service_id/heartbeat", post(update_service_heartbeat))
+            .route(
+                "/admin/operators/:operator_id/services",
+                post(register_service),
+            )
+            .route(
+                "/admin/operators/:operator_id/services/:service_id/heartbeat",
+                post(update_service_heartbeat),
+            )
             .route("/admin/actions", post(execute_admin_action))
             .route("/admin/actions", get(list_admin_actions))
             .route("/admin/cleanup/operators", post(cleanup_inactive_operators))
             .with_state(state.clone());
 
-        let mut app = Router::new()
-            .nest(api_prefix, api_routes);
+        let mut app = Router::new().nest(api_prefix, api_routes);
 
         // Add Swagger UI if enabled
         if state.api_config.enable_swagger {
             app = app.merge(
-                SwaggerUi::new("/swagger-ui")
-                    .url("/api-docs/openapi.json", ApiDoc::openapi())
+                SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()),
             );
         }
 
@@ -651,11 +652,15 @@ impl ApiServer {
                 // Security headers
                 .layer(middleware::from_fn(add_security_headers))
                 // CORS with more restrictive settings
-                .layer(CorsLayer::new()
-                    .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
-                    .allow_methods([Method::GET, Method::POST, Method::DELETE])
-                    .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]))
-                .layer(DefaultBodyLimit::max(state.api_config.max_upload_size as usize))
+                .layer(
+                    CorsLayer::new()
+                        .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
+                        .allow_methods([Method::GET, Method::POST, Method::DELETE])
+                        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]),
+                )
+                .layer(DefaultBodyLimit::max(
+                    state.api_config.max_upload_size as usize,
+                )),
         );
 
         app
@@ -663,7 +668,10 @@ impl ApiServer {
 
     /// Start the API server
     pub async fn start(&self) -> DfsResult<()> {
-        let addr = format!("{}:{}", self.state.api_config.host, self.state.api_config.port);
+        let addr = format!(
+            "{}:{}",
+            self.state.api_config.host, self.state.api_config.port
+        );
         info!("Starting DataMesh API server on {}", addr);
 
         if self.state.api_config.enable_https {
@@ -675,7 +683,8 @@ impl ApiServer {
 
     /// Start HTTP server
     async fn start_http_server(&self, addr: &str) -> DfsResult<()> {
-        let listener = tokio::net::TcpListener::bind(addr).await
+        let listener = tokio::net::TcpListener::bind(addr)
+            .await
             .map_err(|e| DfsError::Network(format!("Failed to bind to {}: {}", addr, e)))?;
 
         info!("DataMesh API server listening on http://{}", addr);
@@ -683,7 +692,8 @@ impl ApiServer {
             info!("Swagger UI available at: http://{}/swagger-ui", addr);
         }
 
-        axum::serve(listener, self.app.clone()).await
+        axum::serve(listener, self.app.clone())
+            .await
             .map_err(|e| DfsError::Network(format!("Server error: {}", e)))?;
 
         Ok(())
@@ -691,10 +701,12 @@ impl ApiServer {
 
     /// Start HTTPS server with TLS configuration
     async fn start_https_server(&self, addr: &str) -> DfsResult<()> {
-        let cert_path = self.state.api_config.cert_path.as_ref()
-            .ok_or_else(|| DfsError::Config("HTTPS enabled but no cert_path specified".to_string()))?;
-        let key_path = self.state.api_config.key_path.as_ref()
-            .ok_or_else(|| DfsError::Config("HTTPS enabled but no key_path specified".to_string()))?;
+        let cert_path = self.state.api_config.cert_path.as_ref().ok_or_else(|| {
+            DfsError::Config("HTTPS enabled but no cert_path specified".to_string())
+        })?;
+        let key_path = self.state.api_config.key_path.as_ref().ok_or_else(|| {
+            DfsError::Config("HTTPS enabled but no key_path specified".to_string())
+        })?;
 
         let _config = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert_path, key_path)
             .await
@@ -710,8 +722,10 @@ impl ApiServer {
         //     .serve(self.app.clone().into_make_service())
         //     .await
         //     .map_err(|e| DfsError::Network(format!("HTTPS server error: {}", e)))?;
-        
-        Err(DfsError::Config("HTTPS server temporarily disabled due to compatibility issue".to_string()))
+
+        Err(DfsError::Config(
+            "HTTPS server temporarily disabled due to compatibility issue".to_string(),
+        ))
     }
 }
 
@@ -731,11 +745,13 @@ async fn login(
     State(state): State<ApiState>,
     Json(request): Json<LoginRequest>,
 ) -> Result<Json<AuthResponse>, ApiError> {
-    let user = state.user_registry
+    let user = state
+        .user_registry
         .authenticate_user(&request.email, &request.password)
         .map_err(|e| ApiError::Unauthorized(format!("Authentication failed: {}", e)))?;
 
-    let token = state.auth_service
+    let token = state
+        .auth_service
         .generate_token(&user)
         .map_err(|e| ApiError::InternalServerError(format!("Token generation failed: {}", e)))?;
 
@@ -783,16 +799,18 @@ async fn register(
     State(state): State<ApiState>,
     Json(request): Json<RegisterRequest>,
 ) -> Result<Json<AuthResponse>, ApiError> {
-    let user = state.user_registry
+    let user = state
+        .user_registry
         .register_user(request.email, request.password, request.public_key)
         .map_err(|e| match e {
             crate::error::DfsError::Authentication(msg) if msg.contains("already registered") => {
                 ApiError::Conflict("Email already registered".to_string())
             }
-            _ => ApiError::BadRequest(format!("Registration failed: {}", e))
+            _ => ApiError::BadRequest(format!("Registration failed: {}", e)),
         })?;
 
-    let token = state.auth_service
+    let token = state
+        .auth_service
         .generate_token(&user)
         .map_err(|e| ApiError::InternalServerError(format!("Token generation failed: {}", e)))?;
 
@@ -849,9 +867,11 @@ async fn upload_file(
     let mut public_key: Option<String> = None;
 
     // Parse multipart form data
-    while let Some(field) = multipart.next_field().await.map_err(|e| {
-        ApiError::BadRequest(format!("Failed to parse multipart data: {}", e))
-    })? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| ApiError::BadRequest(format!("Failed to parse multipart data: {}", e)))?
+    {
         match field.name() {
             Some("file") => {
                 file_name = field.file_name().map(|s| s.to_string());
@@ -878,15 +898,14 @@ async fn upload_file(
         }
     }
 
-    let file_data = file_data.ok_or_else(|| {
-        ApiError::BadRequest("No file data provided".to_string())
-    })?;
+    let file_data =
+        file_data.ok_or_else(|| ApiError::BadRequest("No file data provided".to_string()))?;
 
     let original_name = file_name.unwrap_or_else(|| "unnamed_file".to_string());
 
     // Authenticate user and check quotas
     let user = authenticate_user(&headers, &state).await?;
-    
+
     // Check storage quota if governance is enabled
     if state.governance_service.is_enabled() {
         // Get resource manager from governance service
@@ -894,22 +913,24 @@ async fn upload_file(
             resource_manager
                 .check_storage_quota(&user.user_id, file_data.len() as u64)
                 .map_err(|e| ApiError::BadRequest(format!("Quota exceeded: {:?}", e)))?;
-            
+
             resource_manager
                 .check_rate_limit(&user.user_id)
                 .map_err(|e| ApiError::TooManyRequests(format!("Rate limit exceeded: {:?}", e)))?;
         }
-        
+
         tracing::info!("User {} authenticated and quota checked", user.email);
     }
 
     // Write file to temporary location
     let temp_dir = std::env::temp_dir();
     let temp_file_path = temp_dir.join(format!("upload_{}", Uuid::new_v4()));
-    
-    tokio::fs::write(&temp_file_path, &file_data).await.map_err(|e| {
-        ApiError::InternalServerError(format!("Failed to write temporary file: {}", e))
-    })?;
+
+    tokio::fs::write(&temp_file_path, &file_data)
+        .await
+        .map_err(|e| {
+            ApiError::InternalServerError(format!("Failed to write temporary file: {}", e))
+        })?;
 
     // Upload file using existing file storage system
     match file_storage::handle_put_command(
@@ -919,7 +940,9 @@ async fn upload_file(
         &public_key,
         &request_name,
         &tags,
-    ).await {
+    )
+    .await
+    {
         Ok(()) => {
             // Clean up temporary file
             let _ = tokio::fs::remove_file(&temp_file_path).await;
@@ -931,9 +954,12 @@ async fn upload_file(
                 .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
 
             let final_name = request_name.as_ref().unwrap_or(&original_name);
-            let file_entry = db.get_file_by_name(final_name)
+            let file_entry = db
+                .get_file_by_name(final_name)
                 .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?
-                .ok_or_else(|| ApiError::InternalServerError("File not found after upload".to_string()))?;
+                .ok_or_else(|| {
+                    ApiError::InternalServerError("File not found after upload".to_string())
+                })?;
 
             let response = FileUploadResponse {
                 file_key: file_entry.file_key,
@@ -948,7 +974,10 @@ async fn upload_file(
         Err(e) => {
             // Clean up temporary file
             let _ = tokio::fs::remove_file(&temp_file_path).await;
-            Err(ApiError::InternalServerError(format!("Upload failed: {}", e)))
+            Err(ApiError::InternalServerError(format!(
+                "Upload failed: {}",
+                e
+            )))
         }
     }
 }
@@ -981,7 +1010,9 @@ async fn download_file(
         &file_key,
         &temp_file_path,
         &None,
-    ).await {
+    )
+    .await
+    {
         Ok(()) => {
             // Read file data
             let file_data = tokio::fs::read(&temp_file_path).await.map_err(|e| {
@@ -997,17 +1028,23 @@ async fn download_file(
             let db = database::DatabaseManager::new(&db_path)
                 .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
 
-            let file_entry = db.get_file_by_key(&file_key)
+            let file_entry = db
+                .get_file_by_key(&file_key)
                 .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?
-                .or_else(|| {
-                    db.get_file_by_name(&file_key).ok().flatten()
-                })
+                .or_else(|| db.get_file_by_name(&file_key).ok().flatten())
                 .ok_or_else(|| ApiError::NotFound("File not found".to_string()))?;
 
-            let content_disposition = format!("attachment; filename=\"{}\"", file_entry.original_filename);
+            let content_disposition =
+                format!("attachment; filename=\"{}\"", file_entry.original_filename);
             let mut headers = HeaderMap::new();
-            headers.insert(header::CONTENT_TYPE, "application/octet-stream".parse().unwrap());
-            headers.insert(header::CONTENT_DISPOSITION, content_disposition.parse().unwrap());
+            headers.insert(
+                header::CONTENT_TYPE,
+                "application/octet-stream".parse().unwrap(),
+            );
+            headers.insert(
+                header::CONTENT_DISPOSITION,
+                content_disposition.parse().unwrap(),
+            );
 
             Ok((headers, file_data))
         }
@@ -1042,11 +1079,10 @@ async fn get_file_metadata(
     let db = database::DatabaseManager::new(&db_path)
         .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
 
-    let file_entry = db.get_file_by_key(&file_key)
+    let file_entry = db
+        .get_file_by_key(&file_key)
         .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?
-        .or_else(|| {
-            db.get_file_by_name(&file_key).ok().flatten()
-        })
+        .or_else(|| db.get_file_by_name(&file_key).ok().flatten())
         .ok_or_else(|| ApiError::NotFound("File not found".to_string()))?;
 
     let response = FileMetadataResponse {
@@ -1088,9 +1124,13 @@ async fn list_files(
 
     let tags = params.get("tags").map(|s| s.as_str());
     let page: u32 = params.get("page").and_then(|s| s.parse().ok()).unwrap_or(1);
-    let page_size: u32 = params.get("page_size").and_then(|s| s.parse().ok()).unwrap_or(20);
+    let page_size: u32 = params
+        .get("page_size")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(20);
 
-    let files = db.list_files(tags)
+    let files = db
+        .list_files(tags)
         .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
 
     let total = files.len();
@@ -1149,7 +1189,8 @@ async fn search_files(
 
     // For now, use basic tag-based search
     // In a full implementation, this would support complex search queries
-    let files = db.list_files(tags)
+    let files = db
+        .list_files(tags)
         .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
 
     let total = files.len();
@@ -1205,11 +1246,10 @@ async fn delete_file(
         .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
 
     // Check if file exists
-    let file_entry = db.get_file_by_key(&file_key)
+    let file_entry = db
+        .get_file_by_key(&file_key)
         .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?
-        .or_else(|| {
-            db.get_file_by_name(&file_key).ok().flatten()
-        })
+        .or_else(|| db.get_file_by_name(&file_key).ok().flatten())
         .ok_or_else(|| ApiError::NotFound("File not found".to_string()))?;
 
     // TODO: Implement actual file deletion from DHT
@@ -1233,15 +1273,14 @@ async fn delete_file(
     ),
     tag = "stats"
 )]
-async fn get_api_stats(
-    State(state): State<ApiState>,
-) -> Result<Json<ApiStatsResponse>, ApiError> {
+async fn get_api_stats(State(state): State<ApiState>) -> Result<Json<ApiStatsResponse>, ApiError> {
     let db_path = database::get_default_db_path()
         .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
     let db = database::DatabaseManager::new(&db_path)
         .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
 
-    let files = db.list_files(None)
+    let files = db
+        .list_files(None)
         .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
 
     let total_files = files.len() as u64;
@@ -1334,7 +1373,7 @@ async fn get_governance_status(
     State(state): State<ApiState>,
 ) -> Result<Json<GovernanceStatusResponse>, ApiError> {
     let health = state.bootstrap_admin.check_network_health();
-    
+
     let response = GovernanceStatusResponse {
         enabled: state.governance_service.is_enabled(),
         total_operators: health.total_operators,
@@ -1342,7 +1381,7 @@ async fn get_governance_status(
         network_healthy: health.online_percentage > 50.0,
         can_reach_consensus: health.can_reach_consensus,
     };
-    
+
     Ok(Json(response))
 }
 
@@ -1360,7 +1399,7 @@ async fn list_operators(
     State(state): State<ApiState>,
 ) -> Result<Json<Vec<ApiOperatorResponse>>, ApiError> {
     let operators = state.bootstrap_admin.get_operators();
-    
+
     let response: Vec<ApiOperatorResponse> = operators
         .into_iter()
         .map(|op| ApiOperatorResponse {
@@ -1370,12 +1409,16 @@ async fn list_operators(
             jurisdiction: op.jurisdiction,
             governance_weight: op.governance_weight,
             reputation_score: op.reputation_score,
-            services: op.services.into_iter().map(|s| format!("{:?}", s)).collect(),
+            services: op
+                .services
+                .into_iter()
+                .map(|s| format!("{:?}", s))
+                .collect(),
             registration_date: op.registration_date,
             last_active: op.last_active,
         })
         .collect();
-    
+
     Ok(Json(response))
 }
 
@@ -1397,12 +1440,15 @@ async fn get_operator(
     State(state): State<ApiState>,
     Path(operator_id): Path<String>,
 ) -> Result<Json<ApiOperatorResponse>, ApiError> {
-    let operator_uuid = operator_id.parse::<uuid::Uuid>()
+    let operator_uuid = operator_id
+        .parse::<uuid::Uuid>()
         .map_err(|_| ApiError::BadRequest("Invalid operator ID format".to_string()))?;
-    
-    let operator = state.bootstrap_admin.get_operator(&operator_uuid)
+
+    let operator = state
+        .bootstrap_admin
+        .get_operator(&operator_uuid)
         .ok_or_else(|| ApiError::NotFound("Operator not found".to_string()))?;
-    
+
     let response = ApiOperatorResponse {
         operator_id: operator.operator_id.to_string(),
         peer_id: operator.peer_id,
@@ -1410,11 +1456,15 @@ async fn get_operator(
         jurisdiction: operator.jurisdiction,
         governance_weight: operator.governance_weight,
         reputation_score: operator.reputation_score,
-        services: operator.services.into_iter().map(|s| format!("{:?}", s)).collect(),
+        services: operator
+            .services
+            .into_iter()
+            .map(|s| format!("{:?}", s))
+            .collect(),
         registration_date: operator.registration_date,
         last_active: operator.last_active,
     };
-    
+
     Ok(Json(response))
 }
 
@@ -1436,12 +1486,15 @@ async fn get_operator_dashboard(
     State(state): State<ApiState>,
     Path(operator_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let operator_uuid = operator_id.parse::<uuid::Uuid>()
+    let operator_uuid = operator_id
+        .parse::<uuid::Uuid>()
         .map_err(|_| ApiError::BadRequest("Invalid operator ID format".to_string()))?;
-    
-    let dashboard = state.bootstrap_admin.get_operator_dashboard(&operator_uuid)
+
+    let dashboard = state
+        .bootstrap_admin
+        .get_operator_dashboard(&operator_uuid)
         .ok_or_else(|| ApiError::NotFound("Operator not found".to_string()))?;
-    
+
     Ok(Json(serde_json::to_value(dashboard).unwrap()))
 }
 
@@ -1459,7 +1512,7 @@ async fn get_network_health(
     State(state): State<ApiState>,
 ) -> Result<Json<ApiNetworkHealthResponse>, ApiError> {
     let health = state.bootstrap_admin.check_network_health();
-    
+
     let response = ApiNetworkHealthResponse {
         total_operators: health.total_operators,
         online_operators: health.online_operators,
@@ -1468,7 +1521,7 @@ async fn get_network_health(
         online_governance_weight: health.online_governance_weight,
         can_reach_consensus: health.can_reach_consensus,
     };
-    
+
     Ok(Json(response))
 }
 
@@ -1491,8 +1544,9 @@ async fn register_operator(
     // Convert API request to bootstrap admin request
     use crate::bootstrap_admin::OperatorRegistrationRequest;
     use crate::governance::NetworkService;
-    
-    let services: Vec<NetworkService> = request.proposed_services
+
+    let services: Vec<NetworkService> = request
+        .proposed_services
         .into_iter()
         .filter_map(|s| match s.as_str() {
             "Storage" => Some(NetworkService::Storage),
@@ -1503,7 +1557,7 @@ async fn register_operator(
             _ => None,
         })
         .collect();
-    
+
     let bootstrap_request = OperatorRegistrationRequest {
         legal_name: request.legal_name,
         contact_email: request.contact_email,
@@ -1513,10 +1567,15 @@ async fn register_operator(
         technical_contact: request.technical_contact,
         service_level_agreement: request.service_level_agreement,
     };
-    
-    let operator = state.bootstrap_admin.register_operator(bootstrap_request, request.peer_id).await
-        .map_err(|e| ApiError::InternalServerError(format!("Failed to register operator: {}", e)))?;
-    
+
+    let operator = state
+        .bootstrap_admin
+        .register_operator(bootstrap_request, request.peer_id)
+        .await
+        .map_err(|e| {
+            ApiError::InternalServerError(format!("Failed to register operator: {}", e))
+        })?;
+
     let response = ApiOperatorResponse {
         operator_id: operator.operator_id.to_string(),
         peer_id: operator.peer_id,
@@ -1524,11 +1583,15 @@ async fn register_operator(
         jurisdiction: operator.jurisdiction,
         governance_weight: operator.governance_weight,
         reputation_score: operator.reputation_score,
-        services: operator.services.into_iter().map(|s| format!("{:?}", s)).collect(),
+        services: operator
+            .services
+            .into_iter()
+            .map(|s| format!("{:?}", s))
+            .collect(),
         registration_date: operator.registration_date,
         last_active: operator.last_active,
     };
-    
+
     Ok(Json(response))
 }
 
@@ -1553,12 +1616,13 @@ async fn register_service(
     Path(operator_id): Path<String>,
     Json(request): Json<ApiServiceRegistrationRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let operator_uuid = operator_id.parse::<uuid::Uuid>()
+    let operator_uuid = operator_id
+        .parse::<uuid::Uuid>()
         .map_err(|_| ApiError::BadRequest("Invalid operator ID format".to_string()))?;
-    
-    use crate::governance::NetworkService;
+
     use crate::bootstrap_admin::ServiceConfig;
-    
+    use crate::governance::NetworkService;
+
     let service_type = match request.service_type.as_str() {
         "Storage" => NetworkService::Storage,
         "Bandwidth" => NetworkService::Bandwidth,
@@ -1567,17 +1631,20 @@ async fn register_service(
         "Monitoring" => NetworkService::Monitoring,
         _ => return Err(ApiError::BadRequest("Invalid service type".to_string())),
     };
-    
+
     // For now, create a default storage config
     let service_config = ServiceConfig::Storage {
         capacity_gb: 1000,
         redundancy_factor: 3,
         data_retention_days: 365,
     };
-    
-    let registration = state.bootstrap_admin.register_service(&operator_uuid, service_type, service_config).await
+
+    let registration = state
+        .bootstrap_admin
+        .register_service(&operator_uuid, service_type, service_config)
+        .await
         .map_err(|e| ApiError::InternalServerError(format!("Failed to register service: {}", e)))?;
-    
+
     Ok(Json(serde_json::to_value(registration).unwrap()))
 }
 
@@ -1600,12 +1667,16 @@ async fn update_service_heartbeat(
     State(state): State<ApiState>,
     Path((_operator_id, service_id)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let service_uuid = service_id.parse::<uuid::Uuid>()
+    let service_uuid = service_id
+        .parse::<uuid::Uuid>()
         .map_err(|_| ApiError::BadRequest("Invalid service ID format".to_string()))?;
-    
-    state.bootstrap_admin.update_service_heartbeat(&service_uuid).await
+
+    state
+        .bootstrap_admin
+        .update_service_heartbeat(&service_uuid)
+        .await
         .map_err(|e| ApiError::InternalServerError(format!("Failed to update heartbeat: {}", e)))?;
-    
+
     Ok(Json(serde_json::json!({
         "message": "Heartbeat updated successfully",
         "service_id": service_id,
@@ -1633,15 +1704,15 @@ async fn execute_admin_action(
 ) -> Result<Json<ApiAdminActionResponse>, ApiError> {
     // Authenticate admin user
     let user = authenticate_user(&headers, &state).await?;
-    
+
     // Verify admin privileges (check if user is an operator or admin)
     let operator_id = match user.account_type {
         crate::governance::AccountType::Enterprise { .. } => user.user_id,
         _ => return Err(ApiError::Forbidden("Admin access required".to_string())),
     };
-    
+
     use crate::bootstrap_admin::{AdminActionType, AdminTarget};
-    
+
     let action_type = match request.action_type.as_str() {
         "SuspendUser" => AdminActionType::SuspendUser,
         "BanUser" => AdminActionType::BanUser,
@@ -1653,9 +1724,13 @@ async fn execute_admin_action(
         "EmergencyShutdown" => AdminActionType::EmergencyShutdown,
         _ => return Err(ApiError::BadRequest("Invalid action type".to_string())),
     };
-    
+
     let target = if request.target.starts_with("user:") {
-        let user_id = request.target.strip_prefix("user:").unwrap().parse::<uuid::Uuid>()
+        let user_id = request
+            .target
+            .strip_prefix("user:")
+            .unwrap()
+            .parse::<uuid::Uuid>()
             .map_err(|_| ApiError::BadRequest("Invalid user ID format".to_string()))?;
         AdminTarget::User(user_id)
     } else if request.target.starts_with("content:") {
@@ -1666,10 +1741,15 @@ async fn execute_admin_action(
     } else {
         return Err(ApiError::BadRequest("Invalid target format".to_string()));
     };
-    
-    let action = state.bootstrap_admin.execute_admin_action(&operator_id, action_type, target, request.reason).await
-        .map_err(|e| ApiError::InternalServerError(format!("Failed to execute admin action: {}", e)))?;
-    
+
+    let action = state
+        .bootstrap_admin
+        .execute_admin_action(&operator_id, action_type, target, request.reason)
+        .await
+        .map_err(|e| {
+            ApiError::InternalServerError(format!("Failed to execute admin action: {}", e))
+        })?;
+
     let response = ApiAdminActionResponse {
         action_id: action.action_id.to_string(),
         operator_id: action.operator_id.to_string(),
@@ -1678,7 +1758,7 @@ async fn execute_admin_action(
         reason: action.reason,
         timestamp: action.timestamp,
     };
-    
+
     Ok(Json(response))
 }
 
@@ -1696,7 +1776,7 @@ async fn list_admin_actions(
     State(state): State<ApiState>,
 ) -> Result<Json<Vec<ApiAdminActionResponse>>, ApiError> {
     let actions = state.bootstrap_admin.get_all_admin_actions();
-    
+
     let response: Vec<ApiAdminActionResponse> = actions
         .into_iter()
         .map(|action| ApiAdminActionResponse {
@@ -1708,7 +1788,7 @@ async fn list_admin_actions(
             timestamp: action.timestamp,
         })
         .collect();
-    
+
     Ok(Json(response))
 }
 
@@ -1725,9 +1805,14 @@ async fn list_admin_actions(
 async fn cleanup_inactive_operators(
     State(state): State<ApiState>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    state.bootstrap_admin.cleanup_inactive_operators().await
-        .map_err(|e| ApiError::InternalServerError(format!("Failed to cleanup operators: {}", e)))?;
-    
+    state
+        .bootstrap_admin
+        .cleanup_inactive_operators()
+        .await
+        .map_err(|e| {
+            ApiError::InternalServerError(format!("Failed to cleanup operators: {}", e))
+        })?;
+
     Ok(Json(serde_json::json!({
         "message": "Inactive operators cleanup completed",
         "timestamp": chrono::Utc::now()

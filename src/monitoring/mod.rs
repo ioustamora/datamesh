@@ -1,21 +1,21 @@
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use anyhow::Result;
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-pub mod metrics;
-pub mod time_series;
 pub mod alerts;
 pub mod analytics;
 pub mod dashboard;
+pub mod metrics;
+pub mod time_series;
 
-use metrics::MetricsCollector;
-use time_series::TimeSeriesDB;
 use alerts::AlertManager;
 use analytics::AnalyticsEngine;
+use metrics::MetricsCollector;
+use time_series::TimeSeriesDB;
 
 /// Advanced monitoring system for DataMesh network
 /// Implements comprehensive monitoring, analytics, and alerting
@@ -45,8 +45,8 @@ impl Default for MonitoringConfig {
         Self {
             collection_interval: Duration::from_secs(30),
             retention_period: Duration::from_secs(30 * 24 * 60 * 60), // 30 days
-            alert_cooldown: Duration::from_secs(5 * 60), // 5 minutes
-            analytics_window: Duration::from_secs(24 * 60 * 60), // 24 hours
+            alert_cooldown: Duration::from_secs(5 * 60),              // 5 minutes
+            analytics_window: Duration::from_secs(24 * 60 * 60),      // 24 hours
             dashboard_refresh_rate: Duration::from_secs(5),
             enable_predictive_analytics: true,
             enable_automated_remediation: false,
@@ -58,7 +58,7 @@ impl Default for MonitoringConfig {
 pub struct SystemMetrics {
     pub timestamp: DateTime<Utc>,
     pub node_id: String,
-    
+
     // Performance metrics
     pub throughput_mbps: f64,
     pub avg_response_time_ms: f64,
@@ -66,7 +66,7 @@ pub struct SystemMetrics {
     pub active_connections: u32,
     pub request_queue_length: u32,
     pub error_rate: f64,
-    
+
     // Storage metrics
     pub total_files: u64,
     pub total_size_bytes: u64,
@@ -74,33 +74,33 @@ pub struct SystemMetrics {
     pub redundancy_factor: f64,
     pub chunk_availability: f64,
     pub deduplication_ratio: f64,
-    
+
     // Network metrics
     pub peer_count: u32,
     pub dht_size: u32,
     pub network_health_score: f64,
     pub bootstrap_node_count: u32,
     pub consensus_participation: f64,
-    
+
     // System metrics
     pub memory_usage_mb: u64,
     pub cpu_usage_percent: f64,
     pub disk_usage_gb: u64,
     pub network_io_mbps: f64,
     pub uptime_seconds: u64,
-    
+
     // User metrics
     pub active_users: u32,
     pub new_registrations: u32,
     pub user_satisfaction_score: f64,
     pub support_tickets: u32,
-    
+
     // Governance metrics
     pub active_proposals: u32,
     pub voting_participation: f64,
     pub operator_reputation_avg: f64,
     pub governance_health: f64,
-    
+
     // Custom metrics
     pub custom_metrics: HashMap<String, f64>,
 }
@@ -372,13 +372,13 @@ impl AdvancedMonitoringSystem {
 
         // Start metrics collection
         self.metrics_collector.start().await?;
-        
+
         // Start time series database
         self.time_series_db.start().await?;
-        
+
         // Start alert manager
         self.alert_manager.start().await?;
-        
+
         // Start analytics engine
         self.analytics_engine.start().await?;
 
@@ -413,7 +413,7 @@ impl AdvancedMonitoringSystem {
         Ok(SystemMetrics {
             timestamp: Utc::now(),
             node_id: self.get_node_id(),
-            
+
             // Performance metrics
             throughput_mbps: network_stats.throughput,
             avg_response_time_ms: network_stats.avg_response_time,
@@ -421,7 +421,7 @@ impl AdvancedMonitoringSystem {
             active_connections: network_stats.active_connections,
             request_queue_length: network_stats.request_queue_length,
             error_rate: storage_stats.error_rate,
-            
+
             // Storage metrics
             total_files: storage_stats.file_count,
             total_size_bytes: storage_stats.total_size,
@@ -429,33 +429,33 @@ impl AdvancedMonitoringSystem {
             redundancy_factor: storage_stats.redundancy,
             chunk_availability: storage_stats.chunk_availability,
             deduplication_ratio: storage_stats.deduplication_ratio,
-            
+
             // Network metrics
             peer_count: network_stats.peer_count,
             dht_size: network_stats.dht_size,
             network_health_score: network_stats.health_score,
             bootstrap_node_count: network_stats.bootstrap_nodes,
             consensus_participation: network_stats.consensus_participation,
-            
+
             // System metrics
             memory_usage_mb: system_stats.memory_mb,
             cpu_usage_percent: system_stats.cpu_percent,
             disk_usage_gb: system_stats.disk_gb,
             network_io_mbps: system_stats.network_io,
             uptime_seconds: system_stats.uptime,
-            
+
             // User metrics
             active_users: user_stats.active_users,
             new_registrations: user_stats.new_registrations,
             user_satisfaction_score: user_stats.satisfaction_score,
             support_tickets: user_stats.support_tickets,
-            
+
             // Governance metrics
             active_proposals: governance_stats.active_proposals,
             voting_participation: governance_stats.voting_participation,
             operator_reputation_avg: governance_stats.operator_reputation,
             governance_health: governance_stats.governance_health,
-            
+
             // Custom metrics
             custom_metrics: HashMap::new(),
         })
@@ -466,7 +466,8 @@ impl AdvancedMonitoringSystem {
         let end_time = Utc::now();
         let start_time = end_time - period;
 
-        let historical_data = self.time_series_db
+        let historical_data = self
+            .time_series_db
             .query_range(start_time, end_time)
             .await?;
 
@@ -494,7 +495,7 @@ impl AdvancedMonitoringSystem {
 
     /// Set up intelligent alerts with ML-based anomaly detection
     pub async fn setup_intelligent_alerts(&self) -> Result<()> {
-        use alerts::{AlertRule, AlertSeverity, AlertCondition};
+        use alerts::{AlertCondition, AlertRule, AlertSeverity};
 
         // Performance alerts
         let performance_alerts = vec![
@@ -507,7 +508,6 @@ impl AdvancedMonitoringSystem {
                 })
                 .severity(AlertSeverity::Warning)
                 .cooldown(Duration::from_secs(300)),
-                
             AlertRule::new("low_success_rate")
                 .condition(AlertCondition::Threshold {
                     metric: "success_rate".to_string(),
@@ -530,7 +530,6 @@ impl AdvancedMonitoringSystem {
                 })
                 .severity(AlertSeverity::Warning)
                 .cooldown(Duration::from_secs(600)),
-                
             AlertRule::new("low_peer_count")
                 .condition(AlertCondition::Threshold {
                     metric: "peer_count".to_string(),
@@ -543,21 +542,21 @@ impl AdvancedMonitoringSystem {
         ];
 
         // Network alerts
-        let network_alerts = vec![
-            AlertRule::new("network_partition")
-                .condition(AlertCondition::AnomalyDetection {
-                    metric: "network_health_score".to_string(),
-                    sensitivity: 0.8,
-                    window: Duration::from_secs(1800),
-                })
-                .severity(AlertSeverity::Critical)
-                .cooldown(Duration::from_secs(60)),
-        ];
+        let network_alerts = vec![AlertRule::new("network_partition")
+            .condition(AlertCondition::AnomalyDetection {
+                metric: "network_health_score".to_string(),
+                sensitivity: 0.8,
+                window: Duration::from_secs(1800),
+            })
+            .severity(AlertSeverity::Critical)
+            .cooldown(Duration::from_secs(60))];
 
         // Register all alerts
-        for rule in performance_alerts.into_iter()
+        for rule in performance_alerts
+            .into_iter()
             .chain(system_alerts.into_iter())
-            .chain(network_alerts.into_iter()) {
+            .chain(network_alerts.into_iter())
+        {
             self.alert_manager.register_rule(rule).await?;
         }
 
@@ -572,9 +571,13 @@ impl AdvancedMonitoringSystem {
         let health_score = self.calculate_system_health(&current_metrics).await?;
         let system_health = dashboard::SystemHealth {
             overall_score: health_score,
-            status: if health_score > 80.0 { dashboard::HealthStatus::Healthy }
-                   else if health_score > 60.0 { dashboard::HealthStatus::Warning }
-                   else { dashboard::HealthStatus::Critical },
+            status: if health_score > 80.0 {
+                dashboard::HealthStatus::Healthy
+            } else if health_score > 60.0 {
+                dashboard::HealthStatus::Warning
+            } else {
+                dashboard::HealthStatus::Critical
+            },
             components: Vec::new(),
             recommendations: Vec::new(),
             last_updated: Utc::now(),
@@ -599,16 +602,18 @@ impl AdvancedMonitoringSystem {
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(collection_interval);
-            
+
             loop {
                 interval.tick().await;
-                
+
                 if let Err(e) = Self::monitoring_cycle(
                     &metrics_collector,
                     &time_series_db,
                     &alert_manager,
                     &analytics_engine,
-                ).await {
+                )
+                .await
+                {
                     tracing::error!("Error in monitoring cycle: {}", e);
                 }
             }
@@ -625,13 +630,13 @@ impl AdvancedMonitoringSystem {
     ) -> Result<()> {
         // Collect metrics
         let metrics = metrics_collector.collect_all_metrics().await?;
-        
+
         // Store in time series database
         time_series_db.store_metrics(&metrics).await?;
-        
+
         // Check for alerts
         alert_manager.evaluate_metrics(&metrics).await?;
-        
+
         // Update analytics
         analytics_engine.process_metrics(&metrics).await?;
 
@@ -670,7 +675,10 @@ impl AdvancedMonitoringSystem {
     }
 
     // Placeholder implementations for analysis
-    async fn analyze_system_overview(&self, _data: &time_series::TimeSeriesData) -> Result<SystemOverview> {
+    async fn analyze_system_overview(
+        &self,
+        _data: &time_series::TimeSeriesData,
+    ) -> Result<SystemOverview> {
         Ok(SystemOverview {
             overall_health_score: 95.0,
             availability_percentage: 99.8,
@@ -680,7 +688,10 @@ impl AdvancedMonitoringSystem {
         })
     }
 
-    async fn analyze_performance(&self, _data: &time_series::TimeSeriesData) -> Result<PerformanceAnalysis> {
+    async fn analyze_performance(
+        &self,
+        _data: &time_series::TimeSeriesData,
+    ) -> Result<PerformanceAnalysis> {
         Ok(PerformanceAnalysis {
             avg_response_time: 250.0,
             throughput_trend: PerformanceTrend {
@@ -704,7 +715,10 @@ impl AdvancedMonitoringSystem {
         })
     }
 
-    async fn analyze_user_behavior(&self, _data: &time_series::TimeSeriesData) -> Result<UserBehaviorAnalysis> {
+    async fn analyze_user_behavior(
+        &self,
+        _data: &time_series::TimeSeriesData,
+    ) -> Result<UserBehaviorAnalysis> {
         Ok(UserBehaviorAnalysis {
             active_user_trends: PerformanceTrend {
                 metric_name: "active_users".to_string(),
@@ -732,7 +746,10 @@ impl AdvancedMonitoringSystem {
         })
     }
 
-    async fn analyze_network(&self, _data: &time_series::TimeSeriesData) -> Result<NetworkAnalysis> {
+    async fn analyze_network(
+        &self,
+        _data: &time_series::TimeSeriesData,
+    ) -> Result<NetworkAnalysis> {
         Ok(NetworkAnalysis {
             peer_distribution: PeerDistribution {
                 total_peers: 1245,
@@ -761,7 +778,10 @@ impl AdvancedMonitoringSystem {
         })
     }
 
-    async fn analyze_governance(&self, _data: &time_series::TimeSeriesData) -> Result<GovernanceAnalysis> {
+    async fn analyze_governance(
+        &self,
+        _data: &time_series::TimeSeriesData,
+    ) -> Result<GovernanceAnalysis> {
         Ok(GovernanceAnalysis {
             proposal_activity: ProposalActivity {
                 total_proposals: 15,
@@ -785,7 +805,10 @@ impl AdvancedMonitoringSystem {
         })
     }
 
-    async fn generate_recommendations(&self, _data: &time_series::TimeSeriesData) -> Result<Vec<OptimizationRecommendation>> {
+    async fn generate_recommendations(
+        &self,
+        _data: &time_series::TimeSeriesData,
+    ) -> Result<Vec<OptimizationRecommendation>> {
         Ok(vec![
             OptimizationRecommendation {
                 id: Uuid::new_v4(),
@@ -816,9 +839,16 @@ impl AdvancedMonitoringSystem {
         ])
     }
 
-    async fn summarize_alerts(&self, start_time: DateTime<Utc>, end_time: DateTime<Utc>) -> Result<AlertsSummary> {
-        let alerts = self.alert_manager.get_alerts_in_period(start_time, end_time).await?;
-        
+    async fn summarize_alerts(
+        &self,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+    ) -> Result<AlertsSummary> {
+        let alerts = self
+            .alert_manager
+            .get_alerts_in_period(start_time, end_time)
+            .await?;
+
         let mut critical_count = 0;
         let mut warning_count = 0;
         let mut info_count = 0;
@@ -860,9 +890,10 @@ impl AdvancedMonitoringSystem {
         let mut total_weight = 0.0;
 
         // Performance health (30% weight)
-        let performance_health = (metrics.success_rate * 0.4 + 
-                                (1.0 - metrics.error_rate) * 0.3 + 
-                                (1.0 - metrics.avg_response_time_ms / 1000.0).max(0.0) * 0.3) * 100.0;
+        let performance_health = (metrics.success_rate * 0.4
+            + (1.0 - metrics.error_rate) * 0.3
+            + (1.0 - metrics.avg_response_time_ms / 1000.0).max(0.0) * 0.3)
+            * 100.0;
         health_score += performance_health * 0.3;
         total_weight += 0.3;
 
@@ -872,14 +903,14 @@ impl AdvancedMonitoringSystem {
         total_weight += 0.25;
 
         // Storage health (20% weight)
-        let storage_health = (metrics.storage_efficiency * 0.4 + 
-                            metrics.chunk_availability * 0.6) * 100.0;
+        let storage_health =
+            (metrics.storage_efficiency * 0.4 + metrics.chunk_availability * 0.6) * 100.0;
         health_score += storage_health * 0.2;
         total_weight += 0.2;
 
         // System resource health (15% weight)
-        let resource_health = (100.0 - metrics.cpu_usage_percent) * 0.4 + 
-                             (100.0 - (metrics.memory_usage_mb as f64 / 1024.0 / 16.0).min(100.0)) * 0.6;
+        let resource_health = (100.0 - metrics.cpu_usage_percent) * 0.4
+            + (100.0 - (metrics.memory_usage_mb as f64 / 1024.0 / 16.0).min(100.0)) * 0.6;
         health_score += resource_health * 0.15;
         total_weight += 0.15;
 

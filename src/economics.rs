@@ -1,12 +1,11 @@
+use crate::error::{DfsError, DfsResult};
 /// Economic Model and Token System
 ///
 /// This module implements the economic model for the DataMesh network as outlined
 /// in the governance roadmap. It includes token management, incentive mechanisms,
 /// cost calculations, and reward distribution systems.
-
 use crate::governance::UserId;
-use crate::error::{DfsResult, DfsError};
-use chrono::{DateTime, Utc, Duration};
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -27,7 +26,7 @@ impl Default for Token {
         Self {
             symbol: "DMT".to_string(),
             name: "DataMesh Token".to_string(),
-            total_supply: 1_000_000_000, // 1 billion tokens
+            total_supply: 1_000_000_000,     // 1 billion tokens
             circulating_supply: 100_000_000, // 100 million initially circulating
             decimal_places: 18,
         }
@@ -64,19 +63,19 @@ pub struct EconomicConfig {
     // Storage pricing
     pub storage_cost_per_gb_month: f64,
     pub storage_reward_rate_per_gb_hour: f64,
-    
+
     // Bandwidth pricing
     pub bandwidth_cost_per_gb: f64,
     pub bandwidth_reward_rate_per_gb: f64,
-    
+
     // API pricing
     pub api_cost_per_thousand: f64,
-    
+
     // Staking and rewards
     pub minimum_stake_amount: u64,
     pub staking_reward_rate_annual: f64,
     pub bootstrap_operator_min_stake: u64,
-    
+
     // Token economics
     pub inflation_rate_annual: f64,
     pub burn_rate_on_fees: f64,
@@ -94,7 +93,7 @@ impl Default for EconomicConfig {
             staking_reward_rate_annual: 0.05, // 5% annual reward
             bootstrap_operator_min_stake: 100000,
             inflation_rate_annual: 0.02, // 2% annual inflation
-            burn_rate_on_fees: 0.1, // 10% of fees burned
+            burn_rate_on_fees: 0.1,      // 10% of fees burned
         }
     }
 }
@@ -212,13 +211,16 @@ impl EconomicService {
     /// Initialize user balance
     pub fn initialize_user_balance(&self, user_id: UserId, initial_balance: u64) -> DfsResult<()> {
         let mut balances = self.balances.write().unwrap();
-        balances.insert(user_id, TokenBalance {
+        balances.insert(
             user_id,
-            balance: initial_balance,
-            staked: 0,
-            locked: 0,
-            last_updated: Utc::now(),
-        });
+            TokenBalance {
+                user_id,
+                balance: initial_balance,
+                staked: 0,
+                locked: 0,
+                last_updated: Utc::now(),
+            },
+        );
         Ok(())
     }
 
@@ -231,11 +233,12 @@ impl EconomicService {
     /// Transfer tokens between users
     pub fn transfer_tokens(&self, from: UserId, to: UserId, amount: u64) -> DfsResult<Transaction> {
         let mut balances = self.balances.write().unwrap();
-        
+
         // Check sender balance
-        let sender_balance = balances.get_mut(&from)
+        let sender_balance = balances
+            .get_mut(&from)
             .ok_or_else(|| DfsError::Generic("Sender not found".to_string()))?;
-        
+
         if sender_balance.balance < amount {
             return Err(DfsError::Generic("Insufficient balance".to_string()));
         }
@@ -285,10 +288,11 @@ impl EconomicService {
     /// Stake tokens for rewards
     pub fn stake_tokens(&self, user_id: UserId, amount: u64) -> DfsResult<Transaction> {
         let mut balances = self.balances.write().unwrap();
-        
-        let balance = balances.get_mut(&user_id)
+
+        let balance = balances
+            .get_mut(&user_id)
             .ok_or_else(|| DfsError::Generic("User not found".to_string()))?;
-        
+
         if balance.balance < amount {
             return Err(DfsError::Generic("Insufficient balance".to_string()));
         }
@@ -325,10 +329,11 @@ impl EconomicService {
     /// Unstake tokens
     pub fn unstake_tokens(&self, user_id: UserId, amount: u64) -> DfsResult<Transaction> {
         let mut balances = self.balances.write().unwrap();
-        
-        let balance = balances.get_mut(&user_id)
+
+        let balance = balances
+            .get_mut(&user_id)
             .ok_or_else(|| DfsError::Generic("User not found".to_string()))?;
-        
+
         if balance.staked < amount {
             return Err(DfsError::Generic("Insufficient staked amount".to_string()));
         }
@@ -358,15 +363,20 @@ impl EconomicService {
     }
 
     /// Calculate cost for user operations
-    pub fn calculate_operation_cost(&self, user_id: UserId, usage: ResourceUsage) -> CostCalculation {
+    pub fn calculate_operation_cost(
+        &self,
+        user_id: UserId,
+        usage: ResourceUsage,
+    ) -> CostCalculation {
         let config = self.config.read().unwrap();
-        
-        let storage_cost = (usage.storage_gb * usage.duration_hours / 24.0 / 30.0) * config.storage_cost_per_gb_month;
+
+        let storage_cost = (usage.storage_gb * usage.duration_hours / 24.0 / 30.0)
+            * config.storage_cost_per_gb_month;
         let bandwidth_cost = usage.bandwidth_gb * config.bandwidth_cost_per_gb;
         let api_cost = (usage.api_calls as f64 / 1000.0) * config.api_cost_per_thousand;
-        
+
         let base_cost = ((storage_cost + bandwidth_cost + api_cost) * 1000.0) as u64; // Convert to token units
-        
+
         // Apply discount based on user staking (simplified)
         let discount_multiplier = if let Some(balance) = self.get_balance(&user_id) {
             if balance.staked > 10000 {
@@ -392,18 +402,24 @@ impl EconomicService {
     }
 
     /// Calculate rewards for network participants
-    pub fn calculate_participant_rewards(&self, user_id: UserId, contribution: NodeContribution) -> RewardCalculation {
+    pub fn calculate_participant_rewards(
+        &self,
+        user_id: UserId,
+        contribution: NodeContribution,
+    ) -> RewardCalculation {
         let config = self.config.read().unwrap();
-        
-        let storage_reward = (contribution.storage_gb_hours * config.storage_reward_rate_per_gb_hour) as u64;
-        let bandwidth_reward = (contribution.bandwidth_gb_transferred * config.bandwidth_reward_rate_per_gb) as u64;
-        
+
+        let storage_reward =
+            (contribution.storage_gb_hours * config.storage_reward_rate_per_gb_hour) as u64;
+        let bandwidth_reward =
+            (contribution.bandwidth_gb_transferred * config.bandwidth_reward_rate_per_gb) as u64;
+
         let base_amount = storage_reward + bandwidth_reward;
-        
+
         // Apply quality and uptime multipliers
         let quality_multiplier = contribution.quality_score.max(0.1).min(2.0);
         let uptime_multiplier = contribution.uptime_percentage.max(0.1).min(1.0);
-        
+
         let total_reward = (base_amount as f64 * quality_multiplier * uptime_multiplier) as u64;
 
         RewardCalculation {
@@ -421,15 +437,17 @@ impl EconomicService {
     /// Distribute rewards to participants
     pub fn distribute_rewards(&self, reward: RewardCalculation) -> DfsResult<Transaction> {
         let mut balances = self.balances.write().unwrap();
-        
-        let balance = balances.entry(reward.recipient).or_insert_with(|| TokenBalance {
-            user_id: reward.recipient,
-            balance: 0,
-            staked: 0,
-            locked: 0,
-            last_updated: Utc::now(),
-        });
-        
+
+        let balance = balances
+            .entry(reward.recipient)
+            .or_insert_with(|| TokenBalance {
+                user_id: reward.recipient,
+                balance: 0,
+                staked: 0,
+                locked: 0,
+                last_updated: Utc::now(),
+            });
+
         balance.balance += reward.total_reward;
         balance.last_updated = Utc::now();
 
@@ -456,7 +474,7 @@ impl EconomicService {
     pub fn burn_tokens(&self, amount: u64) -> DfsResult<()> {
         let mut token_info = self.token_info.write().unwrap();
         token_info.circulating_supply = token_info.circulating_supply.saturating_sub(amount);
-        
+
         // Record burn transaction
         let transaction = Transaction {
             transaction_id: Uuid::new_v4(),
@@ -479,7 +497,8 @@ impl EconomicService {
     /// Get transaction history for a user
     pub fn get_transaction_history(&self, user_id: &UserId) -> Vec<Transaction> {
         let transactions = self.transactions.read().unwrap();
-        transactions.iter()
+        transactions
+            .iter()
             .filter(|tx| tx.from_user == Some(*user_id) || tx.to_user == Some(*user_id))
             .cloned()
             .collect()
@@ -493,9 +512,11 @@ impl EconomicService {
 
         let total_staked = balances.values().map(|b| b.staked).sum();
         let total_locked = balances.values().map(|b| b.locked).sum();
-        let total_in_circulation = balances.values().map(|b| b.balance).sum::<u64>() + total_staked + total_locked;
-        
-        let recent_transactions = transactions.iter()
+        let total_in_circulation =
+            balances.values().map(|b| b.balance).sum::<u64>() + total_staked + total_locked;
+
+        let recent_transactions = transactions
+            .iter()
             .filter(|tx| tx.timestamp > Utc::now() - Duration::hours(24))
             .count();
 
@@ -559,22 +580,22 @@ mod tests {
         let service = EconomicService::new();
         let user1 = Uuid::new_v4();
         let user2 = Uuid::new_v4();
-        
+
         // Initialize balances
         service.initialize_user_balance(user1, 1000).unwrap();
         service.initialize_user_balance(user2, 0).unwrap();
-        
+
         // Transfer tokens
         let tx = service.transfer_tokens(user1, user2, 100).unwrap();
-        
+
         assert_eq!(tx.amount, 100);
         assert_eq!(tx.from_user, Some(user1));
         assert_eq!(tx.to_user, Some(user2));
-        
+
         // Check balances
         let balance1 = service.get_balance(&user1).unwrap();
         let balance2 = service.get_balance(&user2).unwrap();
-        
+
         assert_eq!(balance1.balance, 900); // 1000 - 100
         assert_eq!(balance2.balance, 99); // 100 - 1 (fee)
     }
@@ -583,16 +604,16 @@ mod tests {
     fn test_staking() {
         let service = EconomicService::new();
         let user = Uuid::new_v4();
-        
+
         // Initialize balance
         service.initialize_user_balance(user, 10000).unwrap();
-        
+
         // Stake tokens
         let tx = service.stake_tokens(user, 5000).unwrap();
-        
+
         assert_eq!(tx.amount, 5000);
         assert_eq!(tx.transaction_type, TransactionType::Stake);
-        
+
         // Check balance
         let balance = service.get_balance(&user).unwrap();
         assert_eq!(balance.balance, 5000);
@@ -603,16 +624,16 @@ mod tests {
     fn test_cost_calculation() {
         let service = EconomicService::new();
         let user = Uuid::new_v4();
-        
+
         let usage = ResourceUsage {
             storage_gb: 10.0,
             bandwidth_gb: 5.0,
             api_calls: 1000,
             duration_hours: 24.0,
         };
-        
+
         let cost = service.calculate_operation_cost(user, usage);
-        
+
         assert!(cost.base_cost > 0);
         assert!(cost.total_cost > 0);
         assert_eq!(cost.discount_multiplier, 1.0); // No staking discount
@@ -622,7 +643,7 @@ mod tests {
     fn test_reward_calculation() {
         let service = EconomicService::new();
         let user = Uuid::new_v4();
-        
+
         let contribution = NodeContribution {
             storage_gb_hours: 1000.0,
             bandwidth_gb_transferred: 500.0,
@@ -631,9 +652,9 @@ mod tests {
             period_start: Utc::now() - Duration::hours(24),
             period_end: Utc::now(),
         };
-        
+
         let reward = service.calculate_participant_rewards(user, contribution);
-        
+
         assert!(reward.base_amount > 0);
         assert!(reward.total_reward > 0);
         assert_eq!(reward.quality_multiplier, 0.9);
@@ -645,16 +666,16 @@ mod tests {
         let service = EconomicService::new();
         let user1 = Uuid::new_v4();
         let user2 = Uuid::new_v4();
-        
+
         // Initialize balances
         service.initialize_user_balance(user1, 1000).unwrap();
         service.initialize_user_balance(user2, 2000).unwrap();
-        
+
         // Stake some tokens
         service.stake_tokens(user1, 500).unwrap();
-        
+
         let stats = service.get_economic_stats();
-        
+
         assert_eq!(stats.active_accounts, 2);
         assert_eq!(stats.total_staked, 500);
         assert_eq!(stats.total_in_circulation, 3000); // 500 + 2000 + 500 (staked)

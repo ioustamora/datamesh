@@ -3,23 +3,22 @@
 /// This module provides enterprise-grade backup and disaster recovery capabilities
 /// including automated scheduling, incremental backups, integrity verification,
 /// and multi-destination support.
-
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
+use glob;
 use serde::{Deserialize, Serialize};
 use tokio::time::interval;
-use tracing::{info, warn, error, debug};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
-use glob;
 
-use crate::error::{DfsError, DfsResult};
-use crate::database::DatabaseManager;
-use crate::key_manager::KeyManager;
 use crate::cli::Cli;
+use crate::database::DatabaseManager;
+use crate::error::{DfsError, DfsResult};
+use crate::key_manager::KeyManager;
 
 /// Backup types supported by the system
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -254,11 +253,11 @@ impl BackupSystem {
     pub fn add_backup_config(&self, mut config: BackupConfig) -> DfsResult<Uuid> {
         config.id = Uuid::new_v4();
         config.created_at = Utc::now();
-        
+
         let config_id = config.id;
         let mut configs = self.configs.write().unwrap();
         configs.insert(config_id, config);
-        
+
         info!("Added new backup configuration: {}", config_id);
         Ok(config_id)
     }
@@ -271,7 +270,10 @@ impl BackupSystem {
             info!("Updated backup configuration: {}", config.id);
             Ok(())
         } else {
-            Err(DfsError::Config(format!("Backup config not found: {}", config.id)))
+            Err(DfsError::Config(format!(
+                "Backup config not found: {}",
+                config.id
+            )))
         }
     }
 
@@ -282,7 +284,10 @@ impl BackupSystem {
             info!("Removed backup configuration: {}", config_id);
             Ok(())
         } else {
-            Err(DfsError::Config(format!("Backup config not found: {}", config_id)))
+            Err(DfsError::Config(format!(
+                "Backup config not found: {}",
+                config_id
+            )))
         }
     }
 
@@ -300,11 +305,14 @@ impl BackupSystem {
 
     /// Execute a backup job
     pub async fn execute_backup(&self, config_id: Uuid) -> DfsResult<Uuid> {
-        let config = self.get_backup_config(config_id)
+        let config = self
+            .get_backup_config(config_id)
             .ok_or_else(|| DfsError::Config(format!("Backup config not found: {}", config_id)))?;
 
         if !config.enabled {
-            return Err(DfsError::Config("Backup configuration is disabled".to_string()));
+            return Err(DfsError::Config(
+                "Backup configuration is disabled".to_string(),
+            ));
         }
 
         // Check if backup is already running
@@ -352,7 +360,9 @@ impl BackupSystem {
 
         // Update final status
         metadata.end_time = Some(Utc::now());
-        metadata.duration_seconds = metadata.end_time.unwrap()
+        metadata.duration_seconds = metadata
+            .end_time
+            .unwrap()
             .signed_duration_since(metadata.start_time)
             .num_seconds() as u64;
 
@@ -360,7 +370,7 @@ impl BackupSystem {
             Ok(_) => {
                 metadata.status = BackupStatus::Completed;
                 info!("Backup completed successfully: {}", backup_id);
-                
+
                 // Run verification if enabled
                 if config.verify_integrity {
                     metadata.status = BackupStatus::Verifying;
@@ -376,7 +386,9 @@ impl BackupSystem {
                         }
                         Err(e) => {
                             metadata.status = BackupStatus::VerificationFailed;
-                            metadata.error_messages.push(format!("Verification failed: {}", e));
+                            metadata
+                                .error_messages
+                                .push(format!("Verification failed: {}", e));
                             error!("Backup verification error: {}", e);
                         }
                     }
@@ -423,7 +435,8 @@ impl BackupSystem {
 
         // Calculate compression ratio
         if metadata.bytes_backed_up > 0 {
-            metadata.compression_ratio = metadata.bytes_compressed as f64 / metadata.bytes_backed_up as f64;
+            metadata.compression_ratio =
+                metadata.bytes_compressed as f64 / metadata.bytes_backed_up as f64;
         }
 
         Ok(())
@@ -483,15 +496,16 @@ impl BackupSystem {
                 metadata.files_backed_up += 1;
                 metadata.bytes_backed_up += file_size;
                 metadata.bytes_compressed += compressed_size;
-                metadata.checksums.insert(
-                    file_path.to_string_lossy().to_string(),
-                    checksum,
-                );
+                metadata
+                    .checksums
+                    .insert(file_path.to_string_lossy().to_string(), checksum);
                 debug!("Backed up file: {:?}", file_path);
             }
             Err(e) => {
                 metadata.files_failed += 1;
-                metadata.error_messages.push(format!("Failed to backup {:?}: {}", file_path, e));
+                metadata
+                    .error_messages
+                    .push(format!("Failed to backup {:?}: {}", file_path, e));
                 warn!("Failed to backup file {:?}: {}", file_path, e);
             }
         }
@@ -509,14 +523,14 @@ impl BackupSystem {
         // Use tokio::task::spawn_blocking to avoid Send issues
         let dir_path_buf = dir_path.to_path_buf();
         let _config_clone = config.clone();
-        
+
         Box::pin(async move {
             // Use blocking task to avoid Send issues with DatabaseManager
             let result = tokio::task::spawn_blocking(move || {
                 // Use walkdir for directory traversal without recursion
                 use std::fs;
                 let mut files_to_backup = Vec::new();
-                
+
                 // Collect all files first
                 let mut dir_stack = vec![dir_path_buf];
                 while let Some(current_dir) = dir_stack.pop() {
@@ -534,14 +548,18 @@ impl BackupSystem {
                             }
                         }
                         Err(e) => {
-                            return Err(DfsError::Storage(format!("Failed to read directory {:?}: {}", current_dir, e)));
+                            return Err(DfsError::Storage(format!(
+                                "Failed to read directory {:?}: {}",
+                                current_dir, e
+                            )));
                         }
                     }
                 }
-                
+
                 Ok(files_to_backup)
-            }).await;
-            
+            })
+            .await;
+
             match result {
                 Ok(Ok(files)) => {
                     // Process files without creating new BackupSystem instances
@@ -553,7 +571,10 @@ impl BackupSystem {
                     Ok(())
                 }
                 Ok(Err(e)) => Err(e),
-                Err(join_error) => Err(DfsError::Storage(format!("Directory traversal failed: {}", join_error))),
+                Err(join_error) => Err(DfsError::Storage(format!(
+                    "Directory traversal failed: {}",
+                    join_error
+                ))),
             }
         })
     }
@@ -566,7 +587,7 @@ impl BackupSystem {
     ) -> DfsResult<(u64, u64, String)> {
         // Generate backup tags
         let backup_tags = self.generate_backup_tags(file_path, config);
-        
+
         // Generate unique backup name
         let backup_name = format!(
             "backup-{}-{}-{}",
@@ -584,10 +605,13 @@ impl BackupSystem {
             &None,
             &Some(backup_name),
             &backup_tags_option,
-        ).await.map_err(|e| DfsError::Backup(format!("Failed to store backup: {}", e)))?;
+        )
+        .await
+        .map_err(|e| DfsError::Backup(format!("Failed to store backup: {}", e)))?;
 
         // Get file size
-        let file_size = file_path.metadata()
+        let file_size = file_path
+            .metadata()
             .map_err(|e| DfsError::Storage(e.to_string()))?
             .len();
 
@@ -630,9 +654,7 @@ impl BackupSystem {
 
     /// Check if a file should be excluded from backup
     fn should_exclude_file(&self, file_path: &Path, config: &BackupConfig) -> bool {
-        let file_name = file_path.file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("");
+        let file_name = file_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
         // Check include patterns first (they override excludes)
         if !config.include_patterns.is_empty() {
@@ -658,24 +680,24 @@ impl BackupSystem {
     fn calculate_file_checksum(&self, file_path: &Path) -> DfsResult<String> {
         use std::fs::File;
         use std::io::Read;
-        
-        let mut file = File::open(file_path)
-            .map_err(|e| DfsError::Io(e.to_string()))?;
-        
+
+        let mut file = File::open(file_path).map_err(|e| DfsError::Io(e.to_string()))?;
+
         let mut hasher = blake3::Hasher::new();
         let mut buffer = [0; 8192];
-        
+
         loop {
-            let bytes_read = file.read(&mut buffer)
+            let bytes_read = file
+                .read(&mut buffer)
                 .map_err(|e| DfsError::Io(e.to_string()))?;
-            
+
             if bytes_read == 0 {
                 break;
             }
-            
+
             hasher.update(&buffer[..bytes_read]);
         }
-        
+
         Ok(hasher.finalize().to_hex().to_string())
     }
 
@@ -696,7 +718,10 @@ impl BackupSystem {
 
         // Verify each file in the backup
         for (file_path, expected_checksum) in &metadata.checksums {
-            match self.verify_backed_up_file(file_path, expected_checksum).await {
+            match self
+                .verify_backed_up_file(file_path, expected_checksum)
+                .await
+            {
                 Ok(true) => {
                     result.files_verified += 1;
                     debug!("File verification passed: {}", file_path);
@@ -728,19 +753,29 @@ impl BackupSystem {
         );
 
         if result.success {
-            info!("Backup verification completed successfully: {}", metadata.id);
+            info!(
+                "Backup verification completed successfully: {}",
+                metadata.id
+            );
         } else {
-            error!("Backup verification failed: {} - {}", metadata.id, result.details);
+            error!(
+                "Backup verification failed: {} - {}",
+                metadata.id, result.details
+            );
         }
 
         Ok(result)
     }
 
     /// Verify a single backed-up file by retrieving and checking its checksum
-    async fn verify_backed_up_file(&self, file_path: &str, _expected_checksum: &str) -> DfsResult<bool> {
+    async fn verify_backed_up_file(
+        &self,
+        file_path: &str,
+        _expected_checksum: &str,
+    ) -> DfsResult<bool> {
         // Generate the backup name that would have been used for this file
         let backup_name = self.generate_backup_name_for_verification(file_path)?;
-        
+
         // Try to retrieve the file metadata from the database
         match self.database.get_file_by_name(&backup_name) {
             Ok(Some(_file_entry)) => {
@@ -750,17 +785,22 @@ impl BackupSystem {
                 // 2. Calculate its checksum
                 // 3. Compare with the expected checksum
                 // 4. Clean up the temporary file
-                
+
                 // This is a simplified verification that checks if the file exists in database
-                debug!("File found in database: {} (checksum verification would go here)", backup_name);
+                debug!(
+                    "File found in database: {} (checksum verification would go here)",
+                    backup_name
+                );
                 Ok(true)
             }
-            Ok(None) => {
-                Err(DfsError::Backup(format!("Backup file not found: {}", backup_name)))
-            }
-            Err(e) => {
-                Err(DfsError::Backup(format!("Error verifying backup file {}: {}", backup_name, e)))
-            }
+            Ok(None) => Err(DfsError::Backup(format!(
+                "Backup file not found: {}",
+                backup_name
+            ))),
+            Err(e) => Err(DfsError::Backup(format!(
+                "Error verifying backup file {}: {}",
+                backup_name, e
+            ))),
         }
     }
 
@@ -768,10 +808,11 @@ impl BackupSystem {
     fn generate_backup_name_for_verification(&self, file_path: &str) -> DfsResult<String> {
         // This should match the logic used in store_file_backup
         let path = std::path::Path::new(file_path);
-        let filename = path.file_name()
+        let filename = path
+            .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("unknown-file");
-        
+
         // Since we don't have the exact config info here, we'll use a generic pattern
         // In a real implementation, this would need to be stored in the metadata
         Ok(format!("backup-verification-{}", filename))
@@ -779,7 +820,10 @@ impl BackupSystem {
 
     /// Restore from backup
     pub async fn restore_backup(&self, options: RestoreOptions) -> DfsResult<()> {
-        let metadata = self.metadata.read().unwrap()
+        let metadata = self
+            .metadata
+            .read()
+            .unwrap()
             .get(&options.backup_id)
             .cloned()
             .ok_or_else(|| DfsError::Backup("Backup metadata not found".to_string()))?;
@@ -787,11 +831,13 @@ impl BackupSystem {
         info!("Starting restore from backup: {}", options.backup_id);
 
         // Create destination directory
-        std::fs::create_dir_all(&options.destination)
-            .map_err(|e| DfsError::Storage(format!("Failed to create destination directory: {}", e)))?;
+        std::fs::create_dir_all(&options.destination).map_err(|e| {
+            DfsError::Storage(format!("Failed to create destination directory: {}", e))
+        })?;
 
         // Restore files using existing restore functionality
-        let config = self.get_backup_config(metadata.config_id)
+        let config = self
+            .get_backup_config(metadata.config_id)
             .ok_or_else(|| DfsError::Backup("Backup configuration not found".to_string()))?;
 
         // Use the existing restore function from file_manager
@@ -802,7 +848,9 @@ impl BackupSystem {
             &options.destination,
             None,
             options.verify_after_restore,
-        ).await.map_err(|e| DfsError::Backup(format!("Restore failed: {}", e)))?;
+        )
+        .await
+        .map_err(|e| DfsError::Backup(format!("Restore failed: {}", e)))?;
 
         info!("Restore completed: {}", options.backup_id);
         Ok(())
@@ -812,19 +860,19 @@ impl BackupSystem {
     pub fn get_backup_statistics(&self) -> BackupStatistics {
         let configs = self.configs.read().unwrap();
         let metadata = self.metadata.read().unwrap();
-        
+
         let total_configs = configs.len();
         let enabled_configs = configs.values().filter(|c| c.enabled).count();
         let total_backups = metadata.len();
-        let successful_backups = metadata.values()
+        let successful_backups = metadata
+            .values()
             .filter(|m| m.status == BackupStatus::Completed)
             .count();
-        let failed_backups = metadata.values()
+        let failed_backups = metadata
+            .values()
             .filter(|m| m.status == BackupStatus::Failed)
             .count();
-        let total_bytes_backed_up = metadata.values()
-            .map(|m| m.bytes_backed_up)
-            .sum();
+        let total_bytes_backed_up = metadata.values().map(|m| m.bytes_backed_up).sum();
 
         BackupStatistics {
             total_configs,
@@ -833,27 +881,26 @@ impl BackupSystem {
             successful_backups,
             failed_backups,
             total_bytes_backed_up,
-            average_compression_ratio: metadata.values()
-                .map(|m| m.compression_ratio)
-                .sum::<f64>() / metadata.len().max(1) as f64,
+            average_compression_ratio: metadata.values().map(|m| m.compression_ratio).sum::<f64>()
+                / metadata.len().max(1) as f64,
         }
     }
 
     /// Start automated backup scheduler
     pub async fn start_scheduler(self: Arc<Self>) {
         let mut scheduler_interval = interval(Duration::from_secs(60)); // Check every minute
-        
+
         info!("Starting backup scheduler");
-        
+
         loop {
             scheduler_interval.tick().await;
-            
+
             let configs = self.configs.read().unwrap().clone();
             for config in configs.values() {
                 if config.enabled && config.schedule.is_some() {
                     if self.should_run_scheduled_backup(config) {
                         let config_id = config.id;
-                        
+
                         // Execute backup directly instead of spawning to avoid Send issues
                         if let Err(e) = self.execute_backup(config_id).await {
                             error!("Scheduled backup failed: {}", e);
@@ -868,10 +915,8 @@ impl BackupSystem {
     fn should_run_scheduled_backup(&self, config: &BackupConfig) -> bool {
         // Simple time-based scheduling (can be enhanced with cron-like parsing)
         if let Some(last_backup) = config.last_backup {
-            let hours_since_last = Utc::now()
-                .signed_duration_since(last_backup)
-                .num_hours();
-            
+            let hours_since_last = Utc::now().signed_duration_since(last_backup).num_hours();
+
             // For now, run daily backups
             hours_since_last >= 24
         } else {
@@ -880,49 +925,56 @@ impl BackupSystem {
     }
 
     /// Get the timestamp of the last full backup for a configuration
-    fn get_last_full_backup_time(&self, config_id: &uuid::Uuid) -> DfsResult<Option<DateTime<Utc>>> {
+    fn get_last_full_backup_time(
+        &self,
+        config_id: &uuid::Uuid,
+    ) -> DfsResult<Option<DateTime<Utc>>> {
         let metadata = self.metadata.read().unwrap();
-        
+
         // Find the most recent completed full backup for this configuration
-        let last_full_backup = metadata.values()
+        let last_full_backup = metadata
+            .values()
             .filter(|m| m.config_id == *config_id)
             .filter(|m| m.backup_type == BackupType::Full)
             .filter(|m| m.status == BackupStatus::Completed)
             .max_by_key(|m| m.start_time)
             .map(|m| m.start_time);
-        
+
         Ok(last_full_backup)
     }
 
     /// Clean up old backup metadata based on retention policy
     pub fn cleanup_old_backups(&self, config_id: uuid::Uuid) -> DfsResult<usize> {
-        let config = self.get_backup_config(config_id)
+        let config = self
+            .get_backup_config(config_id)
             .ok_or_else(|| DfsError::Config(format!("Backup config not found: {}", config_id)))?;
-        
+
         let cutoff_date = Utc::now() - chrono::Duration::days(config.retention_days as i64);
         let mut metadata = self.metadata.write().unwrap();
-        
+
         // Find backups to remove
-        let backup_ids_to_remove: Vec<_> = metadata.iter()
+        let backup_ids_to_remove: Vec<_> = metadata
+            .iter()
             .filter(|(_, m)| m.config_id == config_id)
             .filter(|(_, m)| m.start_time < cutoff_date)
             .map(|(id, _)| *id)
             .collect();
-        
+
         // Keep at least the minimum required versions
-        let current_backup_count = metadata.values()
+        let current_backup_count = metadata
+            .values()
             .filter(|m| m.config_id == config_id)
             .count();
-        
+
         let can_remove_count = if current_backup_count > config.max_versions as usize {
             std::cmp::min(
                 backup_ids_to_remove.len(),
-                current_backup_count - config.max_versions as usize
+                current_backup_count - config.max_versions as usize,
             )
         } else {
             0
         };
-        
+
         // Remove old backups
         let mut removed_count = 0;
         for &backup_id in backup_ids_to_remove.iter().take(can_remove_count) {
@@ -931,7 +983,7 @@ impl BackupSystem {
                 info!("Removed old backup metadata: {}", backup_id);
             }
         }
-        
+
         Ok(removed_count)
     }
 
@@ -939,7 +991,7 @@ impl BackupSystem {
     pub fn get_backup_health(&self) -> BackupHealthReport {
         let configs = self.configs.read().unwrap();
         let metadata = self.metadata.read().unwrap();
-        
+
         let mut report = BackupHealthReport {
             overall_status: BackupHealthStatus::Healthy,
             total_configs: configs.len(),
@@ -950,50 +1002,59 @@ impl BackupSystem {
             storage_usage_gb: 0.0,
             recommendations: vec![],
         };
-        
+
         // Check for overdue backups
         let now = Utc::now();
         for config in configs.values() {
             if !config.enabled {
                 continue;
             }
-            
+
             if let Some(last_backup) = config.last_backup {
                 let hours_since = now.signed_duration_since(last_backup).num_hours();
-                if hours_since > 25 { // More than 25 hours (allowing for some variance)
+                if hours_since > 25 {
+                    // More than 25 hours (allowing for some variance)
                     report.overdue_backups.push(config.name.clone());
                 }
             } else {
-                report.overdue_backups.push(format!("{} (never backed up)", config.name));
+                report
+                    .overdue_backups
+                    .push(format!("{} (never backed up)", config.name));
             }
         }
-        
+
         // Check for failed backups
         for backup_metadata in metadata.values() {
             if backup_metadata.status == BackupStatus::Failed {
-                let config_name = configs.get(&backup_metadata.config_id)
+                let config_name = configs
+                    .get(&backup_metadata.config_id)
                     .map(|c| c.name.clone())
                     .unwrap_or_else(|| format!("Unknown config: {}", backup_metadata.config_id));
                 report.failed_backups.push(config_name);
             }
         }
-        
+
         // Calculate storage usage
-        report.storage_usage_gb = metadata.values()
-            .map(|m| m.bytes_backed_up)
-            .sum::<u64>() as f64 / (1024.0 * 1024.0 * 1024.0);
-        
+        report.storage_usage_gb = metadata.values().map(|m| m.bytes_backed_up).sum::<u64>() as f64
+            / (1024.0 * 1024.0 * 1024.0);
+
         // Generate recommendations
         if !report.overdue_backups.is_empty() {
-            report.recommendations.push("Run overdue backups immediately".to_string());
+            report
+                .recommendations
+                .push("Run overdue backups immediately".to_string());
         }
         if !report.failed_backups.is_empty() {
-            report.recommendations.push("Investigate and retry failed backups".to_string());
+            report
+                .recommendations
+                .push("Investigate and retry failed backups".to_string());
         }
         if report.storage_usage_gb > 100.0 {
-            report.recommendations.push("Consider cleaning up old backups to free space".to_string());
+            report
+                .recommendations
+                .push("Consider cleaning up old backups to free space".to_string());
         }
-        
+
         // Set overall status
         if !report.failed_backups.is_empty() || !report.overdue_backups.is_empty() {
             report.overall_status = BackupHealthStatus::Warning;
@@ -1001,14 +1062,17 @@ impl BackupSystem {
         if report.failed_backups.len() > 2 || report.overdue_backups.len() > 3 {
             report.overall_status = BackupHealthStatus::Critical;
         }
-        
+
         report
     }
 
     /// Execute disaster recovery plan
-    pub async fn execute_disaster_recovery(&self, plan: DisasterRecoveryPlan) -> DfsResult<DisasterRecoveryResult> {
+    pub async fn execute_disaster_recovery(
+        &self,
+        plan: DisasterRecoveryPlan,
+    ) -> DfsResult<DisasterRecoveryResult> {
         info!("Starting disaster recovery execution: {}", plan.name);
-        
+
         let start_time = Utc::now();
         let mut result = DisasterRecoveryResult {
             plan_name: plan.name.clone(),
@@ -1025,8 +1089,12 @@ impl BackupSystem {
 
         // Execute recovery steps in order
         for (step_index, step) in plan.steps.iter().enumerate() {
-            info!("Executing recovery step {}: {}", step_index + 1, step.description);
-            
+            info!(
+                "Executing recovery step {}: {}",
+                step_index + 1,
+                step.description
+            );
+
             match self.execute_recovery_step(step).await {
                 Ok(step_result) => {
                     result.steps_completed += 1;
@@ -1036,9 +1104,11 @@ impl BackupSystem {
                 }
                 Err(e) => {
                     result.steps_failed += 1;
-                    result.errors.push(format!("Step {}: {}", step_index + 1, e));
+                    result
+                        .errors
+                        .push(format!("Step {}: {}", step_index + 1, e));
                     error!("Recovery step {} failed: {}", step_index + 1, e);
-                    
+
                     if step.critical {
                         result.status = RecoveryStatus::Failed;
                         result.details = format!("Critical step {} failed: {}", step_index + 1, e);
@@ -1049,14 +1119,20 @@ impl BackupSystem {
         }
 
         result.end_time = Some(Utc::now());
-        
+
         if result.status != RecoveryStatus::Failed {
             if result.steps_failed == 0 {
                 result.status = RecoveryStatus::Completed;
-                result.details = format!("All {} steps completed successfully", result.steps_completed);
+                result.details = format!(
+                    "All {} steps completed successfully",
+                    result.steps_completed
+                );
             } else {
                 result.status = RecoveryStatus::PartialSuccess;
-                result.details = format!("{} steps completed, {} failed", result.steps_completed, result.steps_failed);
+                result.details = format!(
+                    "{} steps completed, {} failed",
+                    result.steps_completed, result.steps_failed
+                );
             }
         }
 
@@ -1066,19 +1142,28 @@ impl BackupSystem {
             RecoveryStatus::PartialSuccess => 2,
             RecoveryStatus::Failed => 3,
         };
-        info!("Disaster recovery completed: {} - {}", status_code, result.details);
+        info!(
+            "Disaster recovery completed: {} - {}",
+            status_code, result.details
+        );
         Ok(result)
     }
 
     /// Execute a single recovery step
     async fn execute_recovery_step(&self, step: &RecoveryStep) -> DfsResult<RecoveryStepResult> {
         match &step.action {
-            RecoveryAction::RestoreBackup { backup_name, destination } => {
+            RecoveryAction::RestoreBackup {
+                backup_name,
+                destination,
+            } => {
                 // Find the most recent backup for the given name
                 let configs = self.get_backup_configs();
-                let config = configs.iter()
+                let config = configs
+                    .iter()
                     .find(|c| c.name == *backup_name)
-                    .ok_or_else(|| DfsError::Backup(format!("Backup not found: {}", backup_name)))?;
+                    .ok_or_else(|| {
+                        DfsError::Backup(format!("Backup not found: {}", backup_name))
+                    })?;
 
                 let restore_options = RestoreOptions {
                     backup_id: config.id,
@@ -1092,11 +1177,9 @@ impl BackupSystem {
                 };
 
                 self.restore_backup(restore_options).await?;
-                
+
                 // Calculate recovery metrics (simplified)
-                let restored_size = std::fs::metadata(destination)
-                    .map(|m| m.len())
-                    .unwrap_or(0);
+                let restored_size = std::fs::metadata(destination).map(|m| m.len()).unwrap_or(0);
 
                 Ok(RecoveryStepResult {
                     files_recovered: 1, // Simplified
@@ -1114,13 +1197,16 @@ impl BackupSystem {
                         duration_seconds: 0,
                     })
                 } else {
-                    Err(DfsError::Backup(format!("Verification failed: path not found: {:?}", target_path)))
+                    Err(DfsError::Backup(format!(
+                        "Verification failed: path not found: {:?}",
+                        target_path
+                    )))
                 }
             }
             RecoveryAction::RebuildIndex { data_directory } => {
                 // Rebuild database index from recovered files
                 info!("Rebuilding index for directory: {:?}", data_directory);
-                
+
                 // This would involve scanning the directory and recreating database entries
                 // For now, we'll just return success
                 Ok(RecoveryStepResult {
@@ -1131,8 +1217,11 @@ impl BackupSystem {
             }
             RecoveryAction::ReconnectNetwork { bootstrap_peers } => {
                 // Reconnect to the DataMesh network
-                info!("Reconnecting to network with {} bootstrap peers", bootstrap_peers.len());
-                
+                info!(
+                    "Reconnecting to network with {} bootstrap peers",
+                    bootstrap_peers.len()
+                );
+
                 // This would involve reinitializing network connections
                 Ok(RecoveryStepResult {
                     files_recovered: 0,
@@ -1144,7 +1233,11 @@ impl BackupSystem {
     }
 
     /// Create a disaster recovery plan
-    pub fn create_disaster_recovery_plan(&self, name: String, scenario: RecoveryScenario) -> DisasterRecoveryPlan {
+    pub fn create_disaster_recovery_plan(
+        &self,
+        name: String,
+        scenario: RecoveryScenario,
+    ) -> DisasterRecoveryPlan {
         let mut plan = DisasterRecoveryPlan {
             name,
             scenario: scenario.clone(),
@@ -1300,38 +1393,46 @@ impl BackupSystem {
     /// Start backup monitoring system
     pub async fn start_monitoring(self: Arc<Self>) -> DfsResult<()> {
         let mut monitor_interval = interval(Duration::from_secs(300)); // Check every 5 minutes
-        
+
         info!("Starting backup monitoring system");
-        
+
         loop {
             monitor_interval.tick().await;
-            
+
             // Generate health report
             let health_report = self.get_backup_health();
-            
+
             // Check for critical issues
             if health_report.overall_status == BackupHealthStatus::Critical {
                 self.send_critical_alert(&health_report).await?;
             } else if health_report.overall_status == BackupHealthStatus::Warning {
                 self.send_warning_alert(&health_report).await?;
             }
-            
+
             // Log health status
             match health_report.overall_status {
                 BackupHealthStatus::Healthy => {
-                    debug!("Backup system health: OK - {} configs, {:.1}GB storage", 
-                           health_report.enabled_configs, health_report.storage_usage_gb);
+                    debug!(
+                        "Backup system health: OK - {} configs, {:.1}GB storage",
+                        health_report.enabled_configs, health_report.storage_usage_gb
+                    );
                 }
                 BackupHealthStatus::Warning => {
-                    warn!("Backup system health: WARNING - {} overdue, {} failed", 
-                          health_report.overdue_backups.len(), health_report.failed_backups.len());
+                    warn!(
+                        "Backup system health: WARNING - {} overdue, {} failed",
+                        health_report.overdue_backups.len(),
+                        health_report.failed_backups.len()
+                    );
                 }
                 BackupHealthStatus::Critical => {
-                    error!("Backup system health: CRITICAL - {} overdue, {} failed", 
-                           health_report.overdue_backups.len(), health_report.failed_backups.len());
+                    error!(
+                        "Backup system health: CRITICAL - {} overdue, {} failed",
+                        health_report.overdue_backups.len(),
+                        health_report.failed_backups.len()
+                    );
                 }
             }
-            
+
             // Perform automatic cleanup
             self.perform_automatic_cleanup().await?;
         }
@@ -1356,7 +1457,7 @@ impl BackupSystem {
             timestamp: Utc::now(),
             details: serde_json::to_value(report).unwrap_or_default(),
         };
-        
+
         self.send_alert(alert).await
     }
 
@@ -1377,7 +1478,7 @@ impl BackupSystem {
             timestamp: Utc::now(),
             details: serde_json::to_value(report).unwrap_or_default(),
         };
-        
+
         self.send_alert(alert).await
     }
 
@@ -1389,10 +1490,10 @@ impl BackupSystem {
             AlertLevel::Warning => warn!("BACKUP ALERT [WARNING]: {}", alert.message),
             AlertLevel::Info => info!("BACKUP ALERT [INFO]: {}", alert.message),
         }
-        
+
         // TODO: Implement additional alert channels (email, webhook, etc.)
         // For now, we just log the alerts
-        
+
         Ok(())
     }
 
@@ -1400,14 +1501,17 @@ impl BackupSystem {
     async fn perform_automatic_cleanup(&self) -> DfsResult<()> {
         let configs = self.get_backup_configs();
         let mut total_cleaned = 0;
-        
+
         for config in configs {
             if config.enabled {
                 match self.cleanup_old_backups(config.id) {
                     Ok(cleaned) => {
                         if cleaned > 0 {
                             total_cleaned += cleaned;
-                            info!("Cleaned up {} old backups for config: {}", cleaned, config.name);
+                            info!(
+                                "Cleaned up {} old backups for config: {}",
+                                cleaned, config.name
+                            );
                         }
                     }
                     Err(e) => {
@@ -1416,11 +1520,14 @@ impl BackupSystem {
                 }
             }
         }
-        
+
         if total_cleaned > 0 {
-            info!("Automatic cleanup completed: {} backup metadata records removed", total_cleaned);
+            info!(
+                "Automatic cleanup completed: {} backup metadata records removed",
+                total_cleaned
+            );
         }
-        
+
         Ok(())
     }
 
@@ -1428,7 +1535,7 @@ impl BackupSystem {
     pub fn get_monitoring_metrics(&self) -> BackupMonitoringMetrics {
         let health_report = self.get_backup_health();
         let stats = self.get_backup_statistics();
-        
+
         BackupMonitoringMetrics {
             health_status: health_report.overall_status,
             total_configs: stats.total_configs,
@@ -1447,7 +1554,8 @@ impl BackupSystem {
     /// Get the timestamp of the most recent backup
     fn get_last_backup_timestamp(&self) -> Option<DateTime<Utc>> {
         let metadata = self.metadata.read().unwrap();
-        metadata.values()
+        metadata
+            .values()
             .filter(|m| m.status == BackupStatus::Completed)
             .map(|m| m.start_time)
             .max()
@@ -1615,7 +1723,7 @@ mod tests {
         let mut config = BackupConfig::default();
         config.name = "Test Backup".to_string();
         config.sources.push(PathBuf::from("/test/path"));
-        
+
         assert_eq!(config.name, "Test Backup");
         assert_eq!(config.backup_type, BackupType::Incremental);
         assert!(config.enabled);
@@ -1625,41 +1733,38 @@ mod tests {
     fn test_should_exclude_file() {
         let temp_dir = TempDir::new().unwrap();
         let system = create_test_backup_system();
-        
+
         let mut config = BackupConfig::default();
         config.exclude_patterns = vec!["*.tmp".to_string(), "cache/*".to_string()];
-        
+
         let tmp_file = temp_dir.path().join("test.tmp");
         assert!(system.should_exclude_file(&tmp_file, &config));
-        
+
         let regular_file = temp_dir.path().join("test.txt");
         assert!(!system.should_exclude_file(&regular_file, &config));
     }
 
     fn create_test_backup_system() -> BackupSystem {
-        use tempfile::TempDir;
         use std::sync::Arc;
-        use libsecp256k1::SecretKey;
-        
+        use tempfile::TempDir;
+
         // Create temporary directory for test database
         let temp_dir = TempDir::new().unwrap();
-        let db_path = temp_dir.path().join("test_backup.db").to_string_lossy().to_string();
-        
+        let db_path = temp_dir
+            .path()
+            .join("test_backup.db")
+            .to_string_lossy()
+            .to_string();
+
         // Create mock database manager
         let database = Arc::new(DatabaseManager::new(&db_path).unwrap());
-        
-        // Create test key manager with a valid secret key
-        let secret_key = SecretKey::parse(&[
-            0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
-            0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
-            0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
-            0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01
-        ]).unwrap();
-        let key_manager = Arc::new(KeyManager::new(secret_key, "test-backup-key".to_string()));
-        
+
+        // Create test key manager
+        let key_manager = Arc::new(KeyManager::new().unwrap());
+
         // Create mock CLI with minimal configuration
         let cli = Arc::new(Cli::default());
-        
+
         // Create backup system with test dependencies
         BackupSystem::new(database, key_manager, cli)
     }

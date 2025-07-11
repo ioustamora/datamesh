@@ -12,13 +12,11 @@
 /// bootstrapping new nodes into the network and maintaining peer connections.
 use anyhow::Result;
 use futures::stream::StreamExt;
+use libp2p::kad::{Behaviour as Kademlia, Event as KademliaEvent};
 use libp2p::{
-    identity, noise, tcp, yamux, PeerId, SwarmBuilder,
+    identity, noise,
     swarm::{NetworkBehaviour, Swarm, SwarmEvent},
-};
-use libp2p::kad::{
-    Behaviour as Kademlia,
-    Event as KademliaEvent,
+    tcp, yamux, PeerId, SwarmBuilder,
 };
 use std::error::Error;
 
@@ -49,8 +47,7 @@ impl From<KademliaEvent> for MyBehaviourEvent {
     }
 }
 
-impl MyBehaviour {
-}
+impl MyBehaviour {}
 
 /// Creates a new libp2p swarm and connects to the network
 ///
@@ -61,7 +58,10 @@ impl MyBehaviour {
 /// # Returns
 ///
 /// A configured libp2p Swarm ready for network operations
-pub async fn create_swarm_and_connect(cli: &Cli, _config: &Config) -> Result<Swarm<MyBehaviour>, Box<dyn Error>> {
+pub async fn create_swarm_and_connect(
+    cli: &Cli,
+    _config: &Config,
+) -> Result<Swarm<MyBehaviour>, Box<dyn Error>> {
     let local_key = identity::Keypair::generate_ed25519();
     let local_peer_id = PeerId::from(local_key.public());
     println!("Local peer id: {:?}", local_peer_id);
@@ -76,17 +76,17 @@ pub async fn create_swarm_and_connect(cli: &Cli, _config: &Config) -> Result<Swa
         )?
         .with_behaviour(|key| {
             let peer_id = key.public().to_peer_id();
-            
+
             // Use standard memory store for Send + Sync compatibility
             let storage = libp2p::kad::store::MemoryStore::new(peer_id);
             let mut kad = Kademlia::new(peer_id, storage);
-            
+
             // Configure Kademlia for better connectivity
             // Use Server mode to allow serving DHT requests and better peer discovery
             kad.set_mode(Some(libp2p::kad::Mode::Server));
-            
+
             // Note: automatic bootstrapping will be handled manually in the application loop
-            
+
             MyBehaviour { kad }
         })?
         .with_swarm_config(|c| c.with_idle_connection_timeout(std::time::Duration::from_secs(120)))
@@ -97,12 +97,12 @@ pub async fn create_swarm_and_connect(cli: &Cli, _config: &Config) -> Result<Swa
     if let (Some(peer), Some(addr)) = (cli.bootstrap_peer, cli.bootstrap_addr.clone()) {
         println!("Adding bootstrap peer: {} at {}", peer, addr);
         swarm.behaviour_mut().kad.add_address(&peer, addr.clone());
-        
+
         // Also try to explicitly connect to the bootstrap peer
         if let Err(e) = swarm.dial(addr.clone()) {
             println!("Warning: Failed to dial bootstrap peer: {:?}", e);
         }
-        
+
         // Add bootstrap peer to routing table immediately
         swarm.behaviour_mut().kad.add_address(&peer, addr);
     }
@@ -120,7 +120,10 @@ pub async fn create_swarm_and_connect(cli: &Cli, _config: &Config) -> Result<Swa
 /// # Returns
 ///
 /// A configured libp2p Swarm ready for network operations with bootstrap connections
-pub async fn create_swarm_and_connect_multi_bootstrap(cli: &Cli, config: &Config) -> Result<Swarm<MyBehaviour>, Box<dyn Error>> {
+pub async fn create_swarm_and_connect_multi_bootstrap(
+    cli: &Cli,
+    config: &Config,
+) -> Result<Swarm<MyBehaviour>, Box<dyn Error>> {
     let local_key = identity::Keypair::generate_ed25519();
     let local_peer_id = PeerId::from(local_key.public());
     println!("Local peer id: {:?}", local_peer_id);
@@ -135,15 +138,15 @@ pub async fn create_swarm_and_connect_multi_bootstrap(cli: &Cli, config: &Config
         )?
         .with_behaviour(|key| {
             let peer_id = key.public().to_peer_id();
-            
+
             // Use standard memory store for Send + Sync compatibility
             let storage = libp2p::kad::store::MemoryStore::new(peer_id);
             let mut kad = Kademlia::new(peer_id, storage);
-            
+
             // Configure Kademlia for better connectivity
             // Use Server mode to allow serving DHT requests and better peer discovery
             kad.set_mode(Some(libp2p::kad::Mode::Server));
-            
+
             MyBehaviour { kad }
         })?
         .with_swarm_config(|c| c.with_idle_connection_timeout(std::time::Duration::from_secs(120)))
@@ -153,7 +156,7 @@ pub async fn create_swarm_and_connect_multi_bootstrap(cli: &Cli, config: &Config
 
     // Use multi-bootstrap manager for connections
     let mut bootstrap_manager = config.network.bootstrap.to_bootstrap_manager()?;
-    
+
     // Add CLI bootstrap peers if provided (for backward compatibility)
     match cli.get_all_bootstrap_peers() {
         Ok(cli_peers) => {
@@ -169,11 +172,17 @@ pub async fn create_swarm_and_connect_multi_bootstrap(cli: &Cli, config: &Config
 
     // Connect to bootstrap network
     if bootstrap_manager.get_peer_count() > 0 {
-        println!("Connecting to bootstrap network with {} peers", bootstrap_manager.get_peer_count());
-        
+        println!(
+            "Connecting to bootstrap network with {} peers",
+            bootstrap_manager.get_peer_count()
+        );
+
         match bootstrap_manager.connect_to_network(&mut swarm).await {
             Ok(connected_peers) => {
-                println!("Successfully connected to {} bootstrap peers", connected_peers.len());
+                println!(
+                    "Successfully connected to {} bootstrap peers",
+                    connected_peers.len()
+                );
                 for peer_id in connected_peers {
                     println!("Connected to: {}", peer_id);
                 }
@@ -205,7 +214,7 @@ pub async fn create_swarm_and_connect_multi_bootstrap(cli: &Cli, config: &Config
 pub async fn start_bootstrap_node(port: u16, _config: &Config) -> Result<(), Box<dyn Error>> {
     let local_key = identity::Keypair::generate_ed25519();
     let local_peer_id = PeerId::from(local_key.public());
-    
+
     let mut swarm = SwarmBuilder::with_new_identity()
         .with_tokio()
         .with_tcp(
@@ -215,14 +224,14 @@ pub async fn start_bootstrap_node(port: u16, _config: &Config) -> Result<(), Box
         )?
         .with_behaviour(|key| {
             let peer_id = key.public().to_peer_id();
-            
+
             // Use standard memory store for Send + Sync compatibility
             let storage = libp2p::kad::store::MemoryStore::new(peer_id);
             let mut kad = Kademlia::new(peer_id, storage);
-            
+
             // Configure as a server mode for better connectivity
             kad.set_mode(Some(libp2p::kad::Mode::Server));
-            
+
             MyBehaviour { kad }
         })?
         .with_swarm_config(|c| c.with_idle_connection_timeout(std::time::Duration::from_secs(60)))
@@ -231,7 +240,7 @@ pub async fn start_bootstrap_node(port: u16, _config: &Config) -> Result<(), Box
     println!("Starting as bootstrap node on port {}", port);
     let listen_addr = format!("/ip4/0.0.0.0/tcp/{}", port);
     swarm.listen_on(listen_addr.parse()?)?;
-    
+
     println!("Bootstrap node started!");
     println!("Peer ID: {}", local_peer_id);
     println!("Other nodes can connect with:");
