@@ -388,7 +388,7 @@ impl EconomicService {
         let base_cost = ((storage_cost + bandwidth_cost + api_cost) * 1000.0) as u64; // Convert to token units
 
         // Apply discount based on user staking (simplified)
-        let discount_multiplier = if let Some(balance) = self.get_balance(&user_id) {
+        let discount_multiplier = if let Ok(Some(balance)) = self.get_balance(&user_id) {
             if balance.staked > 10000 {
                 0.9 // 10% discount for stakers
             } else {

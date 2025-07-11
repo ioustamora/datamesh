@@ -104,6 +104,7 @@ pub fn get_error_severity(error: &DfsError) -> ErrorSeverity {
         DfsError::Encoding(_) => ErrorSeverity::Warning,
         DfsError::Deserialization(_) => ErrorSeverity::Warning,
         DfsError::NotFound(_) => ErrorSeverity::Warning,
+        DfsError::Economics(_) => ErrorSeverity::Warning,
     }
 }
 
@@ -177,6 +178,7 @@ pub fn handle_error(error: &(dyn std::error::Error + 'static)) -> EnhancedError 
             DfsError::Encoding(msg) => DfsError::Encoding(msg.clone()),
             DfsError::Deserialization(msg) => DfsError::Deserialization(msg.clone()),
             DfsError::NotFound(msg) => DfsError::NotFound(msg.clone()),
+            DfsError::Economics(msg) => DfsError::Economics(msg.clone()),
         }
     } else {
         // Fall back to string analysis for unknown error types

@@ -42,6 +42,8 @@ pub enum DfsError {
     Authentication(String),
     /// Backup operation errors
     Backup(String),
+    /// Economics and token management errors
+    Economics(String),
     /// Generic errors
     Generic(String),
 }
@@ -96,6 +98,7 @@ impl fmt::Display for DfsError {
             DfsError::Authentication(e) => write!(f, "Authentication error: {}", e),
             DfsError::Config(e) => write!(f, "Configuration error: {}", e),
             DfsError::Backup(e) => write!(f, "Backup error: {}", e),
+            DfsError::Economics(e) => write!(f, "Economics error: {}", e),
             DfsError::Generic(e) => write!(f, "Error: {}", e),
             DfsError::Encryption(e) => write!(f, "Encryption error: {}", e),
             DfsError::Decryption(e) => write!(f, "Decryption error: {}", e),
