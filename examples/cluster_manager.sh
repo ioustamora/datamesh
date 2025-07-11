@@ -4,7 +4,7 @@
 set -e
 
 # Configuration
-DFS_BINARY="${DFS_BINARY:-./target/release/dfs}"
+DATAMESH_BINARY="${DATAMESH_BINARY:-./target/release/datamesh}"
 BOOTSTRAP_PORT=${BOOTSTRAP_PORT:-40871}
 NODE_PORTS=${NODE_PORTS:-"40872 40873 40874 40875 40876"}
 CLUSTER_DIR="cluster_$(date +%Y%m%d_%H%M%S)"
@@ -103,8 +103,8 @@ INFO_FILE="$CLUSTER_DIR/cluster.info"
 
 # Check if DFS binary exists
 check_binary() {
-    if [ ! -f "$DFS_BINARY" ]; then
-        error "DataMesh binary not found at $DFS_BINARY"
+    if [ ! -f "$DATAMESH_BINARY" ]; then
+        error "DataMesh binary not found at $DATAMESH_BINARY"
         echo "Build with: cargo build --release"
         exit 1
     fi
@@ -131,7 +131,7 @@ start_cluster() {
     
     # Start bootstrap node
     log "Starting bootstrap node on port $BOOTSTRAP_PORT..."
-    "$DFS_BINARY" --non-interactive bootstrap --port "$BOOTSTRAP_PORT" \
+    "$DATAMESH_BINARY" --non-interactive bootstrap --port "$BOOTSTRAP_PORT" \
         > "$LOG_DIR/bootstrap.log" 2>&1 &
     local bootstrap_pid=$!
     echo "$bootstrap_pid" > "$PID_FILE"
@@ -183,7 +183,7 @@ start_cluster() {
         
         log "Starting node $node_num on port $port..."
         
-        "$DFS_BINARY" --non-interactive service \
+        "$DATAMESH_BINARY" --non-interactive service \
             --bootstrap-peer "$bootstrap_peer_id" \
             --bootstrap-addr "$bootstrap_addr" \
             --port "$port" \
@@ -315,7 +315,7 @@ run_test() {
     # Store file
     log "Storing test file..."
     local output
-    output=$("$DFS_BINARY" \
+    output=$("$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -330,7 +330,7 @@ run_test() {
         log "Retrieving file..."
         local retrieved_file="/tmp/dfs_retrieved_$(date +%s).txt"
         
-        if "$DFS_BINARY" \
+        if "$DATAMESH_BINARY" \
             --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
             --bootstrap-addr "$BOOTSTRAP_ADDR" \
             --non-interactive \
@@ -386,15 +386,15 @@ show_connection() {
     echo "Example commands:"
     echo ""
     echo "Store a file:"
-    echo "  $DFS_BINARY --bootstrap-peer $BOOTSTRAP_PEER_ID \\"
+    echo "  $DATAMESH_BINARY --bootstrap-peer $BOOTSTRAP_PEER_ID \\"
     echo "    --bootstrap-addr $BOOTSTRAP_ADDR put <file>"
     echo ""
     echo "List files:"
-    echo "  $DFS_BINARY --bootstrap-peer $BOOTSTRAP_PEER_ID \\"
+    echo "  $DATAMESH_BINARY --bootstrap-peer $BOOTSTRAP_PEER_ID \\"
     echo "    --bootstrap-addr $BOOTSTRAP_ADDR list"
     echo ""
     echo "Interactive mode:"
-    echo "  $DFS_BINARY --bootstrap-peer $BOOTSTRAP_PEER_ID \\"
+    echo "  $DATAMESH_BINARY --bootstrap-peer $BOOTSTRAP_PEER_ID \\"
     echo "    --bootstrap-addr $BOOTSTRAP_ADDR interactive"
     echo ""
     echo "Available node ports: ${NODE_PORTS[*]}"

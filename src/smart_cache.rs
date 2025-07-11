@@ -418,7 +418,7 @@ impl SmartCacheManager {
 
     /// Start periodic preloading of popular files
     async fn start_preload_task(&self) {
-        let access_patterns = self.access_patterns.clone();
+        let _access_patterns = self.access_patterns.clone();
         let cache_manager = self.clone();
         
         tokio::spawn(async move {
@@ -671,7 +671,7 @@ impl SmartCacheManager {
 
     /// Retrieve file from network using concurrent chunks if available
     async fn retrieve_from_network(&self, file_key: &str) -> Result<Vec<u8>> {
-        if let Some(ref concurrent_chunks) = self.concurrent_chunks {
+        if let Some(ref _concurrent_chunks) = self.concurrent_chunks {
             // Use concurrent chunk manager for fast retrieval
             debug!("Using concurrent chunk retrieval for file: {}", file_key);
             // TODO: This would need a swarm parameter, for now it's a placeholder

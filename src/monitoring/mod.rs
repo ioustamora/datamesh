@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::RwLock;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
@@ -879,8 +878,8 @@ impl AdvancedMonitoringSystem {
         total_weight += 0.2;
 
         // System resource health (15% weight)
-        let resource_health = ((100.0 - metrics.cpu_usage_percent) * 0.4 + 
-                             (100.0 - (metrics.memory_usage_mb as f64 / 1024.0 / 16.0).min(100.0)) * 0.6);
+        let resource_health = (100.0 - metrics.cpu_usage_percent) * 0.4 + 
+                             (100.0 - (metrics.memory_usage_mb as f64 / 1024.0 / 16.0).min(100.0)) * 0.6;
         health_score += resource_health * 0.15;
         total_weight += 0.15;
 

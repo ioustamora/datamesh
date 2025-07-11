@@ -313,14 +313,14 @@ impl ActorFileStorage {
 
 /// Store a file using the actor-based network system
 pub async fn store_file_with_network(
-    cli: &Cli,
+    _cli: &Cli,
     key_manager: &KeyManager,
     file_path: &PathBuf,
     public_key: &Option<String>,
     name: &Option<String>,
     tags: &Option<Vec<String>>,
     network: std::sync::Arc<NetworkHandle>,
-    database: std::sync::Arc<ThreadSafeDatabaseManager>,
+    _database: std::sync::Arc<ThreadSafeDatabaseManager>,
 ) -> DfsResult<String> {
     // Implementation using actor-based network operations
     // This avoids the Swarm Send/Sync issues by using message passing
@@ -430,7 +430,7 @@ pub async fn retrieve_file_with_network(
     output_path: &PathBuf,
     private_key: &Option<String>,
     network: std::sync::Arc<NetworkHandle>,
-    database: std::sync::Arc<ThreadSafeDatabaseManager>,
+    _database: std::sync::Arc<ThreadSafeDatabaseManager>,
 ) -> DfsResult<()> {
     // Get file metadata from DHT
     let metadata_key = RecordKey::new(&identifier.as_bytes());

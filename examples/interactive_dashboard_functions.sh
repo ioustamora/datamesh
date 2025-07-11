@@ -106,7 +106,7 @@ interactive_store_file() {
     local start_time=$(date +%s.%3N)
     
     local output
-    output=$("$DFS_BINARY" \
+    output=$("$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -162,7 +162,7 @@ interactive_retrieve_file() {
         echo "Retrieving file..."
         local start_time=$(date +%s.%3N)
         
-        if "$DFS_BINARY" \
+        if "$DATAMESH_BINARY" \
             --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
             --bootstrap-addr "$BOOTSTRAP_ADDR" \
             --non-interactive \
@@ -192,7 +192,7 @@ interactive_list_files() {
     local start_time=$(date +%s.%3N)
     
     local output
-    output=$("$DFS_BINARY" \
+    output=$("$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -242,7 +242,7 @@ interactive_stress_test() {
     
     for i in "${!test_files[@]}"; do
         (
-            "$DFS_BINARY" \
+            "$DATAMESH_BINARY" \
                 --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
                 --bootstrap-addr "$BOOTSTRAP_ADDR" \
                 --non-interactive \
@@ -574,7 +574,7 @@ interactive_search_files() {
     echo "Searching for files..."
     local start_time=$(date +%s.%3N)
     
-    local search_cmd=("$DFS_BINARY" 
+    local search_cmd=("$DATAMESH_BINARY" 
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" 
         --bootstrap-addr "$BOOTSTRAP_ADDR" 
         --non-interactive 
@@ -616,7 +616,7 @@ interactive_recent_files() {
     echo "Getting recent files..."
     local start_time=$(date +%s.%3N)
     
-    if "$DFS_BINARY" \
+    if "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -662,7 +662,7 @@ interactive_batch_operations() {
             
             echo ""
             echo "Running batch tag operation (dry run)..."
-            if "$DFS_BINARY" \
+            if "$DATAMESH_BINARY" \
                 --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
                 --bootstrap-addr "$BOOTSTRAP_ADDR" \
                 --non-interactive \
@@ -687,7 +687,7 @@ interactive_batch_operations() {
             
             echo ""
             echo "Created 3 test files, running batch put..."
-            if timeout 60 "$DFS_BINARY" \
+            if timeout 60 "$DATAMESH_BINARY" \
                 --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
                 --bootstrap-addr "$BOOTSTRAP_ADDR" \
                 --non-interactive \
@@ -711,7 +711,7 @@ interactive_batch_operations() {
             
             echo ""
             echo "Running batch get..."
-            if timeout 60 "$DFS_BINARY" \
+            if timeout 60 "$DATAMESH_BINARY" \
                 --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
                 --bootstrap-addr "$BOOTSTRAP_ADDR" \
                 --non-interactive \
@@ -752,7 +752,7 @@ interactive_health_operations() {
         1)
             echo ""
             echo "Checking cluster health..."
-            if timeout 30 "$DFS_BINARY" \
+            if timeout 30 "$DATAMESH_BINARY" \
                 --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
                 --bootstrap-addr "$BOOTSTRAP_ADDR" \
                 --non-interactive \
@@ -768,7 +768,7 @@ interactive_health_operations() {
         2)
             echo ""
             echo "Getting storage statistics..."
-            if "$DFS_BINARY" \
+            if "$DATAMESH_BINARY" \
                 --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
                 --bootstrap-addr "$BOOTSTRAP_ADDR" \
                 --non-interactive \
@@ -784,7 +784,7 @@ interactive_health_operations() {
         3)
             echo ""
             echo "Testing repair operations..."
-            if timeout 30 "$DFS_BINARY" \
+            if timeout 30 "$DATAMESH_BINARY" \
                 --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
                 --bootstrap-addr "$BOOTSTRAP_ADDR" \
                 --non-interactive \
@@ -800,7 +800,7 @@ interactive_health_operations() {
         4)
             echo ""
             echo "Testing cleanup operations (dry run)..."
-            if "$DFS_BINARY" \
+            if "$DATAMESH_BINARY" \
                 --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
                 --bootstrap-addr "$BOOTSTRAP_ADDR" \
                 --non-interactive \
@@ -820,7 +820,7 @@ interactive_health_operations() {
             duration=${duration:-5}
             
             echo "Running performance benchmark ($duration seconds)..."
-            if timeout $((duration + 30)) "$DFS_BINARY" \
+            if timeout $((duration + 30)) "$DATAMESH_BINARY" \
                 --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
                 --bootstrap-addr "$BOOTSTRAP_ADDR" \
                 --non-interactive \
@@ -836,7 +836,7 @@ interactive_health_operations() {
         6)
             echo ""
             echo "Checking quota usage..."
-            if "$DFS_BINARY" \
+            if "$DATAMESH_BINARY" \
                 --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
                 --bootstrap-addr "$BOOTSTRAP_ADDR" \
                 --non-interactive \

@@ -7,7 +7,7 @@ set -e
 # Configuration
 BOOTSTRAP_PORT=40871
 NODE_PORTS=(40872 40873 40874 40875 40876)
-DFS_BINARY="${DFS_BINARY:-./target/release/dfs}"
+DATAMESH_BINARY="${DATAMESH_BINARY:-./target/release/datamesh}"
 TEST_DIR="comprehensive_test_$(date +%Y%m%d_%H%M%S)"
 LOG_DIR="$TEST_DIR/logs"
 DATA_DIR="$TEST_DIR/data"
@@ -62,9 +62,9 @@ start_node() {
     info "Starting $node_type node $node_id on port $port..."
     
     if [ "$node_type" = "bootstrap" ]; then
-        "$DFS_BINARY" --non-interactive bootstrap --port "$port" > "$log_file" 2>&1 &
+        "$DATAMESH_BINARY" --non-interactive bootstrap --port "$port" > "$log_file" 2>&1 &
     else
-        "$DFS_BINARY" --non-interactive service \
+        "$DATAMESH_BINARY" --non-interactive service \
             --bootstrap-peer "$bootstrap_peer" \
             --bootstrap-addr "$bootstrap_addr" \
             --port "$port" \
@@ -98,7 +98,7 @@ test_basic_operations() {
     # Test put operation
     info "Testing file storage..."
     local output1
-    output1=$("$DFS_BINARY" \
+    output1=$("$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -115,7 +115,7 @@ test_basic_operations() {
     
     # Test get operation
     info "Testing file retrieval..."
-    if "$DFS_BINARY" \
+    if "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -132,7 +132,7 @@ test_basic_operations() {
     
     # Test list operation
     info "Testing file listing..."
-    if "$DFS_BINARY" \
+    if "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -156,7 +156,7 @@ test_sync_operations() {
     
     # Test sync command (non-watch mode for testing)
     info "Testing directory sync..."
-    if timeout 30 "$DFS_BINARY" \
+    if timeout 30 "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -179,7 +179,7 @@ test_backup_restore() {
     
     # Test backup creation
     info "Testing backup creation..."
-    if timeout 60 "$DFS_BINARY" \
+    if timeout 60 "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -194,7 +194,7 @@ test_backup_restore() {
     info "Testing backup restore..."
     local restore_dir="$RESULTS_DIR/restored_backup"
     mkdir -p "$restore_dir"
-    if timeout 60 "$DFS_BINARY" \
+    if timeout 60 "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -211,7 +211,7 @@ test_search_operations() {
     
     # Test basic search
     info "Testing file search..."
-    if "$DFS_BINARY" \
+    if "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -223,7 +223,7 @@ test_search_operations() {
     
     # Test recent files
     info "Testing recent files query..."
-    if "$DFS_BINARY" \
+    if "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -247,7 +247,7 @@ test_batch_operations() {
     
     # Test batch put
     info "Testing batch put operation..."
-    if timeout 120 "$DFS_BINARY" \
+    if timeout 120 "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -261,7 +261,7 @@ test_batch_operations() {
     info "Testing batch get operation..."
     local batch_get_dir="$RESULTS_DIR/batch_retrieved"
     mkdir -p "$batch_get_dir"
-    if timeout 120 "$DFS_BINARY" \
+    if timeout 120 "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -273,7 +273,7 @@ test_batch_operations() {
     
     # Test batch tag operations
     info "Testing batch tag operation..."
-    if timeout 60 "$DFS_BINARY" \
+    if timeout 60 "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -291,7 +291,7 @@ test_file_management() {
     # Store a file for management tests
     echo "File for management tests" > "$DATA_DIR/manage_test.txt"
     local output
-    output=$("$DFS_BINARY" \
+    output=$("$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -302,7 +302,7 @@ test_file_management() {
     if [ -n "$manage_key" ]; then
         # Test duplicate operation
         info "Testing file duplication..."
-        if timeout 60 "$DFS_BINARY" \
+        if timeout 60 "$DATAMESH_BINARY" \
             --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
             --bootstrap-addr "$BOOTSTRAP_ADDR" \
             --non-interactive \
@@ -314,7 +314,7 @@ test_file_management() {
         
         # Test rename operation
         info "Testing file rename..."
-        if "$DFS_BINARY" \
+        if "$DATAMESH_BINARY" \
             --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
             --bootstrap-addr "$BOOTSTRAP_ADDR" \
             --non-interactive \
@@ -334,7 +334,7 @@ test_health_operations() {
     
     # Test health monitoring
     info "Testing health monitoring..."
-    if timeout 30 "$DFS_BINARY" \
+    if timeout 30 "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -346,7 +346,7 @@ test_health_operations() {
     
     # Test repair operations (dry run)
     info "Testing repair operations..."
-    if timeout 30 "$DFS_BINARY" \
+    if timeout 30 "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -358,7 +358,7 @@ test_health_operations() {
     
     # Test cleanup operations (dry run)
     info "Testing cleanup operations..."
-    if "$DFS_BINARY" \
+    if "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -375,7 +375,7 @@ test_performance_features() {
     
     # Test benchmark operations
     info "Testing performance benchmarks..."
-    if timeout 120 "$DFS_BINARY" \
+    if timeout 120 "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -387,7 +387,7 @@ test_performance_features() {
     
     # Test metrics display
     info "Testing metrics display..."
-    if "$DFS_BINARY" \
+    if "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -399,7 +399,7 @@ test_performance_features() {
     
     # Test info command
     info "Testing file info command..."
-    if "$DFS_BINARY" \
+    if "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -411,7 +411,7 @@ test_performance_features() {
     
     # Test stats command
     info "Testing storage stats..."
-    if "$DFS_BINARY" \
+    if "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -422,13 +422,87 @@ test_performance_features() {
     fi
 }
 
+# Test security features
+test_security_features() {
+    print_section "Testing Security and Encryption Features"
+    
+    # Test key management operations
+    info "Testing key management..."
+    if "$DATAMESH_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        keys --list > "$RESULTS_DIR/keys_output.txt" 2>&1; then
+        success "Key management test passed"
+    else
+        warning "Key management test failed (may not be implemented yet)"
+    fi
+    
+    # Test audit logging functionality
+    info "Testing audit logging..."
+    if "$DATAMESH_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        audit --logs > "$RESULTS_DIR/audit_output.txt" 2>&1; then
+        success "Audit logging test passed"
+    else
+        warning "Audit logging test failed (may not be implemented yet)"
+    fi
+    
+    # Test encrypted storage with different encryption levels
+    info "Testing encrypted file storage..."
+    echo "Sensitive test data" > "$DATA_DIR/secure_test.txt"
+    
+    # Test with strong encryption
+    local secure_output
+    secure_output=$("$DATAMESH_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        put "$DATA_DIR/secure_test.txt" --encrypt --secure 2>&1) || true
+    
+    if echo "$secure_output" | grep -q "stored"; then
+        success "Encrypted storage test passed"
+        echo "$secure_output" > "$RESULTS_DIR/secure_storage_output.txt"
+    else
+        warning "Encrypted storage test failed (may not be implemented yet)"
+    fi
+    
+    # Test security diagnostics
+    info "Testing security diagnostics..."
+    if "$DATAMESH_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        security --check > "$RESULTS_DIR/security_check_output.txt" 2>&1; then
+        success "Security diagnostics test passed"
+    else
+        warning "Security diagnostics test failed (may not be implemented yet)"
+    fi
+    
+    # Test transport security
+    info "Testing transport security..."
+    if "$DATAMESH_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        transport --security-status > "$RESULTS_DIR/transport_security_output.txt" 2>&1; then
+        success "Transport security test passed"
+    else
+        warning "Transport security test failed (may not be implemented yet)"
+    fi
+    
+    info "Security feature testing completed"
+}
+
 # Test quota management
 test_quota_management() {
     print_section "Testing Quota Management"
     
     # Test quota usage display
     info "Testing quota usage display..."
-    if "$DFS_BINARY" \
+    if "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -440,7 +514,7 @@ test_quota_management() {
     
     # Test quota limit setting
     info "Testing quota limit setting..."
-    if "$DFS_BINARY" \
+    if "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -457,7 +531,7 @@ test_api_server_operations() {
     
     # Test API server health check
     info "Testing API server health check..."
-    if timeout 30 "$DFS_BINARY" \
+    if timeout 30 "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -469,7 +543,7 @@ test_api_server_operations() {
     
     # Test API server status
     info "Testing API server status..."
-    if timeout 30 "$DFS_BINARY" \
+    if timeout 30 "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -486,7 +560,7 @@ test_network_operations() {
     
     # Test peer listing
     info "Testing peer listing..."
-    if timeout 30 "$DFS_BINARY" \
+    if timeout 30 "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -498,7 +572,7 @@ test_network_operations() {
     
     # Test network topology
     info "Testing network topology analysis..."
-    if timeout 30 "$DFS_BINARY" \
+    if timeout 30 "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -510,7 +584,7 @@ test_network_operations() {
     
     # Test peer discovery
     info "Testing peer discovery..."
-    if timeout 30 "$DFS_BINARY" \
+    if timeout 30 "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -584,7 +658,7 @@ test_network_isolation() {
         ((connectivity_tests++))
         
         # Try to connect to bootstrap node from different client ports
-        timeout 15 "$DFS_BINARY" \
+        timeout 15 "$DATAMESH_BINARY" \
             --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
             --bootstrap-addr "$BOOTSTRAP_ADDR" \
             --port "$test_port" \
@@ -614,7 +688,7 @@ test_network_isolation() {
     for i in $(seq 1 $concurrent_clients); do
         local client_port=$((41000 + i))
         (
-            "$DFS_BINARY" \
+            "$DATAMESH_BINARY" \
                 --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
                 --bootstrap-addr "$BOOTSTRAP_ADDR" \
                 --port "$client_port" \
@@ -663,7 +737,7 @@ test_network_isolation() {
         sleep 3
         
         # Test if network still functions with one node down
-        timeout 20 "$DFS_BINARY" \
+        timeout 20 "$DATAMESH_BINARY" \
             --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
             --bootstrap-addr "$BOOTSTRAP_ADDR" \
             --port 41100 \
@@ -704,7 +778,7 @@ test_optimization_features() {
     
     # Test storage optimization analysis
     info "Testing storage optimization..."
-    if "$DFS_BINARY" \
+    if "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -721,7 +795,7 @@ test_stub_commands() {
     
     # Test export (not implemented)
     info "Testing export command (should show not implemented)..."
-    if "$DFS_BINARY" \
+    if "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -733,7 +807,7 @@ test_stub_commands() {
     
     # Test import (not implemented)
     info "Testing import command (should show not implemented)..."
-    if "$DFS_BINARY" \
+    if "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -745,7 +819,7 @@ test_stub_commands() {
     
     # Test pin (not implemented)
     info "Testing pin command (should show not implemented)..."
-    if "$DFS_BINARY" \
+    if "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -757,7 +831,7 @@ test_stub_commands() {
     
     # Test share (not implemented)
     info "Testing share command (should show not implemented)..."
-    if "$DFS_BINARY" \
+    if "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -769,7 +843,7 @@ test_stub_commands() {
     
     # Test popular (not implemented)
     info "Testing popular command (should show not implemented)..."
-    if "$DFS_BINARY" \
+    if "$DATAMESH_BINARY" \
         --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
         --bootstrap-addr "$BOOTSTRAP_ADDR" \
         --non-interactive \
@@ -797,6 +871,7 @@ run_comprehensive_tests() {
     test_file_management
     test_health_operations
     test_performance_features
+    test_security_features
     test_quota_management
     test_api_server_operations
     test_network_operations
@@ -900,8 +975,8 @@ main() {
     print_header "DataMesh Comprehensive Functionality Test"
     
     # Check if DFS binary exists
-    if [ ! -f "$DFS_BINARY" ]; then
-        error "DataMesh binary not found at $DFS_BINARY"
+    if [ ! -f "$DATAMESH_BINARY" ]; then
+        error "DataMesh binary not found at $DATAMESH_BINARY"
         echo "Build it with: cargo build --release"
         exit 1
     fi

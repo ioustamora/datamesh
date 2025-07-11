@@ -759,8 +759,8 @@ pub struct GovernanceFramework {
 
 impl GovernanceFramework {
     pub fn new(
-        database: Arc<crate::database::DatabaseManager>,
-        bootstrap_manager: Arc<crate::bootstrap_manager::BootstrapManager>,
+        _database: Arc<crate::database::DatabaseManager>,
+        _bootstrap_manager: Arc<crate::bootstrap_manager::BootstrapManager>,
     ) -> Self {
         // Create a simple governance system for now
         Self {

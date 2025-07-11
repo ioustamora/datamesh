@@ -295,7 +295,7 @@ impl QuotaService {
     }
 
     /// Release resources after operation completion
-    pub async fn release_operation(&self, user_id: &str, operation_type: &str) -> Result<()> {
+    pub async fn release_operation(&self, user_id: &str, _operation_type: &str) -> Result<()> {
         if !self.enabled {
             return Ok(());
         }

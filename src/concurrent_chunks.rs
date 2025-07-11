@@ -495,7 +495,7 @@ impl ConcurrentChunkManager {
         let operation_start = Instant::now();
         info!("Starting concurrent upload of {} chunks", chunks.len());
         
-        let mut results: Vec<ChunkUploadResult> = Vec::new();
+        let mut _results: Vec<ChunkUploadResult> = Vec::new();
         let mut tasks = Vec::new();
         
         // Create futures for all chunk uploads without spawning tasks
@@ -610,7 +610,7 @@ impl ConcurrentChunkManager {
         
         // Wait for confirmation with timeout
         let result = timeout(config.chunk_timeout, async {
-            let mut peers_contacted = Vec::new();
+            let peers_contacted = Vec::new();
             
             loop {
                 let mut swarm = swarm.write().await;

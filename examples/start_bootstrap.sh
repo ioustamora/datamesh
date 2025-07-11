@@ -1,27 +1,27 @@
 #!/bin/bash
-# start_bootstrap.sh - Start a DFS bootstrap node
+# start_bootstrap.sh - Start a DataMesh bootstrap node
 
 set -e
 
 # Configuration
 PORT="${1:-40871}"
-DFS_BINARY="${DFS_BINARY:-./target/debug/dfs}"
+DATAMESH_BINARY="${DATAMESH_BINARY:-./target/debug/datamesh}"
 
-# Check if DFS binary exists
-if [ ! -f "$DFS_BINARY" ]; then
-    echo "Error: DFS binary not found at $DFS_BINARY"
+# Check if DataMesh binary exists
+if [ ! -f "$DATAMESH_BINARY" ]; then
+    echo "Error: DataMesh binary not found at $DATAMESH_BINARY"
     echo "Build with: cargo build"
     exit 1
 fi
 
-echo "Starting DFS Bootstrap Node"
-echo "=========================="
+echo "Starting DataMesh Bootstrap Node"
+echo "=============================="
 echo "Port: $PORT"
-echo "Binary: $DFS_BINARY"
+echo "Binary: $DATAMESH_BINARY"
 echo ""
 echo "Other nodes can connect with:"
 echo "  --bootstrap-peer <PEER_ID_FROM_OUTPUT>"
 echo "  --bootstrap-addr /ip4/<YOUR_IP>/tcp/$PORT"
 echo ""
 
-exec "$DFS_BINARY" bootstrap --port "$PORT"
+exec "$DATAMESH_BINARY" bootstrap --port "$PORT"

@@ -39,6 +39,156 @@ let file = db.get_file_by_name("my-document")?;
 let tagged_files = db.list_files(Some("work"))?;
 ```
 
+## 🔐 Security Modules
+
+### Secure Random Module (`src/secure_random.rs`)
+
+**Status**: ✅ Production Ready
+
+**Purpose**: Cryptographically secure random number generation using OsRng.
+
+### Key Features
+- **Secure Nonces**: Generate 12-byte cryptographic nonces
+- **Salt Generation**: 32-byte salts for password hashing
+- **Arbitrary Length**: Generate secure bytes of any length
+- **Range Generation**: Secure random numbers within ranges
+- **Fill Operations**: Fill existing buffers with secure randomness
+
+### Example Usage
+```rust
+use datamesh::secure_random;
+
+// Generate secure nonce for encryption
+let nonce = secure_random::generate_secure_nonce();
+
+// Generate salt for password hashing
+let salt = secure_random::generate_secure_salt();
+
+// Fill buffer with secure random data
+let mut buffer = vec![0u8; 256];
+secure_random::fill_secure_bytes(&mut buffer);
+```
+
+### Key Rotation Module (`src/key_rotation.rs`)
+
+**Status**: ✅ Production Ready
+
+**Purpose**: Perfect forward secrecy through automatic key rotation.
+
+### Key Features
+- **Automatic Rotation**: Time-based and event-based key rotation
+- **Manual Rotation**: On-demand key rotation for security events
+- **Version Management**: Track key versions and history
+- **Secure Storage**: Encrypted key storage with integrity verification
+- **Configuration**: Flexible rotation policies and intervals
+
+### Example Usage
+```rust
+use datamesh::key_rotation::{KeyRotationManager, KeyRotationConfig};
+
+let config = KeyRotationConfig {
+    automatic_rotation_interval: Duration::from_secs(24 * 60 * 60), // 24 hours
+    max_key_history: 10,
+    require_manual_approval: false,
+};
+
+let rotation_manager = KeyRotationManager::new(config).await?;
+rotation_manager.start_automatic_rotation().await?;
+
+// Manual rotation for security events
+rotation_manager.rotate_keys_manually("security_incident").await?;
+```
+
+### Secure Transport Module (`src/secure_transport.rs`)
+
+**Status**: ✅ Production Ready
+
+**Purpose**: Transport layer security with peer authentication.
+
+### Key Features
+- **TLS Configuration**: Secure transport configuration
+- **Certificate Management**: Certificate generation and validation
+- **Peer Authentication**: Mutual authentication between peers
+- **Connection Tracking**: Monitor and validate peer connections
+- **Security Policies**: Configurable security policies
+
+### Thread-Safe Database Module (`src/thread_safe_database.rs`)
+
+**Status**: ✅ Production Ready
+
+**Purpose**: Thread-safe wrapper for database operations.
+
+### Key Features
+- **Concurrent Access**: Safe concurrent database operations
+- **Connection Pooling**: Efficient connection management
+- **Error Handling**: Thread-safe error propagation
+- **Performance**: Optimized for high-concurrency scenarios
+
+### Encrypted Key Manager Module (`src/encrypted_key_manager.rs`)
+
+**Status**: ✅ Production Ready
+
+**Purpose**: Password-protected key storage with advanced encryption.
+
+### Key Features
+- **AES-256-GCM**: Strong encryption for key storage
+- **Argon2 Hashing**: Secure password-based key derivation
+- **Integrity Verification**: Detect tampering and corruption
+- **Secure Overwrite**: Secure deletion of sensitive data
+- **Multiple Security Levels**: Different protection levels
+
+### Example Usage
+```rust
+use datamesh::encrypted_key_manager::EncryptedKeyManager;
+
+let encrypted_manager = EncryptedKeyManager::new("my-secure-key").await?;
+encrypted_manager.store_with_password("strong_password").await?;
+
+// Load with password
+let loaded_manager = EncryptedKeyManager::load_with_password(
+    &encrypted_file_path, 
+    "strong_password"
+).await?;
+```
+
+## 🎭 Actor System Modules
+
+### Actor File Storage Module (`src/actor_file_storage.rs`)
+
+**Status**: ✅ Production Ready
+
+**Purpose**: Actor-based file operations for improved concurrency.
+
+### Key Features
+- **Message Passing**: Async message-based file operations
+- **Concurrency**: Handle multiple operations simultaneously
+- **Error Isolation**: Isolate errors between operations
+- **State Management**: Maintain consistent state across operations
+
+### Network Actor Module (`src/network_actor.rs`)
+
+**Status**: ✅ Production Ready
+
+**Purpose**: Actor-based network operations and P2P communication.
+
+### Key Features
+- **P2P Management**: Handle peer-to-peer connections
+- **Message Routing**: Route messages between network components
+- **Connection State**: Track and manage connection states
+- **Event Handling**: Process network events asynchronously
+
+### Thread-Safe Command Context (`src/thread_safe_command_context.rs`)
+
+**Status**: ✅ Production Ready
+
+**Purpose**: Thread-safe context for command execution across actors.
+
+### Key Features
+- **Shared State**: Safe shared state between command handlers
+- **Context Isolation**: Isolate command execution contexts
+- **Resource Management**: Manage shared resources safely
+- **Error Propagation**: Safe error handling across threads
+
 ## 📁 File Manager Module (`src/file_manager.rs`)
 
 **Status**: ✅ Production Ready

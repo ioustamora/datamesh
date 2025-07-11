@@ -5,11 +5,8 @@ use tokio::sync::RwLock;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
-
-use super::{SystemMetrics, PerformanceTrend, AnalyticsReport};
+use super::{SystemMetrics, PerformanceTrend};
 use super::alerts::Alert;
-use super::analytics::{PerformanceInsight, UsagePattern, OptimizationOpportunity, PredictiveAlert};
 
 /// Real-time monitoring dashboard data aggregator
 /// Provides comprehensive dashboard data with real-time updates

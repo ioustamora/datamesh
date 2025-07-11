@@ -60,59 +60,82 @@ DataMesh is a production-ready distributed data storage system that combines the
 
 ```
 src/
-├── main.rs                    # Application entry point
-├── lib.rs                     # Library exports
-├── cli.rs                     # Command-line interface
-├── config.rs                  # Configuration management
-├── error.rs                   # Error types and handling
+├── main.rs                           # Application entry point
+├── lib.rs                            # Library exports and module declarations
+├── cli.rs                            # Command-line interface
+├── config.rs                         # Configuration management
+├── error.rs                          # Error types and handling
+├── error_handling.rs                 # Enhanced error handling
+├── logging.rs                        # Structured logging
+├── ui.rs                             # User interface utilities
+├── presets.rs                        # Network presets and configurations
+├── interactive.rs                    # Interactive console mode
+├── datamesh_core.rs                  # Core system integration
 │
-├── core/                      # Core functionality
-│   ├── file_storage.rs        # File operations and encryption
-│   ├── network.rs             # P2P networking with libp2p
-│   ├── key_manager.rs         # Cryptographic key management
-│   ├── database.rs            # Metadata storage (SQLite)
-│   └── persistent_dht.rs      # Persistent DHT implementation
+├── Core Storage & Networking         # Core file and network operations
+├── file_storage.rs                   # File operations and encryption
+├── actor_file_storage.rs             # Actor-based file operations
+├── network.rs                        # P2P networking with libp2p
+├── network_actor.rs                  # Network actor implementation
+├── persistent_dht.rs                 # Persistent DHT implementation
 │
-├── features/                  # Advanced features
-│   ├── file_manager.rs        # File sync and management
-│   ├── batch_operations.rs    # Bulk operations
-│   ├── health_manager.rs      # Health monitoring and repair
-│   ├── network_diagnostics.rs # Network analysis
-│   ├── smart_cache.rs         # Intelligent caching
-│   └── concurrent_chunks.rs   # Parallel chunk operations
+├── Security & Cryptography           # Security and key management
+├── key_manager.rs                    # Cryptographic key management
+├── encrypted_key_manager.rs          # Password-protected key storage
+├── key_rotation.rs                   # Key rotation for forward secrecy
+├── secure_random.rs                  # Cryptographically secure randomness
+├── secure_transport.rs               # Transport layer security
+├── audit_logger.rs                   # Security audit logging
 │
-├── monitoring/                # Advanced monitoring system
-│   ├── mod.rs                 # Monitoring system core
-│   ├── metrics.rs             # Metrics collection
-│   ├── time_series.rs         # Time-series database
-│   ├── alerts.rs              # Intelligent alerting
-│   ├── analytics.rs           # ML-based analytics
-│   └── dashboard.rs           # Real-time dashboard
+├── Database & Threading              # Data persistence and concurrency
+├── database.rs                       # Metadata storage (SQLite)
+├── thread_safe_database.rs           # Thread-safe database wrapper
+├── thread_safe_command_context.rs    # Thread-safe command context
+├── thread_safe_file_commands.rs      # Thread-safe file operations
 │
-├── governance/                # Network governance
-│   ├── governance.rs          # Governance framework
-│   ├── governance_service.rs  # Governance API
-│   ├── economics.rs           # Token economics
-│   └── quota_service.rs       # User quota management
+├── Advanced Features                 # High-level features
+├── file_manager.rs                   # File sync and management
+├── batch_operations.rs               # Bulk operations
+├── health_manager.rs                 # Health monitoring and repair
+├── network_diagnostics.rs            # Network analysis
+├── smart_cache.rs                    # Intelligent caching
+├── concurrent_chunks.rs              # Parallel chunk operations
+├── load_balancer.rs                  # Intelligent load balancing
+├── failover.rs                       # Advanced failover mechanisms
+├── performance_optimizer.rs          # ML-based performance tuning
+├── backup_system.rs                  # Comprehensive backup system
+├── performance.rs                    # Performance monitoring
+├── resilience.rs                     # Resilience patterns
 │
-├── api/                       # Web API and services
-│   ├── api_server.rs          # REST API server
-│   ├── websocket.rs           # WebSocket handlers
-│   ├── auth.rs                # Authentication service
-│   └── middleware.rs          # API middleware
+├── monitoring/                       # Advanced monitoring system
+│   ├── mod.rs                        # Monitoring system core
+│   ├── metrics.rs                    # Metrics collection
+│   ├── time_series.rs                # Time-series database
+│   ├── alerts.rs                     # Intelligent alerting
+│   ├── analytics.rs                  # ML-based analytics
+│   └── dashboard.rs                  # Real-time dashboard
 │
-├── utils/                     # Utility modules
-│   ├── ui.rs                  # CLI user interface
-│   ├── logging.rs             # Structured logging
-│   ├── performance.rs         # Performance monitoring
-│   ├── audit_logger.rs        # Audit logging
-│   ├── error_handling.rs      # Enhanced error handling
-│   └── presets.rs             # Network presets
+├── commands/                         # Command handling system
+│   ├── mod.rs                        # Command system core
+│   ├── file_commands.rs              # File operation commands
+│   ├── network_commands.rs           # Network management commands
+│   ├── service_commands.rs           # Service control commands
+│   ├── admin_commands.rs             # Administrative commands
+│   ├── actor_commands.rs             # Actor-based commands
+│   ├── actor_file_commands.rs        # Actor file commands
+│   └── advanced_commands.rs          # Advanced feature commands
 │
-└── bootstrap/                 # Bootstrap node functionality
-    ├── bootstrap_manager.rs   # Bootstrap node management
-    ├── bootstrap_admin.rs     # Bootstrap administration
-    └── resilience.rs          # Network resilience
+├── Governance & Economics            # Network governance
+├── governance.rs                     # Governance framework
+├── governance_service.rs             # Governance API
+├── economics.rs                      # Token economics
+├── quota_service.rs                  # User quota management
+├── bootstrap_admin.rs                # Bootstrap node administration
+├── bootstrap_manager.rs              # Bootstrap peer management
+│
+├── Web API & Services                # Web interface and services
+├── api_server.rs                     # REST API server
+└── billing_system.rs                 # Billing and subscription management
 ```
 
 ### Data Flow Architecture

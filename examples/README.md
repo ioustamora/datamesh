@@ -1,15 +1,15 @@
-# DFS Examples
+# DataMesh Examples
 
-This directory contains practical examples and scripts for using the DFS system.
+This directory contains practical examples and scripts for using the DataMesh system.
 
-# DFS Examples
+# DataMesh Examples
 
-This directory contains practical examples and scripts for using the DFS system.
+This directory contains practical examples and scripts for using the DataMesh system.
 
 ## Scripts
 
 ### 📦 backup.sh
-Automatically backup files from a directory to the DFS network.
+Automatically backup files from a directory to the DataMesh network.
 
 ```bash
 # Backup all files in Documents folder
@@ -20,7 +20,7 @@ Automatically backup files from a directory to the DFS network.
 ```
 
 ### 📁 restore.sh
-Restore files from DFS using a backup key file.
+Restore files from DataMesh using a backup key file.
 
 ```bash
 # Restore all files from backup
@@ -44,7 +44,7 @@ Restore files from DFS using a backup key file.
 ```
 
 ### 🌐 start_bootstrap.sh
-**NEW!** Start a DFS bootstrap node for other nodes to connect to.
+**NEW!** Start a DataMesh bootstrap node for other nodes to connect to.
 
 ```bash
 # Start on default port (40871)
@@ -55,7 +55,7 @@ Restore files from DFS using a backup key file.
 ```
 
 ### 🔗 start_node.sh
-**NEW!** Start a DFS node and connect it to a bootstrap node.
+**NEW!** Start a DataMesh node and connect it to a bootstrap node.
 
 ```bash
 # Connect to bootstrap node
@@ -116,8 +116,8 @@ done < my_files.keys
 
 ### Environment Variables
 ```bash
-# Use custom DFS binary location
-export DFS_BINARY="/usr/local/bin/dfs"
+# Use custom DataMesh binary location
+export DataMesh_BINARY="/usr/local/bin/dfs"
 ./examples/backup.sh
 
 # Enable debug logging

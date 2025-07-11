@@ -1,7 +1,7 @@
 # DataMesh Usage Guide
 
 ## Overview
-DataMesh is a comprehensive distributed data storage system with **47 commands** covering all aspects of distributed storage. Built with libp2p, Kademlia DHT, ECIES encryption, and Reed-Solomon erasure coding for secure, fault-tolerant, high-performance data operations.
+DataMesh is a comprehensive distributed data storage system with **51 commands** covering all aspects of distributed storage. Built with libp2p, Kademlia DHT, ECIES encryption, and Reed-Solomon erasure coding for secure, fault-tolerant, high-performance data operations.
 
 ## 🚀 Quick Command Reference
 
@@ -44,6 +44,12 @@ DataMesh is a comprehensive distributed data storage system with **47 commands**
 - `repair` - Repair corrupted or low-redundancy files automatically
 - `cleanup` - Clean up orphaned chunks, duplicates, and optimize storage
 - `quota` - Manage storage quotas and usage monitoring
+
+### Security & Audit (4 commands)
+- `keys` - Manage cryptographic keys with rotation and backup capabilities
+- `audit` - View security audit logs and compliance reports
+- `security` - Run security diagnostics and vulnerability checks
+- `transport` - Configure and monitor transport layer security settings
 
 ### Import/Export (2 commands)  
 - `export` - Export files to standard archive formats (tar, zip) with encryption

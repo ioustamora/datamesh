@@ -1,16 +1,16 @@
 #!/bin/bash
-# restore.sh - Simple restore script for DFS
+# restore.sh - Simple restore script for DataMesh
 
 set -e
 
 # Configuration
 KEY_FILE="${1:-backup_keys.txt}"
 RESTORE_DIR="${2:-./restored_files}"
-DFS_BINARY="${DFS_BINARY:-./target/debug/dfs}"
+DATAMESH_BINARY="${DATAMESH_BINARY:-./target/debug/datamesh}"
 
-# Check if DFS binary exists
-if [ ! -f "$DFS_BINARY" ]; then
-    echo "Error: DFS binary not found at $DFS_BINARY"
+# Check if DataMesh binary exists
+if [ ! -f "$DATAMESH_BINARY" ]; then
+    echo "Error: DataMesh binary not found at $DATAMESH_BINARY"
     echo "Build with: cargo build"
     exit 1
 fi
@@ -42,7 +42,7 @@ grep -v "^#" "$KEY_FILE" | grep ":" | while IFS=: read -r filename key; do
         output_path="$RESTORE_DIR/$filename"
         
         # Restore file
-        if "$DFS_BINARY" get "$key" "$output_path" 2>/dev/null; then
+        if "$DATAMESH_BINARY" get "$key" "$output_path" 2>/dev/null; then
             echo "  ✓ Restored to: $output_path"
             success=$((success + 1))
         else

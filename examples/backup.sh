@@ -6,11 +6,11 @@ set -e
 # Configuration
 BACKUP_DIR="${1:-$HOME/Documents}"
 KEY_FILE="backup_keys_$(date +%Y%m%d_%H%M%S).txt"
-DFS_BINARY="${DFS_BINARY:-./target/debug/dfs}"
+DATAMESH_BINARY="${DATAMESH_BINARY:-./target/release/datamesh}"
 
 # Check if DFS binary exists
-if [ ! -f "$DFS_BINARY" ]; then
-    echo "Error: DFS binary not found at $DFS_BINARY"
+if [ ! -f "$DATAMESH_BINARY" ]; then
+    echo "Error: DFS binary not found at $DATAMESH_BINARY"
     echo "Build with: cargo build"
     exit 1
 fi
@@ -37,7 +37,7 @@ find "$BACKUP_DIR" -type f -size -100M | while read -r file; do
     echo "Backing up: $(basename "$file")"
     
     # Store file and capture key
-    output=$("$DFS_BINARY" put "$file" 2>&1)
+    output=$("$DATAMESH_BINARY" put "$file" 2>&1)
     key=$(echo "$output" | grep "File stored with key:" | cut -d' ' -f5)
     
     if [ -n "$key" ]; then
@@ -53,4 +53,4 @@ find "$BACKUP_DIR" -type f -size -100M | while read -r file; do
 done
 
 echo "Backup complete! Stored keys in: $KEY_FILE"
-echo "To restore a file: $DFS_BINARY get <key> <output_path>"
+echo "To restore a file: $DATAMESH_BINARY get <key> <output_path>"

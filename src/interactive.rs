@@ -531,7 +531,7 @@ pub async fn run_interactive_mode(
     
     // Initialize interactive session
     let mut session = InteractiveSession::new();
-    let completer = CommandCompleter::new();
+    let _completer = CommandCompleter::new();
     
     // Display enhanced welcome message
     print_interactive_welcome_enhanced(

@@ -129,7 +129,7 @@ pub async fn batch_put(
         // Wait for this batch to complete using join_all
         let results = futures::future::join_all(upload_futures).await;
         
-        for (idx, result) in results.into_iter().enumerate() {
+        for (_idx, result) in results.into_iter().enumerate() {
             let current_progress = chunk_idx * config.parallel + successful + failed + 1;
             progress.update_operation(
                 upload_progress,
@@ -259,7 +259,7 @@ pub async fn batch_get(
         // Wait for this batch to complete using join_all
         let results = futures::future::join_all(download_futures).await;
         
-        for (idx, result) in results.into_iter().enumerate() {
+        for (_idx, result) in results.into_iter().enumerate() {
             let current_progress = chunk_idx * config.parallel + successful + failed + 1;
             progress.update_operation(
                 download_progress,

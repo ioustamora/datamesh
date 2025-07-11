@@ -7,7 +7,6 @@ use std::error::Error;
 use anyhow::Result;
 
 use crate::commands::{CommandHandler, CommandContext};
-use crate::network_diagnostics;
 
 /// Peers command handler
 #[derive(Debug, Clone)]
