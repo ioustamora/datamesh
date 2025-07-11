@@ -769,7 +769,7 @@ mod tests {
         );
         assert!(result.is_ok());
 
-        let user = result.expect("Failed to register user in test");
+        let user = result.unwrap();
         assert_eq!(user.email, "test@example.com");
         assert_eq!(user.public_key, "pubkey123");
         assert!(matches!(user.account_type, AccountType::Free { .. }));
@@ -829,9 +829,9 @@ mod tests {
         let result = governance.submit_proposal(proposal.clone());
         assert!(result.is_ok());
 
-        let retrieved = governance.get_proposal(&proposal.proposal_id).expect("Failed to get proposal in test");
+        let retrieved = governance.get_proposal(&proposal.proposal_id).unwrap();
         assert!(retrieved.is_some());
-        assert_eq!(retrieved.expect("Proposal should exist").title, "Test Proposal");
+        assert_eq!(retrieved.unwrap().title, "Test Proposal");
     }
 }
 
