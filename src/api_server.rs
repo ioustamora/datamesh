@@ -164,6 +164,7 @@ async fn authenticate_user(
     state
         .user_registry
         .get_user(&user_id)
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to get user: {}", e)))?
         .ok_or_else(|| ApiError::Unauthorized("User not found".to_string()))
 }
 

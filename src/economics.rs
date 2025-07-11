@@ -210,7 +210,9 @@ impl EconomicService {
 
     /// Initialize user balance
     pub fn initialize_user_balance(&self, user_id: UserId, initial_balance: u64) -> DfsResult<()> {
-        let mut balances = self.balances.write().unwrap();
+        let mut balances = self.balances.write().map_err(|e| {
+            crate::error::DfsError::Economics(format!("Failed to acquire balances write lock: {}", e))
+        })?;
         balances.insert(
             user_id,
             TokenBalance {
@@ -225,14 +227,18 @@ impl EconomicService {
     }
 
     /// Get user balance
-    pub fn get_balance(&self, user_id: &UserId) -> Option<TokenBalance> {
-        let balances = self.balances.read().unwrap();
-        balances.get(user_id).cloned()
+    pub fn get_balance(&self, user_id: &UserId) -> DfsResult<Option<TokenBalance>> {
+        let balances = self.balances.read().map_err(|e| {
+            crate::error::DfsError::Economics(format!("Failed to acquire balances read lock: {}", e))
+        })?;
+        Ok(balances.get(user_id).cloned())
     }
 
     /// Transfer tokens between users
     pub fn transfer_tokens(&self, from: UserId, to: UserId, amount: u64) -> DfsResult<Transaction> {
-        let mut balances = self.balances.write().unwrap();
+        let mut balances = self.balances.write().map_err(|e| {
+            crate::error::DfsError::Economics(format!("Failed to acquire balances write lock: {}", e))
+        })?;
 
         // Check sender balance
         let sender_balance = balances
@@ -276,7 +282,9 @@ impl EconomicService {
         };
 
         // Record transaction
-        let mut transactions = self.transactions.write().unwrap();
+        let mut transactions = self.transactions.write().map_err(|e| {
+            crate::error::DfsError::Economics(format!("Failed to acquire transactions write lock: {}", e))
+        })?;
         transactions.push(transaction.clone());
 
         // Burn a portion of the fee
@@ -287,7 +295,9 @@ impl EconomicService {
 
     /// Stake tokens for rewards
     pub fn stake_tokens(&self, user_id: UserId, amount: u64) -> DfsResult<Transaction> {
-        let mut balances = self.balances.write().unwrap();
+        let mut balances = self.balances.write().map_err(|e| {
+            crate::error::DfsError::Economics(format!("Failed to acquire balances write lock: {}", e))
+        })?;
 
         let balance = balances
             .get_mut(&user_id)

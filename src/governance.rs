@@ -305,8 +305,12 @@ impl UserRegistry {
         password: String,
         public_key: String,
     ) -> DfsResult<UserAccount> {
-        let mut users = self.users.write().unwrap();
-        let mut email_index = self.email_index.write().unwrap();
+        let mut users = self.users.write().map_err(|e| {
+            crate::error::DfsError::Authentication(format!("Failed to acquire user registry lock: {}", e))
+        })?;
+        let mut email_index = self.email_index.write().map_err(|e| {
+            crate::error::DfsError::Authentication(format!("Failed to acquire email index lock: {}", e))
+        })?;
 
         // Check if email already exists
         if email_index.contains_key(&email) {
@@ -345,9 +349,10 @@ impl UserRegistry {
 
     /// Authenticate user with email and password
     pub fn authenticate_user(&self, email: &str, password: &str) -> DfsResult<UserAccount> {
-        let user = self.get_user_by_email(email).ok_or_else(|| {
-            crate::error::DfsError::Authentication("Invalid credentials".to_string())
-        })?;
+        let user = self.get_user_by_email(email)?
+            .ok_or_else(|| {
+                crate::error::DfsError::Authentication("Invalid credentials".to_string())
+            })?;
 
         if self.verify_password(password, &user.password_hash)? {
             // Update last activity
@@ -386,29 +391,37 @@ impl UserRegistry {
             .is_ok())
     }
 
-    pub fn get_user(&self, user_id: &UserId) -> Option<UserAccount> {
-        let users = self.users.read().unwrap();
-        users.get(user_id).cloned()
+    pub fn get_user(&self, user_id: &UserId) -> DfsResult<Option<UserAccount>> {
+        let users = self.users.read().map_err(|e| {
+            crate::error::DfsError::Authentication(format!("Failed to acquire user registry read lock: {}", e))
+        })?;
+        Ok(users.get(user_id).cloned())
     }
 
-    pub fn get_user_by_email(&self, email: &str) -> Option<UserAccount> {
-        let email_index = self.email_index.read().unwrap();
+    pub fn get_user_by_email(&self, email: &str) -> DfsResult<Option<UserAccount>> {
+        let email_index = self.email_index.read().map_err(|e| {
+            crate::error::DfsError::Authentication(format!("Failed to acquire email index read lock: {}", e))
+        })?;
         if let Some(user_id) = email_index.get(email) {
             self.get_user(user_id)
         } else {
-            None
+            Ok(None)
         }
     }
 
     pub fn update_user(&self, user_account: UserAccount) -> DfsResult<()> {
-        let mut users = self.users.write().unwrap();
+        let mut users = self.users.write().map_err(|e| {
+            crate::error::DfsError::Authentication(format!("Failed to acquire user registry write lock: {}", e))
+        })?;
         users.insert(user_account.user_id, user_account);
         Ok(())
     }
 
-    pub fn list_users(&self) -> Vec<UserAccount> {
-        let users = self.users.read().unwrap();
-        users.values().cloned().collect()
+    pub fn list_users(&self) -> DfsResult<Vec<UserAccount>> {
+        let users = self.users.read().map_err(|e| {
+            crate::error::DfsError::Authentication(format!("Failed to acquire user registry read lock: {}", e))
+        })?;
+        Ok(users.values().cloned().collect())
     }
 }
 
@@ -512,24 +525,34 @@ impl UserResourceManager {
         }
     }
 
-    pub fn set_quota(&self, user_id: UserId, quota: UserQuota) {
-        let mut quotas = self.user_quotas.write().unwrap();
+    pub fn set_quota(&self, user_id: UserId, quota: UserQuota) -> DfsResult<()> {
+        let mut quotas = self.user_quotas.write().map_err(|e| {
+            crate::error::DfsError::Storage(format!("Failed to acquire quota write lock: {}", e))
+        })?;
         quotas.insert(user_id, quota);
+        Ok(())
     }
 
-    pub fn get_quota(&self, user_id: &UserId) -> Option<UserQuota> {
-        let quotas = self.user_quotas.read().unwrap();
-        quotas.get(user_id).cloned()
+    pub fn get_quota(&self, user_id: &UserId) -> DfsResult<Option<UserQuota>> {
+        let quotas = self.user_quotas.read().map_err(|e| {
+            crate::error::DfsError::Storage(format!("Failed to acquire quota read lock: {}", e))
+        })?;
+        Ok(quotas.get(user_id).cloned())
     }
 
-    pub fn update_usage(&self, user_id: UserId, usage: UserUsage) {
-        let mut usage_tracker = self.usage_tracker.write().unwrap();
+    pub fn update_usage(&self, user_id: UserId, usage: UserUsage) -> DfsResult<()> {
+        let mut usage_tracker = self.usage_tracker.write().map_err(|e| {
+            crate::error::DfsError::Storage(format!("Failed to acquire usage tracker write lock: {}", e))
+        })?;
         usage_tracker.insert(user_id, usage);
+        Ok(())
     }
 
-    pub fn get_usage(&self, user_id: &UserId) -> Option<UserUsage> {
-        let usage_tracker = self.usage_tracker.read().unwrap();
-        usage_tracker.get(user_id).cloned()
+    pub fn get_usage(&self, user_id: &UserId) -> DfsResult<Option<UserUsage>> {
+        let usage_tracker = self.usage_tracker.read().map_err(|e| {
+            crate::error::DfsError::Storage(format!("Failed to acquire usage tracker read lock: {}", e))
+        })?;
+        Ok(usage_tracker.get(user_id).cloned())
     }
 
     pub fn check_storage_quota(
@@ -539,13 +562,24 @@ impl UserResourceManager {
     ) -> Result<(), QuotaError> {
         let quota = self
             .get_quota(user_id)
+            .map_err(|_| QuotaError::StorageQuotaExceeded {
+                current: 0,
+                limit: 0,
+                requested: additional_bytes,
+            })?
             .ok_or(QuotaError::StorageQuotaExceeded {
                 current: 0,
                 limit: 0,
                 requested: additional_bytes,
             })?;
 
-        let usage = self.get_usage(user_id).unwrap_or_default();
+        let usage = self.get_usage(user_id)
+            .map_err(|_| QuotaError::StorageQuotaExceeded {
+                current: 0,
+                limit: 0,
+                requested: additional_bytes,
+            })?
+            .unwrap_or_default();
 
         if usage.storage_bytes + additional_bytes > quota.max_storage_bytes {
             return Err(QuotaError::StorageQuotaExceeded {
@@ -561,13 +595,24 @@ impl UserResourceManager {
     pub fn check_rate_limit(&self, user_id: &UserId) -> Result<(), QuotaError> {
         let quota = self
             .get_quota(user_id)
+            .map_err(|_| QuotaError::RateLimitExceeded {
+                requests_made: 0,
+                limit: 0,
+                reset_time: Utc::now(),
+            })?
             .ok_or(QuotaError::RateLimitExceeded {
                 requests_made: 0,
                 limit: 0,
                 reset_time: Utc::now(),
             })?;
 
-        let usage = self.get_usage(user_id).unwrap_or_default();
+        let usage = self.get_usage(user_id)
+            .map_err(|_| QuotaError::RateLimitExceeded {
+                requests_made: 0,
+                limit: 0,
+                reset_time: Utc::now(),
+            })?
+            .unwrap_or_default();
 
         if usage.api_calls_today >= quota.max_requests_per_hour {
             return Err(QuotaError::RateLimitExceeded {
@@ -598,37 +643,49 @@ impl NetworkGovernance {
     }
 
     pub fn submit_proposal(&self, proposal: NetworkProposal) -> DfsResult<Uuid> {
-        let mut proposals = self.proposals.write().unwrap();
+        let mut proposals = self.proposals.write().map_err(|e| {
+            crate::error::DfsError::Storage(format!("Failed to acquire proposals write lock: {}", e))
+        })?;
         let proposal_id = proposal.proposal_id;
         proposals.insert(proposal_id, proposal);
         Ok(proposal_id)
     }
 
     pub fn vote_on_proposal(&self, proposal_id: Uuid, vote: Vote) -> DfsResult<()> {
-        let mut votes = self.votes.write().unwrap();
+        let mut votes = self.votes.write().map_err(|e| {
+            crate::error::DfsError::Storage(format!("Failed to acquire votes write lock: {}", e))
+        })?;
         votes.entry(proposal_id).or_insert_with(Vec::new).push(vote);
         Ok(())
     }
 
-    pub fn get_proposal(&self, proposal_id: &Uuid) -> Option<NetworkProposal> {
-        let proposals = self.proposals.read().unwrap();
-        proposals.get(proposal_id).cloned()
+    pub fn get_proposal(&self, proposal_id: &Uuid) -> DfsResult<Option<NetworkProposal>> {
+        let proposals = self.proposals.read().map_err(|e| {
+            crate::error::DfsError::Storage(format!("Failed to acquire proposals read lock: {}", e))
+        })?;
+        Ok(proposals.get(proposal_id).cloned())
     }
 
-    pub fn list_proposals(&self) -> Vec<NetworkProposal> {
-        let proposals = self.proposals.read().unwrap();
-        proposals.values().cloned().collect()
+    pub fn list_proposals(&self) -> DfsResult<Vec<NetworkProposal>> {
+        let proposals = self.proposals.read().map_err(|e| {
+            crate::error::DfsError::Storage(format!("Failed to acquire proposals read lock: {}", e))
+        })?;
+        Ok(proposals.values().cloned().collect())
     }
 
     pub fn add_bootstrap_operator(&self, operator: BootstrapOperator) -> DfsResult<()> {
-        let mut operators = self.bootstrap_operators.write().unwrap();
+        let mut operators = self.bootstrap_operators.write().map_err(|e| {
+            crate::error::DfsError::Storage(format!("Failed to acquire operators write lock: {}", e))
+        })?;
         operators.insert(operator.operator_id, operator);
         Ok(())
     }
 
-    pub fn get_bootstrap_operators(&self) -> Vec<BootstrapOperator> {
-        let operators = self.bootstrap_operators.read().unwrap();
-        operators.values().cloned().collect()
+    pub fn get_bootstrap_operators(&self) -> DfsResult<Vec<BootstrapOperator>> {
+        let operators = self.bootstrap_operators.read().map_err(|e| {
+            crate::error::DfsError::Storage(format!("Failed to acquire operators read lock: {}", e))
+        })?;
+        Ok(operators.values().cloned().collect())
     }
 }
 
@@ -712,7 +769,7 @@ mod tests {
         );
         assert!(result.is_ok());
 
-        let user = result.unwrap();
+        let user = result.expect("Failed to register user in test");
         assert_eq!(user.email, "test@example.com");
         assert_eq!(user.public_key, "pubkey123");
         assert!(matches!(user.account_type, AccountType::Free { .. }));
@@ -772,9 +829,9 @@ mod tests {
         let result = governance.submit_proposal(proposal.clone());
         assert!(result.is_ok());
 
-        let retrieved = governance.get_proposal(&proposal.proposal_id);
+        let retrieved = governance.get_proposal(&proposal.proposal_id).expect("Failed to get proposal in test");
         assert!(retrieved.is_some());
-        assert_eq!(retrieved.unwrap().title, "Test Proposal");
+        assert_eq!(retrieved.expect("Proposal should exist").title, "Test Proposal");
     }
 }
 
