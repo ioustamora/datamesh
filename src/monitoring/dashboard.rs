@@ -555,11 +555,11 @@ impl MonitoringDashboard {
     }
 
     /// Get aggregated metrics for time range
-    pub async fn get_aggregated_metrics(&self, time_range: Duration) -> Result<AggregatedMetrics> {
+    pub async fn get_aggregated_metrics(&self, _time_range: Duration) -> Result<AggregatedMetrics> {
         let cache = self.data_cache.read().await;
         
         // Filter metrics based on time range
-        let mut filtered_metrics = cache.aggregated_metrics.clone();
+        let filtered_metrics = cache.aggregated_metrics.clone();
         
         // Apply time range filtering logic here
         // For now, return all metrics

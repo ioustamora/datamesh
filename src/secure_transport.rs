@@ -78,13 +78,13 @@ impl SecureTransportConfig {
     }
 
     /// Create a configured Noise transport with security enhancements
-    pub fn create_noise_config(&self, keypair: &identity::Keypair) -> noise::Config {
+    pub fn create_noise_config(&self, keypair: &identity::Keypair) -> Result<noise::Config, Box<dyn std::error::Error>> {
         let config = noise::Config::new(keypair)
-            .expect("Failed to create noise config");
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
         
         // Additional security configurations would go here
         // For now, we return the basic config as libp2p handles most security
-        config
+        Ok(config)
     }
 
     /// Validate connection parameters

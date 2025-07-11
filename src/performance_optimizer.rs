@@ -267,8 +267,8 @@ impl PerformanceOptimizer {
     /// Collect and store performance metrics
     async fn collect_and_store_metrics(
         historical_metrics: &Arc<RwLock<Vec<PerformanceMetrics>>>,
-        performance_monitor: &Arc<PerformanceMonitor>,
-        network_diagnostics: &Arc<NetworkDiagnostics>,
+        _performance_monitor: &Arc<PerformanceMonitor>,
+        _network_diagnostics: &Arc<NetworkDiagnostics>,
     ) -> Result<()> {
         // Collect current metrics
         let metrics = PerformanceMetrics {
@@ -327,7 +327,7 @@ impl PerformanceOptimizer {
     fn generate_optimization_recommendations(
         recent_metrics: &[PerformanceMetrics],
         baseline: &PerformanceMetrics,
-        config: &OptimizationConfig,
+        _config: &OptimizationConfig,
     ) -> Vec<OptimizationRecommendation> {
         let mut recommendations = Vec::new();
 

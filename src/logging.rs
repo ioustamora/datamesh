@@ -2,7 +2,7 @@ use tracing::{info, error};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 /// Initialize logging system for the DataMesh application
-pub fn init_logging() {
+pub fn init_logging() -> Result<(), Box<dyn std::error::Error>> {
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| {
             // Default log level based on debug/release build
@@ -23,9 +23,19 @@ pub fn init_logging() {
         .finish();
 
     tracing::subscriber::set_global_default(subscriber)
-        .expect("Failed to set global logging subscriber");
+        .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
 
     info!("DataMesh logging initialized");
+    Ok(())
+}
+
+/// Initialize logging with fallback behavior if setup fails
+pub fn init_logging_safe() {
+    if let Err(e) = init_logging() {
+        eprintln!("Warning: Failed to set up advanced logging: {}. Using basic logging.", e);
+        // Fallback to basic println-style logging if tracing setup fails
+        eprintln!("DataMesh logging initialized with fallback");
+    }
 }
 
 /// Log network events

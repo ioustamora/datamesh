@@ -108,7 +108,7 @@ impl ThreadSafeDatabaseManager {
     }
     
     /// List all files in the database
-    pub fn list_files(&self, limit: Option<usize>) -> DfsResult<Vec<FileEntry>> {
+    pub fn list_files(&self, _limit: Option<usize>) -> DfsResult<Vec<FileEntry>> {
         let db = self.get_db()
             .map_err(|e| crate::error::DfsError::Database(format!("Failed to open database: {}", e)))?;
         
@@ -135,7 +135,7 @@ impl ThreadSafeDatabaseManager {
     }
     
     /// Search files by criteria
-    pub fn search_files(&self, query: &str, limit: Option<usize>) -> DfsResult<Vec<FileEntry>> {
+    pub fn search_files(&self, query: &str, _limit: Option<usize>) -> DfsResult<Vec<FileEntry>> {
         let db = self.get_db()
             .map_err(|e| crate::error::DfsError::Database(format!("Failed to open database: {}", e)))?;
         

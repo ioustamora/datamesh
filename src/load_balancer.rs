@@ -307,7 +307,7 @@ impl LoadBalancer {
     async fn collect_node_metrics(
         node_metrics: &Arc<RwLock<HashMap<String, NodeMetrics>>>,
         network_diagnostics: &Arc<NetworkDiagnostics>,
-        performance_monitor: &Arc<PerformanceMonitor>,
+        _performance_monitor: &Arc<PerformanceMonitor>,
     ) -> Result<()> {
         let mut metrics = node_metrics.write().await;
         

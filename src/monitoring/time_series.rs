@@ -230,7 +230,7 @@ impl TimeSeriesDB {
 
     /// Store system metrics in the time series database
     pub async fn store_metrics(&self, metrics: &SystemMetrics) -> Result<()> {
-        let timestamp = metrics.timestamp;
+        let _timestamp = metrics.timestamp;
         let mut points = Vec::new();
 
         // Convert SystemMetrics to time series points
@@ -855,7 +855,7 @@ impl TimeSeriesDB {
     }
 
     async fn start_compaction_task(&self) -> Result<()> {
-        let storage_backend = self.storage_backend.clone();
+        let _storage_backend = self.storage_backend.clone();
         let is_running = self.is_running.clone();
 
         tokio::spawn(async move {
@@ -870,7 +870,7 @@ impl TimeSeriesDB {
                 }
 
                 // Compact data older than 24 hours
-                let compact_before = Utc::now() - Duration::from_secs(24 * 3600);
+                let _compact_before = Utc::now() - Duration::from_secs(24 * 3600);
                 
                 // Would implement actual compaction logic here
                 tracing::debug!("Compaction task completed");
@@ -996,13 +996,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_time_series_db_creation() {
-        let db = TimeSeriesDB::new(Duration::from_days(30)).await;
+        let db = TimeSeriesDB::new(Duration::from_secs(30 * 24 * 60 * 60)).await;
         assert!(db.is_ok());
     }
 
     #[tokio::test]
     async fn test_store_and_query_metrics() {
-        let db = TimeSeriesDB::new(Duration::from_days(30)).await.unwrap();
+        let db = TimeSeriesDB::new(Duration::from_secs(30 * 24 * 60 * 60)).await.unwrap();
         db.start().await.unwrap();
 
         let metrics = SystemMetrics {
@@ -1055,13 +1055,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_aggregation() {
-        let db = TimeSeriesDB::new(Duration::from_days(30)).await.unwrap();
+        let db = TimeSeriesDB::new(Duration::from_secs(30 * 24 * 60 * 60)).await.unwrap();
         db.start().await.unwrap();
 
         // Store multiple data points
         for i in 0..10 {
             let metrics = SystemMetrics {
-                timestamp: Utc::now() - Duration::from_minutes(i * 5),
+                timestamp: Utc::now() - chrono::Duration::minutes(i * 5),
                 node_id: "test-node".to_string(),
                 throughput_mbps: 100.0 + i as f64,
                 avg_response_time_ms: 50.0,
@@ -1105,7 +1105,7 @@ mod tests {
             end_time: Utc::now(),
             tags: HashMap::new(),
             aggregation: Some(AggregationFunction::Average),
-            sampling_interval: Some(Duration::from_minutes(10)),
+            sampling_interval: Some(Duration::from_secs(10 * 60)),
             limit: None,
             order: QueryOrder::Ascending,
         };

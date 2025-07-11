@@ -396,6 +396,7 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
     use crate::key_manager::KeyManager;
+    use rand::rngs::OsRng;
     
     #[test]
     fn test_encrypted_key_creation_and_loading() {

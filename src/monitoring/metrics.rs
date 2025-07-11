@@ -855,7 +855,7 @@ impl MetricsCollector {
     async fn start_collection_loop(&self) -> Result<()> {
         let is_running = self.is_running.clone();
         let metrics_cache = self.metrics_cache.clone();
-        let collection_stats = self.collection_stats.clone();
+        let _collection_stats = self.collection_stats.clone();
         let collectors = self.collectors.clone();
         let interval = self.collection_interval;
 

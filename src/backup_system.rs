@@ -504,11 +504,11 @@ impl BackupSystem {
         &'a self,
         dir_path: &'a Path,
         config: &'a BackupConfig,
-        metadata: &'a mut BackupMetadata,
+        _metadata: &'a mut BackupMetadata,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = DfsResult<()>> + 'a + Send>> {
         // Use tokio::task::spawn_blocking to avoid Send issues
         let dir_path_buf = dir_path.to_path_buf();
-        let config_clone = config.clone();
+        let _config_clone = config.clone();
         
         Box::pin(async move {
             // Use blocking task to avoid Send issues with DatabaseManager
@@ -737,13 +737,13 @@ impl BackupSystem {
     }
 
     /// Verify a single backed-up file by retrieving and checking its checksum
-    async fn verify_backed_up_file(&self, file_path: &str, expected_checksum: &str) -> DfsResult<bool> {
+    async fn verify_backed_up_file(&self, file_path: &str, _expected_checksum: &str) -> DfsResult<bool> {
         // Generate the backup name that would have been used for this file
         let backup_name = self.generate_backup_name_for_verification(file_path)?;
         
         // Try to retrieve the file metadata from the database
         match self.database.get_file_by_name(&backup_name) {
-            Ok(Some(file_entry)) => {
+            Ok(Some(_file_entry)) => {
                 // For now, we'll assume the file exists and is accessible
                 // In a full implementation, we would:
                 // 1. Download the file to a temporary location

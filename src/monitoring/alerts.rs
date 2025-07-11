@@ -495,7 +495,7 @@ impl AlertManager {
         let rules = self.alert_rules.read().await;
         let mut triggered_alerts = Vec::new();
 
-        for (rule_id, rule) in rules.iter() {
+        for (_rule_id, rule) in rules.iter() {
             if !rule.enabled {
                 continue;
             }
@@ -568,19 +568,19 @@ impl AlertManager {
                 let value = self.get_metric_value(metric, metrics).await?;
                 Ok(self.compare_values(value, *threshold, operator))
             }
-            AlertCondition::AnomalyDetection { metric, sensitivity, window } => {
+            AlertCondition::AnomalyDetection { metric, sensitivity, window: _ } => {
                 let detector = self.anomaly_detector.read().await;
                 detector.is_anomaly(metric, self.get_metric_value(metric, metrics).await?, *sensitivity).await
             }
-            AlertCondition::RateOfChange { metric, rate_threshold, time_window } => {
+            AlertCondition::RateOfChange { metric: _, rate_threshold: _, time_window: _ } => {
                 // Would implement rate of change calculation
                 Ok(false) // Placeholder
             }
-            AlertCondition::Correlation { primary_metric, secondary_metric, correlation_threshold, window } => {
+            AlertCondition::Correlation { primary_metric: _, secondary_metric: _, correlation_threshold: _, window: _ } => {
                 // Would implement correlation analysis
                 Ok(false) // Placeholder
             }
-            AlertCondition::Composite { expression, conditions } => {
+            AlertCondition::Composite { expression: _, conditions: _ } => {
                 // Would implement composite condition evaluation
                 Ok(false) // Placeholder
             }
@@ -695,7 +695,7 @@ impl AlertManager {
 
     /// Start escalation process for an alert
     async fn start_escalation(&self, alert: &Alert) -> Result<()> {
-        let escalation_manager = self.escalation_manager.read().await;
+        let _escalation_manager = self.escalation_manager.read().await;
         // Would implement escalation logic here
         tracing::info!("Escalation started for alert {}", alert.id);
         Ok(())

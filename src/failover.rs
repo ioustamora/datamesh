@@ -433,7 +433,7 @@ impl FailoverManager {
     /// Start failover detection
     async fn start_failover_detection(&self) -> Result<()> {
         let health_status = self.health_status.clone();
-        let bootstrap_manager = self.bootstrap_manager.clone();
+        let _bootstrap_manager = self.bootstrap_manager.clone();
 
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(30));

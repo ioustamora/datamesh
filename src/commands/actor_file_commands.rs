@@ -129,7 +129,7 @@ pub struct ActorInfoCommand {
 
 #[async_trait::async_trait]
 impl ActorCommandHandler for ActorInfoCommand {
-    async fn execute(&self, context: &ActorCommandContext) -> Result<(), Box<dyn Error>> {
+    async fn execute(&self, _context: &ActorCommandContext) -> Result<(), Box<dyn Error>> {
         // Get database connection
         let db_path = crate::database::get_default_db_path()?;
         let db = DatabaseManager::new(&db_path)?;

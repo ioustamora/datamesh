@@ -579,9 +579,9 @@ impl ApiServer {
         bootstrap_admin: Arc<BootstrapAdministrationService>,
         cli: Cli,
         api_config: ApiConfig,
-    ) -> Self {
+    ) -> Result<Self, DfsError> {
         // Initialize authentication components with secure configuration
-        let auth_service = Arc::new(AuthService::new(&api_config.jwt));
+        let auth_service = Arc::new(AuthService::new(&api_config.jwt)?);
         let user_registry = Arc::new(UserRegistry::new());
 
         let state = ApiState {
@@ -598,7 +598,7 @@ impl ApiServer {
 
         let app = Self::create_app(state.clone());
 
-        Self { state, app }
+        Ok(Self { state, app })
     }
 
     /// Create the Axum application router
@@ -711,9 +711,7 @@ impl ApiServer {
         //     .await
         //     .map_err(|e| DfsError::Network(format!("HTTPS server error: {}", e)))?;
         
-        return Err(DfsError::Config("HTTPS server temporarily disabled due to compatibility issue".to_string()));
-
-        Ok(())
+        Err(DfsError::Config("HTTPS server temporarily disabled due to compatibility issue".to_string()))
     }
 }
 
@@ -1036,7 +1034,7 @@ async fn download_file(
     tag = "files"
 )]
 async fn get_file_metadata(
-    State(state): State<ApiState>,
+    State(_state): State<ApiState>,
     Path(file_key): Path<String>,
 ) -> Result<Json<FileMetadataResponse>, ApiError> {
     let db_path = database::get_default_db_path()
@@ -1080,7 +1078,7 @@ async fn get_file_metadata(
     tag = "files"
 )]
 async fn list_files(
-    State(state): State<ApiState>,
+    State(_state): State<ApiState>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<FileListResponse>, ApiError> {
     let db_path = database::get_default_db_path()
@@ -1137,7 +1135,7 @@ async fn list_files(
     tag = "search"
 )]
 async fn search_files(
-    State(state): State<ApiState>,
+    State(_state): State<ApiState>,
     Json(request): Json<FileSearchRequest>,
 ) -> Result<Json<FileListResponse>, ApiError> {
     let db_path = database::get_default_db_path()
@@ -1198,7 +1196,7 @@ async fn search_files(
     tag = "files"
 )]
 async fn delete_file(
-    State(state): State<ApiState>,
+    State(_state): State<ApiState>,
     Path(file_key): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let db_path = database::get_default_db_path()
@@ -1600,7 +1598,7 @@ async fn register_service(
 )]
 async fn update_service_heartbeat(
     State(state): State<ApiState>,
-    Path((operator_id, service_id)): Path<(String, String)>,
+    Path((_operator_id, service_id)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let service_uuid = service_id.parse::<uuid::Uuid>()
         .map_err(|_| ApiError::BadRequest("Invalid service ID format".to_string()))?;

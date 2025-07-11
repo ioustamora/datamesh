@@ -413,10 +413,12 @@ pub struct AuthService {
 }
 
 impl AuthService {
-    pub fn new(jwt_config: &crate::api_server::JwtConfig) -> Self {
+    pub fn new(jwt_config: &crate::api_server::JwtConfig) -> DfsResult<Self> {
         // Validate secret strength (minimum 32 bytes for HS256)
         if jwt_config.secret.len() < 32 {
-            panic!("JWT secret must be at least 32 characters long for security");
+            return Err(DfsError::Authentication(
+                format!("JWT secret must be at least 32 characters long for security. Current length: {}", jwt_config.secret.len())
+            ));
         }
         
         let mut validation = Validation::new(Algorithm::HS256);
@@ -424,12 +426,12 @@ impl AuthService {
         validation.set_issuer(&[jwt_config.issuer.clone()]);
         validation.set_audience(&[jwt_config.audience.clone()]);
         
-        Self {
+        Ok(Self {
             encoding_key: EncodingKey::from_secret(jwt_config.secret.as_ref()),
             decoding_key: DecodingKey::from_secret(jwt_config.secret.as_ref()),
             validation,
             jwt_config: jwt_config.clone(),
-        }
+        })
     }
     
     /// Legacy constructor for backward compatibility
@@ -684,6 +686,7 @@ mod tests {
         let registry = UserRegistry::new();
         let result = registry.register_user(
             "test@example.com".to_string(),
+            "password123".to_string(),
             "pubkey123".to_string()
         );
         assert!(result.is_ok());
@@ -699,11 +702,13 @@ mod tests {
         let registry = UserRegistry::new();
         let _ = registry.register_user(
             "test@example.com".to_string(),
+            "password123".to_string(),
             "pubkey123".to_string()
         );
         
         let result = registry.register_user(
             "test@example.com".to_string(),
+            "password456".to_string(),
             "pubkey456".to_string()
         );
         assert!(result.is_err());
