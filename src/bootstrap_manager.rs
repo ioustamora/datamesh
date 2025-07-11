@@ -272,7 +272,7 @@ impl BootstrapManager {
             connection_pool: HashMap::new(),
             retry_strategy: ExponentialBackoff::default(),
             health_checker: BootstrapHealthChecker::default(),
-            min_connections: 3,
+            min_connections: 1,
             max_connections: 8,
             preferred_region: None,
         }

@@ -59,8 +59,8 @@ impl CommandHandler for InteractiveCommand {
 /// Service command handler
 #[derive(Debug, Clone)]
 pub struct ServiceCommand {
-    pub bootstrap_peer: bool,
-    pub bootstrap_addr: Option<String>,
+    pub bootstrap_peer: Option<libp2p::PeerId>,
+    pub bootstrap_addr: Option<libp2p::Multiaddr>,
     pub port: u16,
     pub timeout: u64,
 }
@@ -78,10 +78,11 @@ impl CommandHandler for ServiceCommand {
         }
         println!("Timeout: {}s", self.timeout);
         
-        // For now, start a basic bootstrap node since this is used for testing
-        // In a real implementation, this would connect to the bootstrap node and run as a service
+        // Load config
         let config = config::Config::load_or_default(None)?;
-        network::start_bootstrap_node(self.port, &config).await?;
+        
+        // Start service node that connects to bootstrap
+        network::start_service_node(self.port, self.bootstrap_peer, self.bootstrap_addr.clone(), &config).await?;
         
         Ok(())
     }

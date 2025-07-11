@@ -16,7 +16,7 @@ use libp2p::kad::{Behaviour as Kademlia, Event as KademliaEvent};
 use libp2p::{
     identity, noise,
     swarm::{NetworkBehaviour, Swarm, SwarmEvent},
-    tcp, yamux, PeerId, SwarmBuilder,
+    tcp, yamux, PeerId, SwarmBuilder, Multiaddr,
 };
 use std::error::Error;
 
@@ -197,6 +197,94 @@ pub async fn create_swarm_and_connect_multi_bootstrap(
     }
 
     Ok(swarm)
+}
+
+/// Starts a service node that connects to a bootstrap node
+///
+/// This function initializes a libp2p swarm configured as a regular service node,
+/// connecting to the specified bootstrap node for network participation.
+///
+/// # Arguments
+///
+/// * `port` - The port to listen on for incoming connections
+/// * `bootstrap_peer` - The peer ID of the bootstrap node to connect to
+/// * `bootstrap_addr` - The multiaddress of the bootstrap node
+///
+/// # Returns
+///
+/// Result indicating success or failure
+pub async fn start_service_node(port: u16, bootstrap_peer: Option<PeerId>, bootstrap_addr: Option<Multiaddr>, _config: &Config) -> Result<(), Box<dyn Error>> {
+    let local_key = identity::Keypair::generate_ed25519();
+    let local_peer_id = PeerId::from(local_key.public());
+
+    let mut swarm = SwarmBuilder::with_new_identity()
+        .with_tokio()
+        .with_tcp(
+            tcp::Config::default(),
+            noise::Config::new,
+            yamux::Config::default,
+        )?
+        .with_behaviour(|key| {
+            let peer_id = key.public().to_peer_id();
+
+            // Use standard memory store for Send + Sync compatibility
+            let storage = libp2p::kad::store::MemoryStore::new(peer_id);
+            let mut kad = Kademlia::new(peer_id, storage);
+
+            // Configure as a client mode for service nodes
+            kad.set_mode(Some(libp2p::kad::Mode::Client));
+
+            // Add bootstrap peer if provided
+            if let (Some(peer_id), Some(addr)) = (bootstrap_peer, bootstrap_addr.clone()) {
+                kad.add_address(&peer_id, addr);
+            }
+
+            MyBehaviour { kad }
+        })?
+        .with_swarm_config(|c| c.with_idle_connection_timeout(std::time::Duration::from_secs(60)))
+        .build();
+
+    println!("Starting as service node on port {}", port);
+    if let Some(addr) = &bootstrap_addr {
+        println!("Bootstrap address: {}", addr);
+    }
+    
+    let listen_addr = format!("/ip4/0.0.0.0/tcp/{}", port);
+    swarm.listen_on(listen_addr.parse()?)?;
+
+    println!("Service node started!");
+    println!("Peer ID: {}", local_peer_id);
+    
+    // Try to connect to bootstrap node if provided
+    if let (Some(peer_id), Some(addr)) = (bootstrap_peer, bootstrap_addr) {
+        println!("Connecting to bootstrap node: {} at {}", peer_id, addr);
+        swarm.dial(addr)?;
+    }
+
+    println!("\nWaiting for connections...");
+
+    loop {
+        match swarm.select_next_some().await {
+            SwarmEvent::NewListenAddr { address, .. } => println!("Listening on {:?}", address),
+            SwarmEvent::ConnectionEstablished { peer_id, .. } => {
+                println!("Connected to peer: {}", peer_id);
+                // Trigger bootstrap when connected
+                if let Err(e) = swarm.behaviour_mut().kad.bootstrap() {
+                    println!("Bootstrap trigger failed: {:?}", e);
+                } else {
+                    println!("Bootstrap triggered successfully");
+                }
+            }
+            SwarmEvent::Behaviour(event) => {
+                match event {
+                    MyBehaviourEvent::Kad(kad_event) => {
+                        println!("Kad event: {:?}", kad_event);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 /// Starts a bootstrap node for the network

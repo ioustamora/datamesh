@@ -152,8 +152,8 @@ pub fn create_command_handler(command: &Commands) -> Box<dyn CommandHandler> {
             port,
             timeout,
         } => Box::new(service_commands::ServiceCommand {
-            bootstrap_peer: bootstrap_peer.is_some(),
-            bootstrap_addr: bootstrap_addr.as_ref().map(|addr| addr.to_string()),
+            bootstrap_peer: *bootstrap_peer,
+            bootstrap_addr: bootstrap_addr.clone(),
             port: *port,
             timeout: timeout.unwrap_or(60),
         }),

@@ -113,19 +113,27 @@ impl NetworkHandle {
             pending_put_requests: HashMap::new(),
         };
 
-        // Start actor in background
-        // Start the network actor in a local task set to avoid Send issues
-        let local_set = tokio::task::LocalSet::new();
-        local_set.spawn_local(async move {
-            if let Err(e) = actor.run().await {
-                error!("Network actor error: {}", e);
-            }
+        // Start actor in background using a spawned thread with LocalSet
+        let (actor_handle_tx, actor_handle_rx) = oneshot::channel();
+        
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let local_set = tokio::task::LocalSet::new();
+            
+            local_set.spawn_local(async move {
+                if let Err(e) = actor.run().await {
+                    error!("Network actor error: {}", e);
+                }
+            });
+            
+            // Signal that the actor is starting
+            let _ = actor_handle_tx.send(());
+            
+            rt.block_on(local_set);
         });
-
-        // Run the local set on the current thread
-        tokio::task::spawn_local(async move {
-            local_set.await;
-        });
+        
+        // Wait for actor to start
+        let _ = actor_handle_rx.await;
 
         Ok(NetworkHandle { tx, stats })
     }

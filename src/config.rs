@@ -263,7 +263,7 @@ impl Default for Config {
                     max_attempts: 5,
                     retry_interval_secs: 2,
                     health_check_interval_secs: 30,
-                    min_connections: 3,
+                    min_connections: 1,
                     max_connections: 8,
                     preferred_region: None,
                     backoff: BackoffConfig {
