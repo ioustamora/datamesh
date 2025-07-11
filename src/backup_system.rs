@@ -1637,7 +1637,30 @@ mod tests {
     }
 
     fn create_test_backup_system() -> BackupSystem {
-        // Create mock dependencies for testing
-        todo!("Implement test backup system creation")
+        use tempfile::TempDir;
+        use std::sync::Arc;
+        use libsecp256k1::SecretKey;
+        
+        // Create temporary directory for test database
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_backup.db").to_string_lossy().to_string();
+        
+        // Create mock database manager
+        let database = Arc::new(DatabaseManager::new(&db_path).unwrap());
+        
+        // Create test key manager with a valid secret key
+        let secret_key = SecretKey::parse(&[
+            0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+            0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+            0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+            0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01
+        ]).unwrap();
+        let key_manager = Arc::new(KeyManager::new(secret_key, "test-backup-key".to_string()));
+        
+        // Create mock CLI with minimal configuration
+        let cli = Arc::new(Cli::default());
+        
+        // Create backup system with test dependencies
+        BackupSystem::new(database, key_manager, cli)
     }
 }

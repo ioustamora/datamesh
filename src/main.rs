@@ -63,7 +63,7 @@ use std::sync::Arc;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // Initialize logging system
-    logging::init_logging();
+    logging::init_logging_safe();
     
     // Parse command line arguments
     let mut cli = cli::Cli::parse();
