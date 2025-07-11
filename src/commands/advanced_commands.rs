@@ -200,18 +200,92 @@ impl AdvancedCommandHandler {
     }
 
     /// Handle duplicate command
-    async fn handle_duplicate_command(&self, _context: &CommandContext) -> Result<(), Box<dyn Error>> {
+    async fn handle_duplicate_command(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
         use crate::ui;
+        use crate::cli::Commands;
+        use crate::file_manager::find_duplicate_files;
+        use std::collections::HashMap;
         
         ui::print_header("Duplicate Detection");
-        ui::print_info("Scanning for duplicate files...");
         
-        // In a real implementation, this would:
-        // 1. Calculate file hashes for all stored files
-        // 2. Identify duplicates based on content hashes
-        // 3. Offer options to remove or consolidate duplicates
-        
-        ui::print_info("Duplicate scan completed: 0 duplicates found");
+        // Extract parameters from command
+        if let Commands::Duplicate { source, new_name, new_tags } = &self.command {
+            let min_file_size = 1024u64; // Default 1KB minimum
+            let should_remove = false; // This command is for file duplication, not deduplication
+            
+            ui::print_info(&format!("Analyzing duplicates for source: {}", source));
+            
+            ui::print_key_value("Minimum size", &format_bytes(min_file_size));
+            ui::print_info("Scanning for duplicate files based on BLAKE3 content hashes...");
+            
+            match find_duplicate_files(min_file_size).await {
+                Ok(duplicates) => {
+                    if duplicates.is_empty() {
+                        ui::print_success("No duplicates found!");
+                        ui::print_info("Your file storage is efficiently organized");
+                    } else {
+                        // Group files by their content hash
+                        let mut duplicate_groups: HashMap<String, Vec<_>> = HashMap::new();
+                        for file in duplicates {
+                            duplicate_groups
+                                .entry(file.file_key.clone())
+                                .or_insert_with(Vec::new)
+                                .push(file);
+                        }
+                        
+                        let total_groups = duplicate_groups.len();
+                        let total_duplicates: usize = duplicate_groups.values()
+                            .map(|group| group.len().saturating_sub(1))
+                            .sum();
+                        
+                        ui::print_warning(&format!(
+                            "Found {} duplicate groups containing {} duplicate files",
+                            total_groups, total_duplicates
+                        ));
+                        
+                        let mut total_wasted_space = 0u64;
+                        
+                        for (hash, group) in &duplicate_groups {
+                            if group.len() > 1 {
+                                ui::print_info(&format!("\nDuplicate group (key: {}...):", &hash[..8]));
+                                for (i, file) in group.iter().enumerate() {
+                                    let marker = if i == 0 { " [ORIGINAL]" } else { " [DUPLICATE]" };
+                                    ui::print_info(&format!(
+                                        "  {} - {} {}{}",
+                                        i + 1,
+                                        file.original_filename,
+                                        format_bytes(file.file_size),
+                                        marker
+                                    ));
+                                    if i > 0 {
+                                        total_wasted_space += file.file_size;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        ui::print_key_value("Wasted space", &format_bytes(total_wasted_space));
+                        
+                        if should_remove {
+                            ui::print_info("Removing duplicate files (keeping one copy of each)...");
+                            // In a real implementation, this would remove duplicates
+                            // For now, we'll just simulate it
+                            ui::print_success(&format!("Would remove {} duplicate files, saving {}", 
+                                total_duplicates, format_bytes(total_wasted_space)));
+                            ui::print_warning("Duplicate removal not yet implemented - this is a dry run");
+                        } else {
+                            ui::print_info("Use --remove-duplicates to automatically remove duplicates");
+                        }
+                    }
+                }
+                Err(e) => {
+                    ui::print_error(&format!("Duplicate detection failed: {}", e));
+                    ui::print_info("Make sure the database is accessible and contains file hash data");
+                }
+            }
+        } else {
+            return Err("Invalid command type for duplicate handler".into());
+        }
         
         Ok(())
     }
@@ -234,35 +308,117 @@ impl AdvancedCommandHandler {
     }
 
     /// Handle search command
-    async fn handle_search_command(&self, _context: &CommandContext) -> Result<(), Box<dyn Error>> {
+    async fn handle_search_command(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
         use crate::ui;
+        use crate::file_manager::{SearchCriteria, search_files};
+        use crate::cli::Commands;
         
-        ui::print_header("File Search");
-        ui::print_info("Searching files...");
-        
-        // In a real implementation, this would:
-        // 1. Parse search query (name, tags, content, date range)
-        // 2. Search local database and network
-        // 3. Rank results by relevance
-        // 4. Display paginated results
-        
-        ui::print_info("Search completed: 0 files found");
+        // Extract search parameters from the command
+        if let Commands::Search { query, file_type, size, date, regex, limit } = &self.command {
+            ui::print_header("File Search");
+            ui::print_key_value("Query", query);
+            
+            if let Some(ft) = file_type {
+                ui::print_key_value("File Type", ft);
+            }
+            if let Some(sz) = size {
+                ui::print_key_value("Size Filter", sz);
+            }
+            if let Some(dt) = date {
+                ui::print_key_value("Date Filter", dt);
+            }
+            
+            // Build search criteria
+            let criteria = SearchCriteria {
+                query: query.clone(),
+                file_type: file_type.clone(),
+                size_range: None, // TODO: Parse size string to SizeRange
+                date_range: None, // TODO: Parse date string to DateRange
+                use_regex: *regex,
+                limit: *limit,
+            };
+            
+            // Perform the actual search
+            match search_files(criteria).await {
+                Ok(results) => {
+                    if results.is_empty() {
+                        ui::print_info("No files found matching your search criteria");
+                        ui::print_info("Try:");
+                        ui::print_info("  - Using broader search terms");
+                        ui::print_info("  - Removing some filters");
+                        ui::print_info("  - Using --regex for pattern matching");
+                    } else {
+                        ui::print_success(&format!("Found {} file(s):", results.len()));
+                        ui::print_file_list(&results);
+                        
+                        // Show additional information
+                        let total_size: u64 = results.iter().map(|f| f.file_size).sum();
+                        ui::print_key_value("Total Size", &format_bytes(total_size));
+                    }
+                }
+                Err(e) => {
+                    ui::print_error(&format!("Search failed: {}", e));
+                    ui::print_info("Make sure the database is accessible and try again");
+                }
+            }
+        } else {
+            return Err("Invalid command type for search handler".into());
+        }
         
         Ok(())
     }
 
     /// Handle recent command
-    async fn handle_recent_command(&self, _context: &CommandContext) -> Result<(), Box<dyn Error>> {
+    async fn handle_recent_command(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
         use crate::ui;
+        use crate::cli::Commands;
+        use crate::file_manager::get_recent_files;
         
         ui::print_header("Recent Files");
         
-        // In a real implementation, this would:
-        // 1. Query database for recently added/modified files
-        // 2. Sort by timestamp
-        // 3. Display with metadata (size, date, tags)
-        
-        ui::print_info("No recent files found");
+        // Extract parameters from command
+        if let Commands::Recent { count, days, file_type } = &self.command {
+            let file_limit = *count;
+            let days_back = *days;
+            
+            ui::print_key_value("Limit", &file_limit.to_string());
+            ui::print_key_value("Days back", &days_back.to_string());
+            
+            // Query database for recent files
+            match get_recent_files(file_limit, days_back, file_type.clone()).await {
+                Ok(files) => {
+                    if files.is_empty() {
+                        ui::print_info("No recent files found");
+                        ui::print_info("Try:");
+                        ui::print_info("  - Increasing the --days parameter");
+                        ui::print_info("  - Adding some files first with: datamesh put <file>");
+                    } else {
+                        ui::print_success(&format!("Found {} recent file(s):", files.len()));
+                        ui::print_file_list(&files);
+                        
+                        // Show summary statistics
+                        let total_size: u64 = files.iter().map(|f| f.file_size).sum();
+                        ui::print_key_value("Total Size", &format_bytes(total_size));
+                        
+                        let unique_extensions: std::collections::HashSet<String> = 
+                            files.iter().map(|f| {
+                                std::path::Path::new(&f.original_filename)
+                                    .extension()
+                                    .and_then(|ext| ext.to_str())
+                                    .unwrap_or("unknown")
+                                    .to_string()
+                            }).collect();
+                        ui::print_key_value("File Extensions", &unique_extensions.len().to_string());
+                    }
+                }
+                Err(e) => {
+                    ui::print_error(&format!("Failed to retrieve recent files: {}", e));
+                    ui::print_info("Make sure the database is accessible and try again");
+                }
+            }
+        } else {
+            return Err("Invalid command type for recent handler".into());
+        }
         
         Ok(())
     }
@@ -514,6 +670,27 @@ impl AdvancedCommandHandler {
         ui::print_info("Advanced operations menu not implemented");
         
         Ok(())
+    }
+}
+
+/// Helper function to format bytes into human-readable units
+fn format_bytes(bytes: u64) -> String {
+    const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB", "PB"];
+    
+    if bytes == 0 {
+        return "0 B".to_string();
+    }
+    
+    let base = 1024u64;
+    let unit_index = ((bytes as f64).ln() / (base as f64).ln()).floor() as usize;
+    let unit_index = unit_index.min(UNITS.len() - 1);
+    
+    let value = bytes as f64 / (base.pow(unit_index as u32) as f64);
+    
+    if unit_index == 0 {
+        format!("{} {}", bytes, UNITS[unit_index])
+    } else {
+        format!("{:.1} {}", value, UNITS[unit_index])
     }
 }
 

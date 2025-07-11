@@ -402,6 +402,35 @@ pub async fn duplicate_file(
     Ok(())
 }
 
+/// Find duplicate files based on similar file sizes (approximation for now)
+pub async fn find_duplicate_files(min_size: u64) -> Result<Vec<FileEntry>> {
+    let db_path = crate::database::get_default_db_path()?;
+    let db = crate::database::DatabaseManager::new(&db_path)?;
+    
+    // For now, we'll find files with similar sizes as an approximation
+    // In a real implementation, this would use actual content hashes
+    let files = db.list_files(None)?;
+    
+    let mut potential_duplicates = Vec::new();
+    let mut size_groups: std::collections::HashMap<u64, Vec<FileEntry>> = std::collections::HashMap::new();
+    
+    // Group files by size
+    for file in files {
+        if file.file_size >= min_size {
+            size_groups.entry(file.file_size).or_insert_with(Vec::new).push(file);
+        }
+    }
+    
+    // Add files from groups with multiple entries
+    for (_, group) in size_groups {
+        if group.len() > 1 {
+            potential_duplicates.extend(group);
+        }
+    }
+    
+    Ok(potential_duplicates)
+}
+
 /// Rename a file (metadata-only operation)
 pub async fn rename_file(old_name: &str, new_name: &str) -> Result<()> {
     ui::print_header("File Rename");

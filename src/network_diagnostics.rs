@@ -141,6 +141,12 @@ impl NetworkDiagnostics {
             100
         }
     }
+
+    /// Get all peer statistics
+    pub fn get_all_peer_stats(&self) -> std::collections::HashMap<PeerId, PeerStats> {
+        let stats = self.peer_stats.lock().unwrap();
+        stats.clone()
+    }
 }
 
 /// Information about a connected peer
