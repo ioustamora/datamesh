@@ -144,7 +144,7 @@ pub fn create_command_handler(command: &Commands) -> Box<dyn CommandHandler> {
                 bootstrap_peer: bootstrap_peer.is_some(),
                 bootstrap_addr: bootstrap_addr.as_ref().map(|addr| addr.to_string()),
                 port: *port,
-                timeout: *timeout,
+                timeout: timeout.unwrap_or(60),
             })
         }
         

@@ -15,7 +15,7 @@ use crate::thread_safe_database::ThreadSafeDatabaseManager;
 use crate::error::DfsResult;
 
 /// Thread-safe context for actor-based command handlers
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ThreadSafeCommandContext {
     pub cli: Cli,
     pub key_manager: Arc<KeyManager>,

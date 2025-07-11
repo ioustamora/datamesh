@@ -97,6 +97,11 @@ impl fmt::Display for DfsError {
             DfsError::Config(e) => write!(f, "Configuration error: {}", e),
             DfsError::Backup(e) => write!(f, "Backup error: {}", e),
             DfsError::Generic(e) => write!(f, "Error: {}", e),
+            DfsError::Encryption(e) => write!(f, "Encryption error: {}", e),
+            DfsError::Decryption(e) => write!(f, "Decryption error: {}", e),
+            DfsError::Encoding(e) => write!(f, "Encoding error: {}", e),
+            DfsError::Deserialization(e) => write!(f, "Deserialization error: {}", e),
+            DfsError::NotFound(e) => write!(f, "Not found: {}", e),
         }
     }
 }
@@ -113,25 +118,15 @@ impl fmt::Display for EnhancedError {
 
 impl StdError for EnhancedError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        match &self.error {
-            DfsError::Io(e) => Some(e),
-            _ => None,
-        }
+        None
     }
 }
 
-impl StdError for DfsError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        match self {
-            DfsError::Io(e) => Some(e),
-            _ => None,
-        }
-    }
-}
+impl StdError for DfsError {}
 
 impl From<std::io::Error> for DfsError {
     fn from(error: std::io::Error) -> Self {
-        DfsError::Io(error)
+        DfsError::Io(error.to_string())
     }
 }
 

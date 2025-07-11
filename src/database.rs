@@ -32,6 +32,7 @@ pub struct FileEntry {
 }
 
 /// Database manager for file metadata storage
+#[derive(Debug)]
 pub struct DatabaseManager {
     connection: Connection,
 }

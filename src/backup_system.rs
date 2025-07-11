@@ -660,14 +660,14 @@ impl BackupSystem {
         use std::io::Read;
         
         let mut file = File::open(file_path)
-            .map_err(|e| DfsError::Io(e))?;
+            .map_err(|e| DfsError::Io(e.to_string()))?;
         
         let mut hasher = blake3::Hasher::new();
         let mut buffer = [0; 8192];
         
         loop {
             let bytes_read = file.read(&mut buffer)
-                .map_err(|e| DfsError::Io(e))?;
+                .map_err(|e| DfsError::Io(e.to_string()))?;
             
             if bytes_read == 0 {
                 break;

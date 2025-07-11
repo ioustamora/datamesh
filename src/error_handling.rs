@@ -79,13 +79,14 @@ pub fn get_error_severity(error: &DfsError) -> ErrorSeverity {
         DfsError::Database(_) => ErrorSeverity::Critical,
         DfsError::Crypto(_) => ErrorSeverity::Critical,
         DfsError::Io(io_err) => {
-            match io_err.kind() {
-                std::io::ErrorKind::PermissionDenied => ErrorSeverity::Critical,
-                std::io::ErrorKind::NotFound => ErrorSeverity::Warning,
-                std::io::ErrorKind::ConnectionRefused 
-                | std::io::ErrorKind::ConnectionReset 
-                | std::io::ErrorKind::ConnectionAborted => ErrorSeverity::Critical,
-                _ => ErrorSeverity::Warning,
+            if io_err.contains("Permission denied") || io_err.contains("permission") {
+                ErrorSeverity::Critical
+            } else if io_err.contains("not found") || io_err.contains("Not found") {
+                ErrorSeverity::Warning
+            } else if io_err.contains("Connection") || io_err.contains("connection") {
+                ErrorSeverity::Critical
+            } else {
+                ErrorSeverity::Warning
             }
         }
         DfsError::Generic(_) => ErrorSeverity::Info,
@@ -97,6 +98,11 @@ pub fn get_error_severity(error: &DfsError) -> ErrorSeverity {
         DfsError::Authentication(_) => ErrorSeverity::Critical,
         DfsError::Config(_) => ErrorSeverity::Critical,
         DfsError::Backup(_) => ErrorSeverity::Warning,
+        DfsError::Encryption(_) => ErrorSeverity::Critical,
+        DfsError::Decryption(_) => ErrorSeverity::Critical,
+        DfsError::Encoding(_) => ErrorSeverity::Warning,
+        DfsError::Deserialization(_) => ErrorSeverity::Warning,
+        DfsError::NotFound(_) => ErrorSeverity::Warning,
     }
 }
 
@@ -141,22 +147,16 @@ pub fn handle_error(error: &(dyn std::error::Error + 'static)) -> EnhancedError 
     let dfs_error = if let Some(io_err) = error.downcast_ref::<std::io::Error>() {
         match io_err.kind() {
             std::io::ErrorKind::NotFound => DfsError::FileNotFound(error.to_string()),
-            std::io::ErrorKind::PermissionDenied => DfsError::Io(
-                std::io::Error::new(io_err.kind(), io_err.to_string())
-            ),
+            std::io::ErrorKind::PermissionDenied => DfsError::Io(io_err.to_string()),
             std::io::ErrorKind::ConnectionRefused 
             | std::io::ErrorKind::ConnectionReset 
             | std::io::ErrorKind::ConnectionAborted => DfsError::Network(error.to_string()),
-            _ => DfsError::Io(
-                std::io::Error::new(io_err.kind(), io_err.to_string())
-            ),
+            _ => DfsError::Io(io_err.to_string()),
         }
     } else if let Some(dfs_err) = error.downcast_ref::<DfsError>() {
         // If it's already a DfsError, recreate it to avoid cloning
         match dfs_err {
-            DfsError::Io(io_err) => DfsError::Io(
-                std::io::Error::new(io_err.kind(), io_err.to_string())
-            ),
+            DfsError::Io(io_err) => DfsError::Io(io_err.clone()),
             DfsError::Network(msg) => DfsError::Network(msg.clone()),
             DfsError::Crypto(msg) => DfsError::Crypto(msg.clone()),
             DfsError::Serialization(msg) => DfsError::Serialization(msg.clone()),
@@ -171,6 +171,11 @@ pub fn handle_error(error: &(dyn std::error::Error + 'static)) -> EnhancedError 
             DfsError::Authentication(msg) => DfsError::Authentication(msg.clone()),
             DfsError::Config(msg) => DfsError::Config(msg.clone()),
             DfsError::Backup(msg) => DfsError::Backup(msg.clone()),
+            DfsError::Encryption(msg) => DfsError::Encryption(msg.clone()),
+            DfsError::Decryption(msg) => DfsError::Decryption(msg.clone()),
+            DfsError::Encoding(msg) => DfsError::Encoding(msg.clone()),
+            DfsError::Deserialization(msg) => DfsError::Deserialization(msg.clone()),
+            DfsError::NotFound(msg) => DfsError::NotFound(msg.clone()),
         }
     } else {
         // Fall back to string analysis for unknown error types
@@ -191,10 +196,7 @@ fn classify_error_by_string(error_str: &str) -> DfsError {
     } else if error_str.contains("file") && error_str.contains("not found") {
         DfsError::FileNotFound(error_str.to_string())
     } else if error_str.contains("permission") || error_str.contains("access") {
-        DfsError::Io(std::io::Error::new(
-            std::io::ErrorKind::PermissionDenied,
-            error_str.to_string()
-        ))
+        DfsError::Io(format!("Permission denied: {}", error_str))
     } else if error_str.contains("storage") && error_str.contains("already taken") {
         DfsError::Storage(error_str.to_string())
     } else if error_str.contains("database") || error_str.contains("sql") {
@@ -237,8 +239,7 @@ pub fn add_context_and_suggestions(mut error: EnhancedError) -> EnhancedError {
             }
         },
         DfsError::Io(io_error) => {
-            match io_error.kind() {
-                std::io::ErrorKind::PermissionDenied => {
+            if io_error.contains("Permission denied") || io_error.contains("permission") {
                     error = error
                         .with_context("Permission denied".to_string())
                         .with_suggestions(vec![
@@ -246,17 +247,15 @@ pub fn add_context_and_suggestions(mut error: EnhancedError) -> EnhancedError {
                             "Run with appropriate user privileges".to_string(),
                             "Ensure the directory is writable".to_string(),
                         ]);
-                },
-                std::io::ErrorKind::NotFound => {
-                    error = error
-                        .with_context("File or directory not found".to_string())
-                        .with_suggestions(vec![
-                            "Check the file path spelling".to_string(),
-                            "Ensure the file exists".to_string(),
-                            "Use absolute path if needed".to_string(),
-                        ]);
-                },
-                std::io::ErrorKind::AlreadyExists => {
+            } else if io_error.contains("Not found") || io_error.contains("not found") {
+                error = error
+                    .with_context("File or directory not found".to_string())
+                    .with_suggestions(vec![
+                        "Check the file path spelling".to_string(),
+                        "Ensure the file exists".to_string(),
+                        "Use absolute path if needed".to_string(),
+                    ]);
+            } else if io_error.contains("Already exists") || io_error.contains("already exists") {
                     error = error
                         .with_context("File already exists".to_string())
                         .with_suggestions(vec![
@@ -264,16 +263,14 @@ pub fn add_context_and_suggestions(mut error: EnhancedError) -> EnhancedError {
                             "Remove the existing file first".to_string(),
                             "Use a different directory".to_string(),
                         ]);
-                },
-                _ => {
-                    error = error
-                        .with_context("I/O operation failed".to_string())
-                        .with_suggestions(vec![
-                            "Check disk space availability".to_string(),
-                            "Verify file system health".to_string(),
-                            "Try the operation again".to_string(),
-                        ]);
-                }
+            } else {
+                error = error
+                    .with_context("I/O operation failed".to_string())
+                    .with_suggestions(vec![
+                        "Check disk space availability".to_string(),
+                        "Verify file system health".to_string(),
+                        "Try the operation again".to_string(),
+                    ]);
             }
         },
         DfsError::Storage(msg) => {

@@ -15,7 +15,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use anyhow::Result;
 use libp2p::{PeerId, Swarm};
-use libp2p::kad::{Record, RecordKey, Quorum};
+use libp2p::kad::{Record, RecordKey, Quorum, Event as KademliaEvent, GetRecordOk, QueryResult};
 use tokio::sync::{mpsc, oneshot, RwLock};
 use futures::stream::StreamExt;
 use tracing::{info, warn, debug, error};
@@ -72,6 +72,7 @@ pub struct NetworkStats {
 
 /// Handle for communicating with the network actor
 #[derive(Clone)]
+#[derive(Debug)]
 pub struct NetworkHandle {
     tx: mpsc::UnboundedSender<NetworkMessage>,
     stats: Arc<RwLock<NetworkStats>>,
@@ -122,8 +123,10 @@ impl NetworkHandle {
             }
         });
         
-        // Spawn the local set on the current thread
-        tokio::spawn(local_set);
+        // Run the local set on the current thread
+        tokio::task::spawn_local(async move {
+            local_set.await;
+        });
         
         Ok(NetworkHandle { tx, stats })
     }
@@ -355,14 +358,13 @@ impl NetworkActor {
     async fn handle_behaviour_event(&mut self, event: MyBehaviourEvent) -> Result<()> {
         match event {
             MyBehaviourEvent::Kad(kad_event) => {
-                use libp2p::kad::{Event as KademliaEvent, QueryResult};
                 
                 match kad_event {
                     KademliaEvent::OutboundQueryProgressed { result, .. } => {
                         match result {
-                            QueryResult::GetRecord(Ok(ok)) => {
+                            QueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(peer_record))) => {
                                 // Use the record from the success result
-                                let record = ok.records.into_iter().next().unwrap();
+                                let record = peer_record.record;
                                 let key = record.key.clone();
                                 
                                 if let Some(response_tx) = self.pending_get_requests.remove(&key) {

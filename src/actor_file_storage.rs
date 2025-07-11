@@ -4,7 +4,6 @@
 /// for thread-safe network communication instead of sharing the Swarm directly.
 
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::fs;
 use anyhow::Result;
 use libp2p::kad::{Record, RecordKey, Quorum};
@@ -65,7 +64,7 @@ impl ActorFileStorage {
             .map_err(|e| DfsError::Crypto(format!("Encryption error: {:?}", e)))?;
         
         // Create Reed-Solomon encoder
-        let r = ReedSolomon::new(DATA_SHARDS, PARITY_SHARDS)?;
+        let r = ReedSolomon::<reed_solomon_erasure::galois_8::Field>::new(DATA_SHARDS, PARITY_SHARDS)?;
         let chunk_size = (encrypted_data.len() + DATA_SHARDS - 1) / DATA_SHARDS;
         
         // Create shards
@@ -158,15 +157,19 @@ impl ActorFileStorage {
         
         // Store in database
         let upload_time = Local::now();
-        self.db.store_file(
-            &file_name,
-            &hex::encode(file_key.as_ref()),
-            &original_filename,
-            file_size,
+        let file_entry = crate::database::FileEntry {
+            id: 0, // Will be auto-assigned by database
+            name: file_name.clone(),
+            file_key: hex::encode(file_key.as_ref()),
+            original_filename: original_filename.clone(),
+            file_size: file_size as u64,
             upload_time,
-            &file_tags,
-            &public_key_hex,
-        )?;
+            tags: file_tags.clone(),
+            public_key_hex: public_key_hex.clone(),
+            chunks_total: 6,
+            chunks_healthy: 6,
+        };
+        self.db.store_file(file_entry)?;
         
         progress.finish_with_message("Upload complete!");
         
@@ -253,7 +256,7 @@ impl ActorFileStorage {
         let mut shards: Vec<Option<Vec<u8>>> = chunks.into_iter().map(|c| c).collect();
         
         // Use Reed-Solomon to recover any missing shards
-        let r = ReedSolomon::new(DATA_SHARDS, PARITY_SHARDS)?;
+        let r = ReedSolomon::<reed_solomon_erasure::galois_8::Field>::new(DATA_SHARDS, PARITY_SHARDS)?;
         r.reconstruct_data(&mut shards)?;
         
         // Combine data shards
@@ -341,7 +344,7 @@ pub async fn store_file_with_network(
         .map_err(|e| DfsError::Encryption(format!("Encryption failed: {:?}", e)))?;
     
     // Create Reed-Solomon encoder for erasure coding
-    let reed_solomon = ReedSolomon::new(DATA_SHARDS, PARITY_SHARDS)
+    let reed_solomon = ReedSolomon::<reed_solomon_erasure::galois_8::Field>::new(DATA_SHARDS, PARITY_SHARDS)
         .map_err(|e| DfsError::Encoding(format!("Reed-Solomon setup failed: {}", e)))?;
     
     let chunk_size = (encrypted_data.len() + DATA_SHARDS - 1) / DATA_SHARDS;
@@ -377,7 +380,7 @@ pub async fn store_file_with_network(
     let stored_file = crate::file_storage::StoredFile {
         chunk_keys,
         encryption_key: encryption_key.0.serialize().to_vec(),
-        file_size: file_data.len() as u64,
+        file_size: file_data.len(),
         public_key_hex: encryption_key.1.clone(),
         file_name: display_name.clone(),
         stored_at: Local::now(),
@@ -448,17 +451,19 @@ pub async fn retrieve_file_with_network(
     }
     
     // Reconstruct file using Reed-Solomon
-    let reed_solomon = ReedSolomon::new(DATA_SHARDS, PARITY_SHARDS)
+    let reed_solomon = ReedSolomon::<reed_solomon_erasure::galois_8::Field>::new(DATA_SHARDS, PARITY_SHARDS)
         .map_err(|e| DfsError::Encoding(format!("Reed-Solomon setup failed: {}", e)))?;
     
-    let mut shards: Vec<Vec<u8>> = chunks;
+    let mut shards: Vec<Option<Vec<u8>>> = chunks.into_iter().map(|chunk| Some(chunk)).collect();
     reed_solomon.reconstruct(&mut shards)
         .map_err(|e| DfsError::Encoding(format!("Reed-Solomon reconstruction failed: {}", e)))?;
     
     // Combine data shards
     let mut encrypted_data = Vec::new();
-    for shard in shards.iter().take(DATA_SHARDS) {
-        encrypted_data.extend_from_slice(shard);
+    for shard_opt in shards.iter().take(DATA_SHARDS) {
+        if let Some(shard) = shard_opt {
+            encrypted_data.extend_from_slice(shard);
+        }
     }
     
     // Trim to actual file size
@@ -470,11 +475,12 @@ pub async fn retrieve_file_with_network(
         .map_err(|e| DfsError::Decryption(format!("Decryption failed: {:?}", e)))?;
     
     // Write to output file
+    let file_size = file_data.len();
     std::fs::write(output_path, file_data)
         .map_err(|e| DfsError::Io(format!("Failed to write file: {}", e)))?;
     
     // Log the operation
-    log_file_operation("retrieve", &stored_file.file_name, &format!("size: {} bytes", file_data.len()));
+    log_file_operation("retrieve", &stored_file.file_name, &format!("size: {} bytes", file_size));
     
     Ok(())
 }

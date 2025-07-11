@@ -4,16 +4,13 @@
 /// to fix Send/Sync issues with SQLite in multi-threaded environments.
 
 use std::sync::{Arc, RwLock};
-use std::collections::HashMap;
 use anyhow::Result;
-use chrono::{DateTime, Local};
-use serde::{Deserialize, Serialize};
 
 use crate::database::{DatabaseManager, FileEntry, DatabaseStats};
 use crate::error::DfsResult;
 
 /// Thread-safe database manager that can be shared across threads
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ThreadSafeDatabaseManager {
     db_path: String,
     // Use Arc<RwLock<Option<DatabaseManager>>> for thread safety

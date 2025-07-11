@@ -14,6 +14,10 @@ pub struct BootstrapCommand {
 
 #[async_trait::async_trait]
 impl CommandHandler for BootstrapCommand {
+    fn command_name(&self) -> &'static str {
+        "bootstrap"
+    }
+
     async fn execute(&self, _context: &CommandContext) -> Result<(), Box<dyn Error>> {
         println!("Bootstrap command temporarily disabled for refactoring");
         println!("Please use interactive mode instead");
@@ -31,6 +35,10 @@ pub struct InteractiveCommand {
 
 #[async_trait::async_trait]
 impl CommandHandler for InteractiveCommand {
+    fn command_name(&self) -> &'static str {
+        "interactive"
+    }
+
     async fn execute(&self, _context: &CommandContext) -> Result<(), Box<dyn Error>> {
         println!("Interactive command temporarily disabled for refactoring");
         println!("Bootstrap peer: {}", self.bootstrap_peer);
@@ -53,6 +61,10 @@ pub struct ServiceCommand {
 
 #[async_trait::async_trait]
 impl CommandHandler for ServiceCommand {
+    fn command_name(&self) -> &'static str {
+        "service"
+    }
+
     async fn execute(&self, _context: &CommandContext) -> Result<(), Box<dyn Error>> {
         println!("Service command temporarily disabled for refactoring");
         println!("Bootstrap peer: {}", self.bootstrap_peer);

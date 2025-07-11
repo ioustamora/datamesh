@@ -69,7 +69,7 @@ impl ActorCommandDispatcher {
                     path: path.clone(),
                     public_key: public_key.clone(),
                     name: name.clone(),
-                    tags: tags.map(|t| vec![t]),
+                    tags: tags.clone().map(|t| vec![t]),
                 };
                 handler.execute_with_monitoring(&self.context).await
             }
