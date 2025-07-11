@@ -1,8 +1,0 @@
-[network]
-port = 40925
-timeout = 36
-
-[data]
-encryption = true
-compression = false
-timestamp = "2025-07-09T19:58:17+02:00"

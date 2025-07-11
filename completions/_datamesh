@@ -1,0 +1,92 @@
+#compdef datamesh
+
+# DataMesh CLI zsh completion
+
+_datamesh() {
+    local context state line
+    typeset -A opt_args
+    
+    local global_opts=(
+        '(-f --format)'{-f,--format}'[Output format]:format:(table json compact csv)'
+        '(-v --verbose)'{-v,--verbose}'[Verbose output]'
+        '--no-color[Disable colored output]'
+        '(-c --config)'{-c,--config}'[Configuration file]:file:_files'
+        '(-i --interactive)'{-i,--interactive}'[Interactive mode]'
+        '--dry-run[Show what would be done]'
+        '(-h --help)'{-h,--help}'[Show help]'
+    )
+    
+    _arguments -C         $global_opts         '1: :->commands'         '*: :->args' && return 0
+    
+    case $state in
+        commands)
+            local commands=(
+                'file:File operations'
+                'network:Network operations'
+                'system:System operations'
+                'governance:Governance operations'
+                'interactive:Start interactive shell'
+                'service:Service management'
+                'status:Show system status'
+                'guide:Getting started guide'
+            )
+            _describe 'commands' commands
+            ;;
+        args)
+            case $words[2] in
+                file)
+                    local file_commands=(
+                        'put:Store a file'
+                        'get:Retrieve a file'
+                        'list:List files'
+                        'search:Search files'
+                        'batch:Batch operations'
+                        'share:Share files'
+                    )
+                    _describe 'file commands' file_commands
+                    ;;
+                network)
+                    local network_commands=(
+                        'peers:Show peer information'
+                        'health:Network health check'
+                        'topology:Network topology'
+                        'bandwidth:Bandwidth testing'
+                        'bootstrap:Bootstrap management'
+                    )
+                    _describe 'network commands' network_commands
+                    ;;
+                system)
+                    local system_commands=(
+                        'config:Configuration management'
+                        'stats:Statistics and metrics'
+                        'storage:Storage management'
+                        'api:API server management'
+                        'benchmark:Run benchmarks'
+                    )
+                    _describe 'system commands' system_commands
+                    ;;
+                governance)
+                    local governance_commands=(
+                        'user:User management'
+                        'proposal:Proposal management'
+                        'vote:Vote on proposals'
+                        'economics:Economic operations'
+                    )
+                    _describe 'governance commands' governance_commands
+                    ;;
+                service)
+                    local service_commands=(
+                        'start:Start service'
+                        'stop:Stop service'
+                        'restart:Restart service'
+                        'status:Service status'
+                        'logs:Show service logs'
+                    )
+                    _describe 'service commands' service_commands
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_datamesh
