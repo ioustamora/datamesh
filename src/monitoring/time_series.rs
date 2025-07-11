@@ -197,7 +197,7 @@ impl TimeSeriesDB {
             storage_backend,
             compression_enabled: true,
             index,
-            cleanup_interval: Duration::from_hours(1),
+            cleanup_interval: Duration::from_secs(3600),
             is_running: Arc::new(RwLock::new(false)),
         })
     }
@@ -255,7 +255,7 @@ impl TimeSeriesDB {
                 timestamp: Utc::now(),
                 operation: LogOperation::Insert,
                 data: bincode::serialize(point)?,
-                checksum: self.calculate_checksum(point)?,
+                checksum: self.calculate_checksum(point).await?,
             });
 
             // Store in hot storage
@@ -388,7 +388,7 @@ impl TimeSeriesDB {
     /// Compact old data to save space
     pub async fn compact_data(&self, before_time: DateTime<Utc>) -> Result<()> {
         let mut storage = self.storage_backend.write().await;
-        let mut compacted_blocks = Vec::new();
+        let mut _compacted_blocks: Vec<String> = Vec::new();
 
         // Collect data to compact
         let mut data_to_compact = BTreeMap::new();
@@ -716,8 +716,9 @@ impl TimeSeriesDB {
     }
 
     async fn check_query_cache(&self, cache_key: &str) -> Result<Option<TimeSeriesData>> {
-        let index = self.index.read().await;
-        Ok(index.query_cache.get(cache_key).cloned())
+        let mut index = self.index.write().await;
+        let result = index.query_cache.get(&cache_key.to_string());
+        Ok(result)
     }
 
     async fn cache_query_result(&self, cache_key: &str, data: &TimeSeriesData) -> Result<()> {
@@ -727,7 +728,7 @@ impl TimeSeriesDB {
     }
 
     async fn get_hot_storage_cutoff(&self) -> Result<DateTime<Utc>> {
-        Ok(Utc::now() - Duration::from_hours(24))
+        Ok(Utc::now() - Duration::from_secs(24 * 3600))
     }
 
     fn extract_metric_names(&self, points: &[TimeSeriesPoint]) -> Vec<String> {
@@ -858,7 +859,7 @@ impl TimeSeriesDB {
         let is_running = self.is_running.clone();
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_hours(6));
+            let mut interval = tokio::time::interval(Duration::from_secs(6 * 3600));
             
             loop {
                 interval.tick().await;
@@ -869,7 +870,7 @@ impl TimeSeriesDB {
                 }
 
                 // Compact data older than 24 hours
-                let compact_before = Utc::now() - Duration::from_hours(24);
+                let compact_before = Utc::now() - Duration::from_secs(24 * 3600);
                 
                 // Would implement actual compaction logic here
                 tracing::debug!("Compaction task completed");
@@ -1042,8 +1043,8 @@ mod tests {
 
         db.store_metrics(&metrics).await.unwrap();
 
-        let start_time = Utc::now() - Duration::from_hours(1);
-        let end_time = Utc::now() + Duration::from_hours(1);
+        let start_time = Utc::now() - Duration::from_secs(3600);
+        let end_time = Utc::now() + Duration::from_secs(3600);
         let data = db.query_range(start_time, end_time).await.unwrap();
 
         assert!(!data.metrics.is_empty());
@@ -1100,7 +1101,7 @@ mod tests {
 
         let query = TimeSeriesQuery {
             metric_names: vec!["throughput_mbps".to_string()],
-            start_time: Utc::now() - Duration::from_hours(1),
+            start_time: Utc::now() - Duration::from_secs(3600),
             end_time: Utc::now(),
             tags: HashMap::new(),
             aggregation: Some(AggregationFunction::Average),

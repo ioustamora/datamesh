@@ -1,6 +1,8 @@
 use std::collections::{HashMap, VecDeque, BTreeMap};
 use std::sync::Arc;
 use std::time::Duration;
+use std::pin::Pin;
+use std::future::Future;
 use tokio::sync::{RwLock, Mutex};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -81,7 +83,7 @@ pub enum ComparisonOperator {
     NotEqual,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum AlertSeverity {
     Critical,
     Warning,
@@ -396,7 +398,7 @@ pub struct AlertStats {
 
 /// Notification channel trait for different notification methods
 pub trait NotificationChannel: Send + Sync {
-    async fn send_notification(&self, alert: &Alert) -> Result<NotificationRecord>;
+    fn send_notification<'a>(&'a self, alert: &'a Alert) -> Pin<Box<dyn Future<Output = Result<NotificationRecord>> + Send + 'a>>;
     fn channel_type(&self) -> NotificationMethodType;
     fn is_enabled(&self) -> bool;
     fn get_configuration(&self) -> HashMap<String, String>;
@@ -473,9 +475,10 @@ impl AlertManager {
 
     /// Register a new alert rule
     pub async fn register_rule(&self, rule: AlertRule) -> Result<()> {
+        let rule_id = rule.id.clone();
         let mut rules = self.alert_rules.write().await;
         rules.insert(rule.id.clone(), rule);
-        tracing::info!("Alert rule registered: {}", rule.id);
+        tracing::info!("Alert rule registered: {}", rule_id);
         Ok(())
     }
 
@@ -499,7 +502,7 @@ impl AlertManager {
 
             // Check cooldown period
             if let Some(last_triggered) = rule.last_triggered {
-                if Utc::now() - last_triggered < rule.cooldown {
+                if Utc::now().signed_duration_since(last_triggered).to_std().unwrap_or(Duration::MAX) < rule.cooldown {
                     continue;
                 }
             }
@@ -922,7 +925,7 @@ impl AlertRule {
                 duration: None,
             },
             severity: AlertSeverity::Warning,
-            cooldown: Duration::from_minutes(5),
+            cooldown: Duration::from_secs(300),
             notification_channels: Vec::new(),
             escalation_rules: Vec::new(),
             suppression_rules: Vec::new(),
@@ -1024,7 +1027,8 @@ impl Default for AnomalyDetectionStats {
 // Notification channel implementations
 
 impl NotificationChannel for EmailChannel {
-    async fn send_notification(&self, alert: &Alert) -> Result<NotificationRecord> {
+    fn send_notification<'a>(&'a self, alert: &'a Alert) -> Pin<Box<dyn Future<Output = Result<NotificationRecord>> + Send + 'a>> {
+        Box::pin(async move {
         // Implementation would send actual email
         let record = NotificationRecord {
             id: Uuid::new_v4().to_string(),
@@ -1038,6 +1042,7 @@ impl NotificationChannel for EmailChannel {
 
         tracing::info!("Email notification sent for alert {}", alert.id);
         Ok(record)
+        })
     }
 
     fn channel_type(&self) -> NotificationMethodType {
@@ -1058,7 +1063,8 @@ impl NotificationChannel for EmailChannel {
 }
 
 impl NotificationChannel for SlackChannel {
-    async fn send_notification(&self, alert: &Alert) -> Result<NotificationRecord> {
+    fn send_notification<'a>(&'a self, alert: &'a Alert) -> Pin<Box<dyn Future<Output = Result<NotificationRecord>> + Send + 'a>> {
+        Box::pin(async move {
         // Implementation would send actual Slack message
         let record = NotificationRecord {
             id: Uuid::new_v4().to_string(),
@@ -1072,6 +1078,7 @@ impl NotificationChannel for SlackChannel {
 
         tracing::info!("Slack notification sent for alert {}", alert.id);
         Ok(record)
+        })
     }
 
     fn channel_type(&self) -> NotificationMethodType {
@@ -1091,7 +1098,8 @@ impl NotificationChannel for SlackChannel {
 }
 
 impl NotificationChannel for WebhookChannel {
-    async fn send_notification(&self, alert: &Alert) -> Result<NotificationRecord> {
+    fn send_notification<'a>(&'a self, alert: &'a Alert) -> Pin<Box<dyn Future<Output = Result<NotificationRecord>> + Send + 'a>> {
+        Box::pin(async move {
         // Implementation would send actual webhook
         let record = NotificationRecord {
             id: Uuid::new_v4().to_string(),
@@ -1105,6 +1113,7 @@ impl NotificationChannel for WebhookChannel {
 
         tracing::info!("Webhook notification sent for alert {}", alert.id);
         Ok(record)
+        })
     }
 
     fn channel_type(&self) -> NotificationMethodType {
@@ -1129,13 +1138,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_alert_manager_creation() {
-        let manager = AlertManager::new(Duration::from_minutes(5)).await;
+        let manager = AlertManager::new(Duration::from_secs(300)).await;
         assert!(manager.is_ok());
     }
 
     #[tokio::test]
     async fn test_alert_rule_registration() {
-        let manager = AlertManager::new(Duration::from_minutes(5)).await.unwrap();
+        let manager = AlertManager::new(Duration::from_secs(300)).await.unwrap();
         
         let rule = AlertRule::new("test_rule")
             .condition(AlertCondition::Threshold {
@@ -1154,7 +1163,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_threshold_evaluation() {
-        let manager = AlertManager::new(Duration::from_minutes(5)).await.unwrap();
+        let manager = AlertManager::new(Duration::from_secs(300)).await.unwrap();
         manager.start().await.unwrap();
 
         let rule = AlertRule::new("high_cpu")
@@ -1216,7 +1225,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_alert_acknowledgment() {
-        let manager = AlertManager::new(Duration::from_minutes(5)).await.unwrap();
+        let manager = AlertManager::new(Duration::from_secs(300)).await.unwrap();
         
         let alert = Alert {
             id: "test-alert".to_string(),
@@ -1296,7 +1305,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_comparison_operators() {
-        let manager = AlertManager::new(Duration::from_minutes(5)).await.unwrap();
+        let manager = AlertManager::new(Duration::from_secs(300)).await.unwrap();
         
         assert!(manager.compare_values(10.0, 5.0, &ComparisonOperator::GreaterThan));
         assert!(manager.compare_values(5.0, 10.0, &ComparisonOperator::LessThan));

@@ -12,6 +12,7 @@ use crate::key_manager::KeyManager;
 use crate::config::Config;
 use crate::thread_safe_command_context::ThreadSafeCommandContext;
 use crate::performance;
+use crate::network_actor::NetworkStats;
 
 /// Actor-based context for command handlers
 #[derive(Clone)]
@@ -104,7 +105,7 @@ impl ActorCommandDispatcher {
     }
     
     /// Get network statistics
-    pub async fn get_network_stats(&self) -> Result<crate::network_actor::NetworkStats> {
+    pub async fn get_network_stats(&self) -> Result<NetworkStats> {
         self.context.context.get_network_stats().await
     }
     

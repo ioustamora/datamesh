@@ -12,6 +12,7 @@
 /// The main module has been refactored to use a clean command handler architecture
 /// instead of a massive switch statement, improving maintainability and testability.
 
+mod secure_random;
 mod key_manager;
 mod encrypted_key_manager;
 mod audit_logger;
@@ -49,6 +50,11 @@ mod performance_optimizer;
 mod billing_system;
 mod datamesh_core;
 mod advanced_commands;
+mod thread_safe_command_context;
+mod thread_safe_database;
+mod thread_safe_file_commands;
+mod network_actor;
+mod actor_file_storage;
 
 use std::error::Error;
 use std::sync::Arc;
@@ -106,26 +112,24 @@ fn apply_network_preset(cli: &mut cli::Cli) -> Result<(), Box<dyn Error>> {
         let connection_config = presets::parse_network_spec(network_spec)?;
         
         // Apply bootstrap configuration if specified
-        if let Some(bootstrap_nodes) = connection_config.bootstrap_nodes {
-            if !bootstrap_nodes.is_empty() {
-                // Set the first bootstrap node as the default if not already specified
-                if cli.bootstrap_addr.is_none() {
-                    cli.bootstrap_addr = Some(bootstrap_nodes[0].clone());
-                    cli.bootstrap_peer = true;
-                }
+        if !connection_config.bootstrap_peers.is_empty() {
+            // Set the first bootstrap node as the default if not already specified
+            if cli.bootstrap_addr.is_none() {
+                cli.bootstrap_addr = Some(connection_config.bootstrap_peers[0].address.clone());
+                cli.bootstrap_peer = connection_config.bootstrap_peers[0].peer_id.clone();
             }
         }
         
         // Apply other network-specific configurations
-        if let Some(port) = connection_config.default_port {
+        if connection_config.port != 0 {
             if matches!(&cli.command, cli::Commands::Bootstrap { port: 0 } | 
                                      cli::Commands::Interactive { port: 0, .. } | 
                                      cli::Commands::Service { port: 0, .. }) {
                 // Update command with preset port if using default
                 match &mut cli.command {
-                    cli::Commands::Bootstrap { port: p } if *p == 0 => *p = port,
-                    cli::Commands::Interactive { port: p, .. } if *p == 0 => *p = port,
-                    cli::Commands::Service { port: p, .. } if *p == 0 => *p = port,
+                    cli::Commands::Bootstrap { port: p } if *p == 0 => *p = connection_config.port,
+                    cli::Commands::Interactive { port: p, .. } if *p == 0 => *p = connection_config.port,
+                    cli::Commands::Service { port: p, .. } if *p == 0 => *p = connection_config.port,
                     _ => {}
                 }
             }

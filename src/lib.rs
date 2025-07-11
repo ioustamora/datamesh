@@ -50,6 +50,7 @@ pub mod billing_system;
 pub mod datamesh_core;
 pub mod advanced_commands;
 pub mod backup_system;
+pub mod monitoring;
 
 pub use key_manager::KeyManager;
 pub use database::DatabaseManager;

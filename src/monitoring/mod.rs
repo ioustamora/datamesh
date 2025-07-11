@@ -504,18 +504,20 @@ impl AdvancedMonitoringSystem {
                     metric: "avg_response_time_ms".to_string(),
                     operator: alerts::ComparisonOperator::GreaterThan,
                     threshold: 1000.0,
+                    duration: Some(Duration::from_secs(60)),
                 })
                 .severity(AlertSeverity::Warning)
-                .cooldown(Duration::from_minutes(5)),
+                .cooldown(Duration::from_secs(300)),
                 
             AlertRule::new("low_success_rate")
                 .condition(AlertCondition::Threshold {
                     metric: "success_rate".to_string(),
                     operator: alerts::ComparisonOperator::LessThan,
                     threshold: 0.95,
+                    duration: Some(Duration::from_secs(60)),
                 })
                 .severity(AlertSeverity::Critical)
-                .cooldown(Duration::from_minutes(2)),
+                .cooldown(Duration::from_secs(120)),
         ];
 
         // System alerts
@@ -525,18 +527,20 @@ impl AdvancedMonitoringSystem {
                     metric: "memory_usage_percent".to_string(),
                     operator: alerts::ComparisonOperator::GreaterThan,
                     threshold: 85.0,
+                    duration: Some(Duration::from_secs(60)),
                 })
                 .severity(AlertSeverity::Warning)
-                .cooldown(Duration::from_minutes(10)),
+                .cooldown(Duration::from_secs(600)),
                 
             AlertRule::new("low_peer_count")
                 .condition(AlertCondition::Threshold {
                     metric: "peer_count".to_string(),
                     operator: alerts::ComparisonOperator::LessThan,
                     threshold: 5.0,
+                    duration: Some(Duration::from_secs(60)),
                 })
                 .severity(AlertSeverity::Critical)
-                .cooldown(Duration::from_minutes(5)),
+                .cooldown(Duration::from_secs(300)),
         ];
 
         // Network alerts
@@ -545,10 +549,10 @@ impl AdvancedMonitoringSystem {
                 .condition(AlertCondition::AnomalyDetection {
                     metric: "network_health_score".to_string(),
                     sensitivity: 0.8,
-                    window: Duration::from_minutes(30),
+                    window: Duration::from_secs(1800),
                 })
                 .severity(AlertSeverity::Critical)
-                .cooldown(Duration::from_minutes(1)),
+                .cooldown(Duration::from_secs(60)),
         ];
 
         // Register all alerts
@@ -566,7 +570,16 @@ impl AdvancedMonitoringSystem {
         let current_metrics = self.collect_comprehensive_metrics().await?;
         let recent_alerts = self.alert_manager.get_recent_alerts(100).await?;
         let performance_trends = self.analytics_engine.get_performance_trends().await?;
-        let system_health = self.calculate_system_health(&current_metrics).await?;
+        let health_score = self.calculate_system_health(&current_metrics).await?;
+        let system_health = dashboard::SystemHealth {
+            overall_score: health_score,
+            status: if health_score > 80.0 { dashboard::HealthStatus::Healthy }
+                   else if health_score > 60.0 { dashboard::HealthStatus::Warning }
+                   else { dashboard::HealthStatus::Critical },
+            components: Vec::new(),
+            recommendations: Vec::new(),
+            last_updated: Utc::now(),
+        };
 
         Ok(dashboard::DashboardData {
             current_metrics,
@@ -676,7 +689,7 @@ impl AdvancedMonitoringSystem {
                 trend_direction: TrendDirection::Increasing,
                 trend_strength: 0.7,
                 confidence: 0.9,
-                prediction_window: Duration::from_hours(24),
+                prediction_window: Duration::from_secs(24 * 3600),
                 predicted_values: vec![],
             },
             error_rate_trend: PerformanceTrend {
@@ -684,7 +697,7 @@ impl AdvancedMonitoringSystem {
                 trend_direction: TrendDirection::Stable,
                 trend_strength: 0.3,
                 confidence: 0.8,
-                prediction_window: Duration::from_hours(24),
+                prediction_window: Duration::from_secs(24 * 3600),
                 predicted_values: vec![],
             },
             bottlenecks: vec![],
@@ -699,7 +712,7 @@ impl AdvancedMonitoringSystem {
                 trend_direction: TrendDirection::Increasing,
                 trend_strength: 0.6,
                 confidence: 0.85,
-                prediction_window: Duration::from_hours(24),
+                prediction_window: Duration::from_secs(24 * 3600),
                 predicted_values: vec![],
             },
             usage_patterns: vec![],
@@ -755,12 +768,12 @@ impl AdvancedMonitoringSystem {
                 total_proposals: 15,
                 active_proposals: 3,
                 proposal_success_rate: 0.73,
-                avg_voting_time: Duration::from_days(7),
+                avg_voting_time: Duration::from_secs(7 * 24 * 3600),
             },
             voting_patterns: VotingPatterns {
                 participation_rate: 0.68,
                 voting_power_distribution: HashMap::new(),
-                consensus_time: Duration::from_days(5),
+                consensus_time: Duration::from_secs(5 * 24 * 3600),
                 controversial_proposals: vec![],
             },
             operator_performance: OperatorPerformance {
@@ -788,7 +801,7 @@ impl AdvancedMonitoringSystem {
                     reliability_improvement: 0.05,
                 },
                 implementation_complexity: ComplexityLevel::Medium,
-                estimated_effort: Duration::from_hours(16),
+                estimated_effort: Duration::from_secs(16 * 3600),
                 prerequisites: vec!["Load testing environment".to_string()],
                 implementation_steps: vec![
                     "Update chunk manager configuration".to_string(),
@@ -837,7 +850,7 @@ impl AdvancedMonitoringSystem {
             warning_alerts: warning_count,
             info_alerts: info_count,
             resolved_alerts: resolved_count,
-            avg_resolution_time: Duration::from_minutes(15), // Calculated from alert data
+            avg_resolution_time: Duration::from_secs(900), // Calculated from alert data
             top_alert_categories: top_categories,
         })
     }

@@ -9,6 +9,7 @@ use anyhow::Result;
 
 use crate::commands::{CommandHandler, CommandContext};
 use crate::file_storage;
+use crate::thread_safe_command_context::ThreadSafeCommandContext;
 
 /// Put command handler
 #[derive(Debug, Clone)]
@@ -24,7 +25,7 @@ impl CommandHandler for PutCommand {
     async fn execute(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
         // Create thread-safe context to avoid Swarm Send/Sync issues
         let config = crate::config::Config::default();
-        let thread_safe_context = crate::thread_safe_command_context::ThreadSafeCommandContext::new(
+        let thread_safe_context = ThreadSafeCommandContext::new(
             context.cli.clone(),
             context.key_manager.clone(),
             std::sync::Arc::new(config),
@@ -66,7 +67,7 @@ impl CommandHandler for GetCommand {
     async fn execute(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
         // Create thread-safe context to avoid Swarm Send/Sync issues
         let config = crate::config::Config::default();
-        let thread_safe_context = crate::thread_safe_command_context::ThreadSafeCommandContext::new(
+        let thread_safe_context = ThreadSafeCommandContext::new(
             context.cli.clone(),
             context.key_manager.clone(),
             std::sync::Arc::new(config),

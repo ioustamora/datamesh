@@ -596,14 +596,17 @@ impl MonitoringDashboard {
             ExportFormat::PDF => self.convert_to_pdf(&export_data).await?,
         };
 
+        let filename = format!("dashboard_export_{}.{}", 
+            Utc::now().format("%Y%m%d_%H%M%S"),
+            format.file_extension()
+        );
+        
+        let data_size = exported_data.len();
         Ok(ExportResult {
             format,
             data: exported_data,
-            filename: format!("dashboard_export_{}.{}", 
-                Utc::now().format("%Y%m%d_%H%M%S"),
-                format.file_extension()
-            ),
-            size_bytes: exported_data.len(),
+            filename,
+            size_bytes: data_size,
             generated_at: Utc::now(),
         })
     }
@@ -789,11 +792,15 @@ impl MonitoringDashboard {
         cache.live_data.system_health.last_updated = Utc::now();
         
         // Add historical snapshot
+        let current_metrics = cache.live_data.current_metrics.clone();
+        let health_score = cache.live_data.system_health.overall_score;
+        let active_alerts = cache.live_data.recent_alerts.len() as u32;
+        
         cache.historical_snapshots.push(HistoricalSnapshot {
             timestamp: Utc::now(),
-            metrics: cache.live_data.current_metrics.clone(),
-            health_score: cache.live_data.system_health.overall_score,
-            active_alerts: cache.live_data.recent_alerts.len() as u32,
+            metrics: current_metrics,
+            health_score,
+            active_alerts,
             performance_grade: "Good".to_string(),
         });
         
