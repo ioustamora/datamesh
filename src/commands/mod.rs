@@ -12,6 +12,8 @@ use crate::key_manager::KeyManager;
 use crate::performance;
 
 pub mod file_commands;
+pub mod actor_file_commands;
+pub mod actor_commands;
 pub mod network_commands;
 pub mod admin_commands;
 pub mod service_commands;

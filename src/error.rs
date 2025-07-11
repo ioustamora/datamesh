@@ -5,7 +5,7 @@ use std::error::Error as StdError;
 #[derive(Debug)]
 pub enum DfsError {
     /// IO related errors
-    Io(std::io::Error),
+    Io(String),
     /// Network related errors
     Network(String),
     /// Encryption/Decryption errors
@@ -26,10 +26,20 @@ pub enum DfsError {
     Export(String),
     /// Import operation errors
     Import(String),
-    /// Authentication and authorization errors
-    Authentication(String),
+    /// Encryption errors
+    Encryption(String),
+    /// Decryption errors
+    Decryption(String),
+    /// Encoding errors
+    Encoding(String),
+    /// Deserialization errors
+    Deserialization(String),
+    /// Not found errors
+    NotFound(String),
     /// Configuration errors
     Config(String),
+    /// Authentication and authorization errors
+    Authentication(String),
     /// Backup operation errors
     Backup(String),
     /// Generic errors

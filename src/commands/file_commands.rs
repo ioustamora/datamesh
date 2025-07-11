@@ -22,27 +22,30 @@ pub struct PutCommand {
 #[async_trait::async_trait]
 impl CommandHandler for PutCommand {
     async fn execute(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
-        let tags_str = self.tags.as_ref().map(|tags| tags.join(","));
+        // Create thread-safe context to avoid Swarm Send/Sync issues
+        let config = crate::config::Config::default();
+        let thread_safe_context = crate::thread_safe_command_context::ThreadSafeCommandContext::new(
+            context.cli.clone(),
+            context.key_manager.clone(),
+            std::sync::Arc::new(config),
+        ).await?;
         
-        // Clone the necessary data to avoid borrowing issues
-        let cli = context.cli.clone();
-        let key_manager = (*context.key_manager).clone();
-        let path = self.path.clone();
-        let public_key = self.public_key.clone();
-        let name = self.name.clone();
+        let result = thread_safe_context.store_file(
+            &self.path,
+            &self.public_key,
+            &self.name,
+            &self.tags,
+        ).await.map_err(|e| Box::new(e) as Box<dyn Error>)?;
         
-        // Execute directly without spawn_blocking to avoid Send issues
-        match file_storage::handle_put_command(
-            &cli,
-            &key_manager,
-            &path,
-            &public_key,
-            &name,
-            &tags_str,
-        ).await {
-            Ok(()) => Ok(()),
-            Err(e) => Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())) as Box<dyn Error>),
+        println!("File stored successfully with key: {}", result);
+        if let Some(name) = &self.name {
+            println!("Name: {}", name);
         }
+        if let Some(tags) = &self.tags {
+            println!("Tags: {}", tags.join(","));
+        }
+        
+        Ok(())
     }
     
     fn command_name(&self) -> &'static str {
@@ -61,24 +64,23 @@ pub struct GetCommand {
 #[async_trait::async_trait]
 impl CommandHandler for GetCommand {
     async fn execute(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
-        // Clone the necessary data to avoid borrowing issues
-        let cli = context.cli.clone();
-        let key_manager = (*context.key_manager).clone();
-        let identifier = self.identifier.clone();
-        let output_path = self.output_path.clone();
-        let private_key = self.private_key.clone();
+        // Create thread-safe context to avoid Swarm Send/Sync issues
+        let config = crate::config::Config::default();
+        let thread_safe_context = crate::thread_safe_command_context::ThreadSafeCommandContext::new(
+            context.cli.clone(),
+            context.key_manager.clone(),
+            std::sync::Arc::new(config),
+        ).await?;
         
-        // Execute directly without spawn_blocking to avoid Send issues
-        match file_storage::handle_get_command(
-            &cli,
-            &key_manager,
-            &identifier,
-            &output_path,
-            &private_key,
-        ).await {
-            Ok(()) => Ok(()),
-            Err(e) => Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())) as Box<dyn Error>),
-        }
+        thread_safe_context.retrieve_file(
+            &self.identifier,
+            &self.output_path,
+            &self.private_key,
+        ).await.map_err(|e| Box::new(e) as Box<dyn Error>)?;
+        
+        println!("File retrieved successfully to: {}", self.output_path.display());
+        
+        Ok(())
     }
     
     fn command_name(&self) -> &'static str {

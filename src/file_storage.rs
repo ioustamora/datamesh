@@ -39,9 +39,9 @@ use crate::resilience::{retry_async, RetryConfig};
 use crate::logging::log_file_operation;
 
 /// Number of data shards for Reed-Solomon erasure coding
-const DATA_SHARDS: usize = 4;
+pub const DATA_SHARDS: usize = 4;
 /// Number of parity shards for Reed-Solomon erasure coding
-const PARITY_SHARDS: usize = 2;
+pub const PARITY_SHARDS: usize = 2;
 
 /// Public constant for data shards available to other modules
 pub const PUB_DATA_SHARDS: usize = DATA_SHARDS;
