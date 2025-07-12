@@ -17,6 +17,7 @@ use crate::key_manager::{get_decryption_key, get_encryption_key, KeyManager};
 use crate::logging::log_file_operation;
 use crate::network_actor::NetworkHandle;
 use crate::performance;
+use crate::quorum_manager::{QuorumManager, QuorumConfig};
 // Note: High-performance and quorum management modules are implemented separately
 // These would be integrated in a production build with proper module exports
 use crate::thread_safe_database::ThreadSafeDatabaseManager;
@@ -406,6 +407,26 @@ pub async fn store_file_with_network(
         .encode(&mut shards)
         .map_err(|e| DfsError::Encoding(format!("Reed-Solomon encoding failed: {}", e)))?;
 
+    // Get connected peers for intelligent quorum calculation
+    let connected_peers = network.get_connected_peers().await?;
+    tracing::info!("Retrieved {} connected peers for quorum calculation", connected_peers.len());
+    
+    // Initialize quorum manager with default config
+    let quorum_config = QuorumConfig::default();
+    let quorum_manager = QuorumManager::new(quorum_config);
+    
+    // Calculate optimal quorum based on network conditions
+    let quorum = match quorum_manager.calculate_quorum(&connected_peers).await {
+        Ok(q) => {
+            tracing::info!("Quorum calculation successful: {:?}", q);
+            q
+        }
+        Err(e) => {
+            tracing::warn!("Quorum calculation failed: {}, using fallback Quorum::One", e);
+            Quorum::One
+        }
+    };
+    
     // Store chunks in the DHT using the actor-based network
     let mut chunk_keys = Vec::new();
     for shard in shards {
@@ -417,8 +438,8 @@ pub async fn store_file_with_network(
             expires: None,
         };
 
-        // Store using actor-based network (thread-safe)
-        network.put_record(record, Quorum::One).await?;
+        // Store using actor-based network with intelligent quorum
+        network.put_record(record, quorum.clone()).await?;
         chunk_keys.push(chunk_key.as_ref().to_vec());
     }
 
@@ -443,7 +464,7 @@ pub async fn store_file_with_network(
         expires: None,
     };
 
-    network.put_record(metadata_record, Quorum::One).await?;
+    network.put_record(metadata_record, quorum.clone()).await?;
 
     // Store in database
     let chunk_size = 1024 * 1024; // 1MB chunks

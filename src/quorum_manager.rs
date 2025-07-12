@@ -140,7 +140,27 @@ impl QuorumManager {
     pub async fn calculate_quorum(&self, connected_peers: &[PeerId]) -> Result<Quorum> {
         let peer_count = connected_peers.len();
         
-        // For very small networks, use minimum quorum
+        tracing::info!("Calculating quorum: {} peers connected", peer_count);
+        
+        // If no peers connected, use Quorum::All as fallback (will likely fail but gives proper error)
+        if peer_count == 0 {
+            tracing::info!("No peers connected, using Quorum::All (may fail)");
+            return Ok(Quorum::All);
+        }
+        
+        // For small networks (1-2 peers), use Quorum::One for better success rate
+        if peer_count <= 2 {
+            tracing::info!("Small network ({} peers), using Quorum::One", peer_count);
+            return Ok(Quorum::One);
+        }
+        
+        // For medium networks (3-5 peers), use N=1 for reliability while maintaining success rate
+        if peer_count <= 5 {
+            tracing::info!("Medium network ({} peers), using Quorum::N(1)", peer_count);
+            return Ok(Quorum::N(NonZeroUsize::new(1).unwrap()));
+        }
+        
+        // For larger networks, fall back to original logic but with improved bounds
         if peer_count < self.config.min_peers_for_percentage {
             let quorum_size = self.config.min_quorum.min(peer_count);
             if quorum_size == 0 {
@@ -152,15 +172,18 @@ impl QuorumManager {
         let base_quorum = if self.config.adaptive_quorum {
             self.calculate_adaptive_quorum(connected_peers).await?
         } else {
-            self.calculate_percentage_quorum(peer_count)
+            // Use 25% of peers for larger networks, minimum 2
+            std::cmp::max(2, (peer_count as f64 * 0.25).ceil() as usize)
         };
 
-        // Ensure quorum is within configured bounds
+        // Ensure quorum is within configured bounds and doesn't exceed available peers
         let final_quorum = base_quorum
             .max(self.config.min_quorum)
             .min(self.config.max_quorum)
             .min(peer_count);
 
+        tracing::info!("Large network ({} peers), using Quorum::N({})", peer_count, final_quorum);
+        
         if final_quorum == 0 {
             Ok(Quorum::All)
         } else {
