@@ -7,6 +7,8 @@
 /// - Storing file chunks in the Kademlia DHT
 /// - Retrieving and reassembling files from the network
 /// - Error handling and retry logic for resilient operations
+/// - Enhanced performance monitoring and caching
+/// - Concurrent chunk operations for improved throughput
 ///
 /// The implementation provides both synchronous and asynchronous interfaces for maximum flexibility.
 use std::collections::HashMap;

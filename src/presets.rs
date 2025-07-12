@@ -49,16 +49,7 @@ impl NetworkPresets {
             NetworkPreset {
                 name: "local".to_string(),
                 description: "Auto-discover peers on local network".to_string(),
-                bootstrap_peers: vec![BootstrapPeer {
-                    peer_id: "auto".to_string(),
-                    addresses: vec![
-                        "/ip4/127.0.0.1/tcp/40871".to_string(),
-                        "/ip4/127.0.0.1/tcp/40872".to_string(),
-                        "/ip4/127.0.0.1/tcp/40873".to_string(),
-                        "/ip4/127.0.0.1/tcp/40874".to_string(),
-                        "/ip4/127.0.0.1/tcp/40875".to_string(),
-                    ],
-                }],
+                bootstrap_peers: vec![],  // Empty for local auto-discovery
                 default_port_range: Some((40870, 40890)),
                 discovery_enabled: true,
             },

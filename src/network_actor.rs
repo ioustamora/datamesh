@@ -13,6 +13,12 @@ use libp2p::{PeerId, Swarm};
 /// - NetworkMessage: Commands sent to the network actor
 /// - NetworkResponse: Responses from network operations
 /// - NetworkHandle: Thread-safe handle for communicating with the network actor
+///
+/// Enhanced with:
+/// - Improved error handling and retry logic
+/// - Better bootstrap peer discovery
+/// - Connection timeout management
+/// - Peer health monitoring
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -250,10 +256,23 @@ impl NetworkActor {
             self.swarm.local_peer_id()
         );
 
-        // Start listening
-        if let Err(e) = self.swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?) {
-            warn!("Failed to start listening: {}", e);
+        // Start listening on multiple addresses for better connectivity
+        let listen_addresses: Vec<libp2p::Multiaddr> = vec![
+            "/ip4/0.0.0.0/tcp/0".parse()?,
+            "/ip4/127.0.0.1/tcp/0".parse()?,
+        ];
+
+        for addr in listen_addresses {
+            match self.swarm.listen_on(addr.clone()) {
+                Ok(_) => info!("Listening on: {}", addr),
+                Err(e) => warn!("Failed to start listening on {}: {}", addr, e),
+            }
         }
+
+        // Attempt initial bootstrap after setup
+        let mut bootstrap_timer = tokio::time::interval(Duration::from_secs(10));
+        let mut last_bootstrap_attempt = std::time::Instant::now();
+        let mut bootstrap_retry_count = 0;
 
         loop {
             tokio::select! {
@@ -276,6 +295,19 @@ impl NetworkActor {
                 event = self.swarm.select_next_some() => {
                     if let Err(e) = self.handle_swarm_event(event).await {
                         error!("Error handling swarm event: {}", e);
+                    }
+                }
+
+                // Periodic bootstrap attempts for better network discovery
+                _ = bootstrap_timer.tick() => {
+                    if last_bootstrap_attempt.elapsed() > Duration::from_secs(30) && bootstrap_retry_count < 5 {
+                        debug!("Attempting bootstrap (attempt {})", bootstrap_retry_count + 1);
+                        if let Err(e) = self.swarm.behaviour_mut().kad.bootstrap() {
+                            warn!("Bootstrap attempt failed: {}", e);
+                        } else {
+                            bootstrap_retry_count += 1;
+                            last_bootstrap_attempt = std::time::Instant::now();
+                        }
                     }
                 }
 

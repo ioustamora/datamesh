@@ -105,6 +105,8 @@ pub async fn create_swarm_and_connect(
 
         // Add bootstrap peer to routing table immediately
         swarm.behaviour_mut().kad.add_address(&peer, addr);
+    } else if cli.network.as_deref() != Some("local") {
+        println!("No bootstrap peers configured");
     }
 
     Ok(swarm)
