@@ -484,7 +484,6 @@ pub async fn setup_key_management_with_mode(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use tempfile::TempDir;
 
     #[tokio::test]

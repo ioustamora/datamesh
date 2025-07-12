@@ -496,7 +496,6 @@ pub struct LoadBalancerStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::{sleep, Duration};
 
     #[tokio::test]
     async fn test_round_robin_selection() {

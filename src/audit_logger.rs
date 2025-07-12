@@ -591,7 +591,7 @@ mod tests {
         let detector = AnomalyDetector::new();
 
         // Test off-hours access
-        let mut event = AuditEvent {
+        let event = AuditEvent {
             timestamp: Utc::now().with_hour(2).unwrap().with_minute(0).unwrap(), // 2 AM
             event_type: AuditEventType::KeyAccess,
             user_id: "test_user".to_string(),

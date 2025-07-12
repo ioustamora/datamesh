@@ -606,8 +606,8 @@ mod tests {
         let balance1 = service.get_balance(&user1).unwrap();
         let balance2 = service.get_balance(&user2).unwrap();
 
-        assert_eq!(balance1.balance, 900); // 1000 - 100
-        assert_eq!(balance2.balance, 99); // 100 - 1 (fee)
+        assert_eq!(balance1.unwrap().balance, 900); // 1000 - 100
+        assert_eq!(balance2.unwrap().balance, 99); // 100 - 1 (fee)
     }
 
     #[test]
@@ -626,8 +626,9 @@ mod tests {
 
         // Check balance
         let balance = service.get_balance(&user).unwrap();
-        assert_eq!(balance.balance, 5000);
-        assert_eq!(balance.staked, 5000);
+        let balance_data = balance.as_ref().unwrap();
+        assert_eq!(balance_data.balance, 5000);
+        assert_eq!(balance_data.staked, 5000);
     }
 
     #[test]

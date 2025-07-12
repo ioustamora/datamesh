@@ -421,8 +421,6 @@ impl HighPerformanceManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::quorum_manager::{QuorumManager, QuorumConfig};
-    use libp2p::kad::RecordKey;
 
     #[tokio::test]
     async fn test_performance_config() {

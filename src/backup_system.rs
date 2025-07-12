@@ -1750,20 +1750,20 @@ mod tests {
 
         // Create temporary directory for test database
         let temp_dir = TempDir::new().unwrap();
-        let db_path = temp_dir
-            .path()
-            .join("test_backup.db")
-            .to_string_lossy()
-            .to_string();
+        let db_path = temp_dir.path().join("test_backup.db");
 
         // Create mock database manager
         let database = Arc::new(DatabaseManager::new(&db_path).unwrap());
 
-        // Create test key manager
-        let key_manager = Arc::new(KeyManager::new().unwrap());
+        // Create test key manager with random key
+        use libsecp256k1::SecretKey;
+        use rand::rngs::OsRng;
+        let secret_key = SecretKey::random(&mut OsRng);
+        let key_manager = Arc::new(KeyManager::new(secret_key, "test_key".to_string()));
 
-        // Create mock CLI with minimal configuration
-        let cli = Arc::new(Cli::default());
+        // Create mock CLI with basic configuration
+        use clap::Parser;
+        let cli = Arc::new(crate::cli::Cli::try_parse_from(&["datamesh", "test"]).unwrap());
 
         // Create backup system with test dependencies
         BackupSystem::new(database, key_manager, cli)

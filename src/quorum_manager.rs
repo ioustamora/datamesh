@@ -177,7 +177,7 @@ impl QuorumManager {
     async fn calculate_adaptive_quorum(&self, connected_peers: &[PeerId]) -> Result<usize> {
         let reliability_map = self.peer_reliability.read().await;
         
-        let mut reliable_peers = 0;
+        let mut _reliable_peers = 0;
         let mut total_reliability = 0.0;
         
         for peer_id in connected_peers {
@@ -332,7 +332,6 @@ impl NetworkHealth {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libp2p::identity::Keypair;
 
     #[tokio::test]
     async fn test_quorum_calculation() {

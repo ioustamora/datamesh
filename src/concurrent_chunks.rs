@@ -746,8 +746,6 @@ impl ConcurrentChunkManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libp2p::identity::Keypair;
-    use std::str::FromStr;
 
     #[tokio::test]
     async fn test_concurrent_chunk_manager_creation() {

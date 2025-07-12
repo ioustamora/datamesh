@@ -200,7 +200,7 @@ impl AdvancedCommandHandler {
     }
 
     /// Handle duplicate command
-    async fn handle_duplicate_command(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
+    async fn handle_duplicate_command(&self, _context: &CommandContext) -> Result<(), Box<dyn Error>> {
         use crate::ui;
         use crate::cli::Commands;
         use crate::file_manager::find_duplicate_files;
@@ -209,7 +209,7 @@ impl AdvancedCommandHandler {
         ui::print_header("Duplicate Detection");
         
         // Extract parameters from command
-        if let Commands::Duplicate { source, new_name, new_tags } = &self.command {
+        if let Commands::Duplicate { source, new_name: _, new_tags: _ } = &self.command {
             let min_file_size = 1024u64; // Default 1KB minimum
             let should_remove = false; // This command is for file duplication, not deduplication
             
@@ -308,7 +308,7 @@ impl AdvancedCommandHandler {
     }
 
     /// Handle search command
-    async fn handle_search_command(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
+    async fn handle_search_command(&self, _context: &CommandContext) -> Result<(), Box<dyn Error>> {
         use crate::ui;
         use crate::file_manager::{SearchCriteria, search_files};
         use crate::cli::Commands;
@@ -369,7 +369,7 @@ impl AdvancedCommandHandler {
     }
 
     /// Handle recent command
-    async fn handle_recent_command(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
+    async fn handle_recent_command(&self, _context: &CommandContext) -> Result<(), Box<dyn Error>> {
         use crate::ui;
         use crate::cli::Commands;
         use crate::file_manager::get_recent_files;
