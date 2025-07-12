@@ -133,7 +133,7 @@ test_basic_storage() {
     
     # Store file - connect to bootstrap node
     log_info "Storing test file..."
-    if "$DATAMESH_BINARY" --non-interactive --bootstrap-peers "$BOOTSTRAP_PEER_ID@$BOOTSTRAP_MULTIADDR" put /tmp/test_basic.txt > /tmp/store_basic.txt 2>&1; then
+    if RUST_LOG=debug "$DATAMESH_BINARY" --non-interactive --bootstrap-peers "$BOOTSTRAP_PEER_ID@$BOOTSTRAP_MULTIADDR" put /tmp/test_basic.txt > /tmp/store_basic.txt 2>&1; then
         local key=$(grep -oE '[a-f0-9]{32,}' /tmp/store_basic.txt | head -1)
         if [[ -n "$key" ]]; then
             log_success "File stored with key: ${key:0:16}..."
