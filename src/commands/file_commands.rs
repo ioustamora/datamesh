@@ -28,7 +28,7 @@ impl CommandHandler for PutCommand {
             Ok(config) => config,
             Err(_) => {
                 // Fallback to default if no config file exists, but preserve CLI bootstrap settings
-                let config = crate::config::Config::default();
+                crate::config::Config::default()
             }
         };
         let thread_safe_context = ThreadSafeCommandContext::new(

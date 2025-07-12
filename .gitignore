@@ -113,3 +113,7 @@ node_modules/
 
 # TernJS port file
 .tern-port
+# Temporary test directories
+cluster_test_*/
+*_test_*/
+test_[0-9]*/
