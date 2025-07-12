@@ -195,7 +195,10 @@ mod unit_tests {
         // Test that default config has reasonable values
         assert!(config.network.default_port > 0);
         assert!(config.network.default_port <= 65535);
-        assert!(config.storage.root_dir.is_some());
+        assert!(config.storage.data_shards > 0);
+        assert!(config.storage.parity_shards > 0);
+        assert!(config.storage.max_file_size > 0);
+        assert!(config.storage.chunk_size > 0);
         
         Ok(())
     }
