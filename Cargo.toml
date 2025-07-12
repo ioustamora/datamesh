@@ -78,6 +78,8 @@ proptest = "1.0"
 mockall = "0.12"
 wiremock = "0.6"
 tracing-test = "0.2"
+sha256 = "1.5"
+mime_guess = "2.0"
 
 # Benches
 [[bench]]
