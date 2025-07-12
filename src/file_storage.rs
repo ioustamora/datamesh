@@ -48,6 +48,42 @@ pub const PUB_DATA_SHARDS: usize = DATA_SHARDS;
 /// Public constant for parity shards available to other modules
 pub const PUB_PARITY_SHARDS: usize = PARITY_SHARDS;
 
+/// Determine optimal quorum for storage operations based on network connectivity
+async fn calculate_storage_quorum(swarm: &mut libp2p::Swarm<crate::network::MyBehaviour>) -> Result<Quorum, DfsError> {
+    use tracing::info;
+    
+    // Get currently connected peers
+    let connected_peers: Vec<_> = swarm.connected_peers().cloned().collect();
+    let peer_count = connected_peers.len();
+    
+    info!("Calculating storage quorum: {} peers connected", peer_count);
+    
+    // If no peers connected, use Quorum::All as fallback (will likely fail but gives proper error)
+    if peer_count == 0 {
+        info!("No peers connected, using Quorum::All (may fail)");
+        return Ok(Quorum::All);
+    }
+    
+    // For small networks (1-2 peers), use Quorum::One for better success rate
+    if peer_count <= 2 {
+        info!("Small network ({} peers), using Quorum::One", peer_count);
+        return Ok(Quorum::One);
+    }
+    
+    // For medium networks (3-5 peers), use N=1 for reliability while maintaining success rate
+    if peer_count <= 5 {
+        info!("Medium network ({} peers), using Quorum::N(1)", peer_count);
+        return Ok(Quorum::N(std::num::NonZeroUsize::new(1).unwrap()));
+    }
+    
+    // For larger networks, use percentage-based quorum (25% of peers, minimum 2)
+    let quorum_size = std::cmp::max(2, (peer_count as f64 * 0.25).ceil() as usize);
+    let quorum_size = std::cmp::min(quorum_size, peer_count); // Don't exceed available peers
+    
+    info!("Large network ({} peers), using Quorum::N({})", peer_count, quorum_size);
+    Ok(Quorum::N(std::num::NonZeroUsize::new(quorum_size).unwrap()))
+}
+
 /// Represents a file stored in the distributed file system
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoredFile {
@@ -193,9 +229,11 @@ pub async fn handle_put_command(
             publisher: None,
             expires: None,
         };
-        swarm.behaviour_mut().kad.put_record(record, Quorum::One)?;
+        let quorum = calculate_storage_quorum(&mut swarm).await?;
+        swarm.behaviour_mut().kad.put_record(record, quorum)?;
     } else {
         // Use sequential upload (original implementation)
+        let quorum = calculate_storage_quorum(&mut swarm).await?;
         for (i, shard) in shards.into_iter().enumerate() {
             let chunk_key = RecordKey::new(&blake3::hash(&shard).as_bytes());
             chunk_keys.push(chunk_key.as_ref().to_vec()); // Store as Vec<u8>
@@ -205,7 +243,7 @@ pub async fn handle_put_command(
                 publisher: None,
                 expires: None,
             };
-            swarm.behaviour_mut().kad.put_record(record, Quorum::One)?;
+            swarm.behaviour_mut().kad.put_record(record, quorum)?;
 
             // Update progress
             let progress_value = ((i + 1) as f64 / total_shards as f64 * file_size as f64) as u64;
@@ -231,7 +269,8 @@ pub async fn handle_put_command(
             publisher: None,
             expires: None,
         };
-        swarm.behaviour_mut().kad.put_record(record, Quorum::One)?;
+        let quorum = calculate_storage_quorum(&mut swarm).await?;
+        swarm.behaviour_mut().kad.put_record(record, quorum)?;
     }
 
     // Generate or use provided name
