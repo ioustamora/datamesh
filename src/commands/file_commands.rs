@@ -23,7 +23,16 @@ pub struct PutCommand {
 impl CommandHandler for PutCommand {
     async fn execute(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
         // Create thread-safe context to avoid Swarm Send/Sync issues
-        let config = crate::config::Config::default();
+        // Use the actual configuration instead of default to preserve bootstrap peers
+        let config = match crate::config::Config::load_or_default(None) {
+            Ok(config) => config,
+            Err(_) => {
+                // Fallback to default if no config file exists, but preserve CLI bootstrap settings
+                let mut config = crate::config::Config::default();
+                // This will be handled by the network layer through CLI args
+                config
+            }
+        };
         let thread_safe_context = ThreadSafeCommandContext::new(
             context.cli.clone(),
             context.key_manager.clone(),

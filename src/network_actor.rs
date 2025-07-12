@@ -460,7 +460,14 @@ impl NetworkActor {
                             }
 
                             QueryResult::PutRecord(Err(err)) => {
-                                debug!("Put record failed: {:?}", err);
+                                warn!("Put record failed: {:?}", err);
+                                // Since we can't identify the specific key, fail all pending put requests
+                                // This is suboptimal but prevents hanging operations
+                                for (key, response_tx) in self.pending_put_requests.drain() {
+                                    let _ = response_tx.send(Err(DfsError::Network(format!(
+                                        "Put record failed: {:?}", err
+                                    ))));
+                                }
                             }
 
                             _ => {}

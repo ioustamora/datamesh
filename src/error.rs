@@ -38,6 +38,8 @@ pub enum DfsError {
     NotFound(String),
     /// Configuration errors
     Config(String),
+    /// Configuration errors (alternative variant)
+    Configuration(String),
     /// Authentication and authorization errors
     Authentication(String),
     /// Backup operation errors
@@ -97,6 +99,7 @@ impl fmt::Display for DfsError {
             DfsError::Import(e) => write!(f, "Import error: {}", e),
             DfsError::Authentication(e) => write!(f, "Authentication error: {}", e),
             DfsError::Config(e) => write!(f, "Configuration error: {}", e),
+            DfsError::Configuration(e) => write!(f, "Configuration error: {}", e),
             DfsError::Backup(e) => write!(f, "Backup error: {}", e),
             DfsError::Economics(e) => write!(f, "Economics error: {}", e),
             DfsError::Generic(e) => write!(f, "Error: {}", e),

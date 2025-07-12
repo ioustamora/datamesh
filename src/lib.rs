@@ -23,6 +23,7 @@ pub mod file_storage;
 pub mod governance;
 pub mod governance_service;
 pub mod health_manager;
+pub mod high_performance;
 pub mod interactive;
 pub mod key_manager;
 pub mod key_rotation;
@@ -36,6 +37,7 @@ pub mod performance;
 pub mod performance_optimizer;
 pub mod persistent_dht;
 pub mod presets;
+pub mod quorum_manager;
 pub mod quota_service;
 pub mod resilience;
 /// DataMesh Library

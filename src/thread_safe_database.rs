@@ -40,12 +40,12 @@ impl ThreadSafeDatabaseManager {
         })?;
 
         db.store_file(
+            &file_entry.name,
             &file_entry.file_key,
-            &file_entry.file_key,
-            &file_entry.file_key,
+            &file_entry.original_filename,
             file_entry.file_size,
             file_entry.upload_time,
-            &[],
+            &file_entry.tags,
             &file_entry.public_key_hex,
         )
         .map_err(|e| crate::error::DfsError::Database(e.to_string()))

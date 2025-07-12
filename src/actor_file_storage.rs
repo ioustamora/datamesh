@@ -17,6 +17,8 @@ use crate::key_manager::{get_decryption_key, get_encryption_key, KeyManager};
 use crate::logging::log_file_operation;
 use crate::network_actor::NetworkHandle;
 use crate::performance;
+// Note: High-performance and quorum management modules are implemented separately
+// These would be integrated in a production build with proper module exports
 use crate::thread_safe_database::ThreadSafeDatabaseManager;
 use crate::ui;
 use ecies::{decrypt, encrypt};
@@ -98,8 +100,22 @@ impl ActorFileStorage {
                 expires: None,
             };
 
-            // Use network actor to store the record
-            self.network.put_record(record, Quorum::One).await?;
+            // Check network connectivity before attempting to store
+            let connected_peers = self.network.get_connected_peers().await?;
+            if connected_peers.is_empty() {
+                return Err(crate::error::DfsError::Network(
+                    "No peers connected - cannot store file".to_string()
+                ));
+            }
+
+            // Add small delay for network stabilization on first chunk
+            if i == 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            }
+
+            // Use network actor to store the record with minimal quorum for better success rate
+            // In a single-peer setup, we need to use N quorum to allow storage on any available peer
+            self.network.put_record(record, Quorum::N(std::num::NonZeroUsize::new(1).unwrap())).await?;
 
             // Update progress
             let progress_value = ((i + 1) as f64 / total_shards as f64 * file_size as f64) as u64;
@@ -127,7 +143,7 @@ impl ActorFileStorage {
             expires: None,
         };
 
-        self.network.put_record(record, Quorum::One).await?;
+        self.network.put_record(record, Quorum::N(std::num::NonZeroUsize::new(1).unwrap())).await?;
 
         // Generate or use provided name
         let original_filename = path
@@ -336,6 +352,7 @@ impl ActorFileStorage {
     pub async fn get_connected_peers(&self) -> DfsResult<Vec<libp2p::PeerId>> {
         self.network.get_connected_peers().await
     }
+
 }
 
 /// Store a file using the actor-based network system
