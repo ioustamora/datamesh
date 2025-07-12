@@ -1,0 +1,17 @@
+[2m2025-07-12T17:55:52.283458Z[0m [32m INFO[0m [2mdatamesh::logging[0m[2m:[0m DataMesh logging initialized
+  • Cryptographic Keys ECIES encryption initialized
+[2m2025-07-12T17:55:52.283772Z[0m [31mERROR[0m [2mdatamesh[0m[2m:[0m 🔥 main.rs calling execute_command with command: Peers { detailed: false, format: Table }
+[2m2025-07-12T17:55:52.283777Z[0m [31mERROR[0m [2mdatamesh::commands[0m[2m:[0m 🔥 execute_command called with: Peers { detailed: false, format: Table }
+[2m2025-07-12T17:55:52.283780Z[0m [31mERROR[0m [2mdatamesh::commands[0m[2m:[0m 🔥 context created, calling create_command_handler
+[2m2025-07-12T17:55:52.283782Z[0m [31mERROR[0m [2mdatamesh::commands[0m[2m:[0m 🔥 handler created, calling execute_with_monitoring
+
+════════════════════════════════════════════════════════════════════════════════
+                                │ Network Peers                                 
+════════════════════════════════════════════════════════════════════════════════
+
+ℹ️ No peer statistics available
+ℹ️ Peers may be connected but no operations have been recorded yet
+ℹ️ Try:
+ℹ️   - Performing file operations to generate peer stats
+ℹ️   - Starting a bootstrap node: datamesh service bootstrap
+ℹ️   - Using interactive mode: datamesh interactive

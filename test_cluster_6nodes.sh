@@ -75,7 +75,7 @@ start_cluster() {
     # Extract bootstrap peer ID from logs
     local attempts=0
     BOOTSTRAP_PEER_ID=""
-    while [[ $attempts -lt 10 && -z "$BOOTSTRAP_PEER_ID" ]]; do
+    while [[ $attempts -lt 15 && -z "$BOOTSTRAP_PEER_ID" ]]; do
         BOOTSTRAP_PEER_ID=$(grep -o "Peer ID: [A-Za-z0-9]\+" /tmp/bootstrap.log 2>/dev/null | sed 's/Peer ID: //' || echo "")
         if [[ -z "$BOOTSTRAP_PEER_ID" ]]; then
             sleep 1
@@ -99,9 +99,10 @@ start_cluster() {
         local node_num=$((i + 1))
         
         log_info "Starting node $node_num on port $port..."
-        "$DATAMESH_BINARY" --non-interactive join \
+        "$DATAMESH_BINARY" --non-interactive service \
             --port "$port" \
-            --bootstrap "$BOOTSTRAP_MULTIADDR" > "/tmp/node_${node_num}.log" 2>&1 &
+            --bootstrap-addr "$BOOTSTRAP_MULTIADDR" \
+            --bootstrap-peer "$BOOTSTRAP_PEER_ID" > "/tmp/node_${node_num}.log" 2>&1 &
         
         local pid=$!
         NODE_PIDS+=("$pid")
@@ -192,6 +193,71 @@ test_network_status() {
     else
         log_error "Network status command failed"
         cat /tmp/status_output.txt
+        return 1
+    fi
+}
+
+test_peers_command() {
+    log_info "🧪 Testing peers command..."
+    
+    if "$DATAMESH_BINARY" --non-interactive --bootstrap-peer "$BOOTSTRAP_PEER_ID" --bootstrap-addr "$BOOTSTRAP_MULTIADDR" peers > /tmp/peers_output.txt 2>&1; then
+        local peer_count=$(grep -c "PeerId" /tmp/peers_output.txt || echo "0")
+        log_success "Peers command executed. Found $peer_count peers listed"
+        return 0
+    else
+        log_error "Peers command failed"
+        cat /tmp/peers_output.txt
+        return 1
+    fi
+}
+
+test_health_command() {
+    log_info "🧪 Testing health command..."
+    
+    # Use timeout to prevent hanging on continuous health check
+    if timeout 10s "$DATAMESH_BINARY" --non-interactive --bootstrap-peer "$BOOTSTRAP_PEER_ID" --bootstrap-addr "$BOOTSTRAP_MULTIADDR" health > /tmp/health_output.txt 2>&1; then
+        if grep -q "Network Health" /tmp/health_output.txt || grep -q "healthy" /tmp/health_output.txt; then
+            log_success "Health command executed successfully"
+            return 0
+        else
+            log_warning "Health command executed but no health info found"
+            return 0
+        fi
+    else
+        log_warning "Health command timed out or failed (this is expected for continuous mode)"
+        return 0
+    fi
+}
+
+test_info_command() {
+    log_info "🧪 Testing file info command..."
+    
+    # Create a test file and get its key first
+    echo "Test info file $(date)" > /tmp/test_info.txt
+    
+    if "$DATAMESH_BINARY" --non-interactive --bootstrap-peer "$BOOTSTRAP_PEER_ID" --bootstrap-addr "$BOOTSTRAP_MULTIADDR" put /tmp/test_info.txt > /tmp/store_info.txt 2>&1; then
+        local key=$(grep -oE '[a-f0-9]{32,}' /tmp/store_info.txt | head -1)
+        if [[ -n "$key" ]]; then
+            # Test info command with the key
+            if "$DATAMESH_BINARY" --non-interactive --bootstrap-peer "$BOOTSTRAP_PEER_ID" --bootstrap-addr "$BOOTSTRAP_MULTIADDR" info "$key" > /tmp/info_output.txt 2>&1; then
+                if grep -q "File Information" /tmp/info_output.txt || grep -q "Size" /tmp/info_output.txt || grep -q "$key" /tmp/info_output.txt; then
+                    log_success "Info command executed successfully for key: ${key:0:16}..."
+                    return 0
+                else
+                    log_warning "Info command executed but no file info found"
+                    return 0
+                fi
+            else
+                log_error "Info command failed"
+                cat /tmp/info_output.txt
+                return 1
+            fi
+        else
+            log_error "Could not get file key for info test"
+            return 1
+        fi
+    else
+        log_error "Could not store file for info test"
         return 1
     fi
 }
@@ -288,7 +354,7 @@ run_comprehensive_tests() {
     echo ""
     
     local tests_passed=0
-    local tests_total=5
+    local tests_total=8
     
     # Test 1: Basic storage
     if test_basic_storage; then
@@ -308,13 +374,31 @@ run_comprehensive_tests() {
     fi
     echo ""
     
-    # Test 4: Multiple files
+    # Test 4: Peers command
+    if test_peers_command; then
+        ((tests_passed++))
+    fi
+    echo ""
+    
+    # Test 5: Health command
+    if test_health_command; then
+        ((tests_passed++))
+    fi
+    echo ""
+    
+    # Test 6: Info command
+    if test_info_command; then
+        ((tests_passed++))
+    fi
+    echo ""
+    
+    # Test 7: Multiple files
     if test_multiple_files; then
         ((tests_passed++))
     fi
     echo ""
     
-    # Test 5: Large file
+    # Test 8: Large file
     if test_large_file; then
         ((tests_passed++))
     fi

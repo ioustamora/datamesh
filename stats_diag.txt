@@ -1,0 +1,10 @@
+[2m2025-07-12T17:55:52.279011Z[0m [32m INFO[0m [2mdatamesh::logging[0m[2m:[0m DataMesh logging initialized
+  • Cryptographic Keys ECIES encryption initialized
+[2m2025-07-12T17:55:52.279358Z[0m [31mERROR[0m [2mdatamesh[0m[2m:[0m 🔥 main.rs calling execute_command with command: Stats
+[2m2025-07-12T17:55:52.279361Z[0m [31mERROR[0m [2mdatamesh::commands[0m[2m:[0m 🔥 execute_command called with: Stats
+[2m2025-07-12T17:55:52.279366Z[0m [31mERROR[0m [2mdatamesh::commands[0m[2m:[0m 🔥 context created, calling create_command_handler
+[2m2025-07-12T17:55:52.279368Z[0m [31mERROR[0m [2mdatamesh::commands[0m[2m:[0m 🔥 handler created, calling execute_with_monitoring
+📊 DFS Storage Statistics
+├─ Total files: 0
+├─ Total size: 0 B
+└─ Average health: 100.0%

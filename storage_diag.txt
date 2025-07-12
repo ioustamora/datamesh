@@ -1,0 +1,68 @@
+[2m2025-07-12T17:55:52.287239Z[0m [32m INFO[0m [2mdatamesh::logging[0m[2m:[0m DataMesh logging initialized
+  • Cryptographic Keys ECIES encryption initialized
+[2m2025-07-12T17:55:52.287536Z[0m [31mERROR[0m [2mdatamesh[0m[2m:[0m 🔥 main.rs calling execute_command with command: Put { path: "test_diag.txt", public_key: None, name: None, tags: None }
+[2m2025-07-12T17:55:52.287542Z[0m [31mERROR[0m [2mdatamesh::commands[0m[2m:[0m 🔥 execute_command called with: Put { path: "test_diag.txt", public_key: None, name: None, tags: None }
+[2m2025-07-12T17:55:52.287546Z[0m [31mERROR[0m [2mdatamesh::commands[0m[2m:[0m 🔥 context created, calling create_command_handler
+[2m2025-07-12T17:55:52.287548Z[0m [31mERROR[0m [2mdatamesh::commands[0m[2m:[0m 🔥 handler created, calling execute_with_monitoring
+[2m2025-07-12T17:55:52.287551Z[0m [31mERROR[0m [2mdatamesh::commands::file_commands[0m[2m:[0m 🔥 PutCommand::execute called for: test_diag.txt
+[2m2025-07-12T17:55:52.287553Z[0m [32m INFO[0m [2mdatamesh::config[0m[2m:[0m Using default configuration
+Local peer id: PeerId("12D3KooWC1NBKhwAAwbPBeF2dJh78uny4Auwc5mXGGWQfZXi6qvP")
+[2m2025-07-12T17:55:52.288007Z[0m [32m INFO[0m [2mlibp2p_swarm[0m[2m:[0m [3mlocal_peer_id[0m[2m=[0m12D3KooWA9HdWKsgDy2fCd3MoCCyFUxaNZgNhnU9nw8ca8LvaEqQ
+[2m2025-07-12T17:55:52.288043Z[0m [34mDEBUG[0m [2mlibp2p_tcp[0m[2m:[0m listening on 0.0.0.0:0
+Adding CLI bootstrap peer: 12D3KooWQ6QGTdm2tyuTfMEzKevcy9d4zY7zyHLtfJGHDTs2n3YF
+[2m2025-07-12T17:55:52.288119Z[0m [32m INFO[0m [2mdatamesh::bootstrap_manager[0m[2m:[0m Adding bootstrap peer: 12D3KooWQ6QGTdm2tyuTfMEzKevcy9d4zY7zyHLtfJGHDTs2n3YF (priority: 1, region: None)
+Connecting to bootstrap network with 1 peers
+[2m2025-07-12T17:55:52.288127Z[0m [32m INFO[0m [2mdatamesh::bootstrap_manager[0m[2m:[0m Connecting to bootstrap network with 1 peers available
+[2m2025-07-12T17:55:52.288145Z[0m [34mDEBUG[0m [2mlibp2p_tcp[0m[2m:[0m dialing address [3maddress[0m[2m=[0m127.0.0.1:33000
+[2m2025-07-12T17:55:52.288210Z[0m [34mDEBUG[0m [2mdatamesh::bootstrap_manager[0m[2m:[0m Dialing bootstrap peer 12D3KooWQ6QGTdm2tyuTfMEzKevcy9d4zY7zyHLtfJGHDTs2n3YF at /ip4/127.0.0.1/tcp/33000
+[2m2025-07-12T17:55:52.288224Z[0m [32m INFO[0m [2mdatamesh::bootstrap_manager[0m[2m:[0m Successfully connected to bootstrap peer: 12D3KooWQ6QGTdm2tyuTfMEzKevcy9d4zY7zyHLtfJGHDTs2n3YF
+[2m2025-07-12T17:55:52.288230Z[0m [32m INFO[0m [2mdatamesh::bootstrap_manager[0m[2m:[0m Successfully connected to 1 bootstrap peers
+Successfully connected to 1 bootstrap peers
+Connected to: 12D3KooWQ6QGTdm2tyuTfMEzKevcy9d4zY7zyHLtfJGHDTs2n3YF
+[2m2025-07-12T17:55:52.289104Z[0m [32m INFO[0m [2mdatamesh::network_actor[0m[2m:[0m Network actor starting with peer ID: 12D3KooWA9HdWKsgDy2fCd3MoCCyFUxaNZgNhnU9nw8ca8LvaEqQ
+[2m2025-07-12T17:55:52.289132Z[0m [34mDEBUG[0m [2mlibp2p_tcp[0m[2m:[0m listening on 0.0.0.0:0
+[2m2025-07-12T17:55:52.289144Z[0m [32m INFO[0m [2mdatamesh::thread_safe_command_context[0m[2m:[0m 🔥 thread_safe_command_context.store_file called for: test_diag.txt
+[2m2025-07-12T17:55:52.289173Z[0m [32m INFO[0m [2mdatamesh::actor_file_storage[0m[2m:[0m 🔥 store_file_with_network called for file: test_diag.txt
+[2m2025-07-12T17:55:52.289222Z[0m [32m INFO[0m [2mdatamesh::actor_file_storage[0m[2m:[0m 🔥 File read successfully, 16 bytes
+[2m2025-07-12T17:55:52.289309Z[0m [32m INFO[0m [2mdatamesh::network_actor[0m[2m:[0m Listening on: /ip4/0.0.0.0/tcp/0
+[2m2025-07-12T17:55:52.289322Z[0m [34mDEBUG[0m [2mlibp2p_tcp[0m[2m:[0m listening on 127.0.0.1:0
+[2m2025-07-12T17:55:52.289373Z[0m [32m INFO[0m [2mdatamesh::network_actor[0m[2m:[0m Listening on: /ip4/127.0.0.1/tcp/0
+[2m2025-07-12T17:55:52.289432Z[0m [34mDEBUG[0m [1mSwarm::poll[0m: [2mlibp2p_swarm[0m[2m:[0m New listener address [3mlistener[0m[2m=[0mListenerId(3) [3maddress[0m[2m=[0m/ip4/127.0.0.1/tcp/41725
+[2m2025-07-12T17:55:52.289470Z[0m [32m INFO[0m [2mdatamesh::network_actor[0m[2m:[0m Listening on: /ip4/127.0.0.1/tcp/41725
+[2m2025-07-12T17:55:52.289503Z[0m [34mDEBUG[0m [1mSwarm::poll[0m: [2mlibp2p_kad::handler[0m[2m:[0m New outbound connection [3mpeer[0m[2m=[0m12D3KooWJBiUjKvioRPx9Ahkhxdj9ak1zg6j2w8seanisvm3ZUgf [3mmode[0m[2m=[0mserver
+[2m2025-07-12T17:55:52.289590Z[0m [34mDEBUG[0m [1mSwarm::poll[0m: [2mlibp2p_swarm[0m[2m:[0m Connection established [3mpeer[0m[2m=[0m12D3KooWJBiUjKvioRPx9Ahkhxdj9ak1zg6j2w8seanisvm3ZUgf [3mendpoint[0m[2m=[0mDialer { address: /ip4/127.0.0.1/tcp/33000, role_override: Dialer, port_use: Reuse } [3mtotal_peers[0m[2m=[0m1
+[2m2025-07-12T17:55:52.289682Z[0m [32m INFO[0m [2mdatamesh::network_actor[0m[2m:[0m Connected to peer: 12D3KooWJBiUjKvioRPx9Ahkhxdj9ak1zg6j2w8seanisvm3ZUgf
+[2m2025-07-12T17:55:52.289722Z[0m [32m INFO[0m [2mdatamesh::actor_file_storage[0m[2m:[0m Retrieved 1 connected peers for quorum calculation
+[2m2025-07-12T17:55:52.289732Z[0m [32m INFO[0m [2mdatamesh::actor_file_storage[0m[2m:[0m Small network (1 peers), using Quorum::N(1)
+[2m2025-07-12T17:55:52.289743Z[0m [31mERROR[0m [2mdatamesh::network_actor[0m[2m:[0m 🔥 NetworkActor::put_record called with quorum: N(1)
+[2m2025-07-12T17:55:52.289797Z[0m [34mDEBUG[0m [2mdatamesh::network_actor[0m[2m:[0m Put record request initiated
+[2m2025-07-12T17:55:52.289823Z[0m [34mDEBUG[0m [1mSwarm::poll[0m: [2mlibp2p_tcp[0m[2m:[0m dialing address [3maddress[0m[2m=[0m127.0.0.1:33000
+[2m2025-07-12T17:55:52.289923Z[0m [34mDEBUG[0m [1mSwarm::poll[0m: [2mlibp2p_tcp[0m[2m:[0m New listen address [3maddress[0m[2m=[0m/ip4/127.0.0.1/tcp/38467
+[2m2025-07-12T17:55:52.289932Z[0m [34mDEBUG[0m [1mSwarm::poll[0m: [2mlibp2p_swarm[0m[2m:[0m New listener address [3mlistener[0m[2m=[0mListenerId(1) [3maddress[0m[2m=[0m/ip4/127.0.0.1/tcp/38467
+[2m2025-07-12T17:55:52.289937Z[0m [32m INFO[0m [2mdatamesh::network_actor[0m[2m:[0m Listening on: /ip4/127.0.0.1/tcp/38467
+[2m2025-07-12T17:55:52.289956Z[0m [34mDEBUG[0m [1mSwarm::poll[0m: [2mlibp2p_tcp[0m[2m:[0m New listen address [3maddress[0m[2m=[0m/ip4/127.0.0.1/tcp/37885
+[2m2025-07-12T17:55:52.289958Z[0m [34mDEBUG[0m [1mSwarm::poll[0m: [2mlibp2p_swarm[0m[2m:[0m New listener address [3mlistener[0m[2m=[0mListenerId(2) [3maddress[0m[2m=[0m/ip4/127.0.0.1/tcp/37885
+[2m2025-07-12T17:55:52.289961Z[0m [32m INFO[0m [2mdatamesh::network_actor[0m[2m:[0m Listening on: /ip4/127.0.0.1/tcp/37885
+[2m2025-07-12T17:55:52.289965Z[0m [34mDEBUG[0m [1mSwarm::poll[0m: [2mlibp2p_tcp[0m[2m:[0m New listen address [3maddress[0m[2m=[0m/ip4/10.255.255.254/tcp/38467
+[2m2025-07-12T17:55:52.289970Z[0m [34mDEBUG[0m [1mSwarm::poll[0m: [2mlibp2p_swarm[0m[2m:[0m New listener address [3mlistener[0m[2m=[0mListenerId(1) [3maddress[0m[2m=[0m/ip4/10.255.255.254/tcp/38467
+[2m2025-07-12T17:55:52.289973Z[0m [32m INFO[0m [2mdatamesh::network_actor[0m[2m:[0m Listening on: /ip4/10.255.255.254/tcp/38467
+[2m2025-07-12T17:55:52.289976Z[0m [34mDEBUG[0m [1mSwarm::poll[0m: [2mlibp2p_tcp[0m[2m:[0m New listen address [3maddress[0m[2m=[0m/ip4/10.255.255.254/tcp/37885
+[2m2025-07-12T17:55:52.289978Z[0m [34mDEBUG[0m [1mSwarm::poll[0m: [2mlibp2p_swarm[0m[2m:[0m New listener address [3mlistener[0m[2m=[0mListenerId(2) [3maddress[0m[2m=[0m/ip4/10.255.255.254/tcp/37885
+[2m2025-07-12T17:55:52.289981Z[0m [32m INFO[0m [2mdatamesh::network_actor[0m[2m:[0m Listening on: /ip4/10.255.255.254/tcp/37885
+[2m2025-07-12T17:55:52.289984Z[0m [34mDEBUG[0m [1mSwarm::poll[0m: [2mlibp2p_tcp[0m[2m:[0m New listen address [3maddress[0m[2m=[0m/ip4/172.20.37.32/tcp/38467
+[2m2025-07-12T17:55:52.289986Z[0m [34mDEBUG[0m [1mSwarm::poll[0m: [2mlibp2p_swarm[0m[2m:[0m New listener address [3mlistener[0m[2m=[0mListenerId(1) [3maddress[0m[2m=[0m/ip4/172.20.37.32/tcp/38467
+[2m2025-07-12T17:55:52.289989Z[0m [32m INFO[0m [2mdatamesh::network_actor[0m[2m:[0m Listening on: /ip4/172.20.37.32/tcp/38467
+[2m2025-07-12T17:55:52.289996Z[0m [34mDEBUG[0m [1mSwarm::poll[0m: [2mlibp2p_tcp[0m[2m:[0m New listen address [3maddress[0m[2m=[0m/ip4/172.20.37.32/tcp/37885
+[2m2025-07-12T17:55:52.289998Z[0m [34mDEBUG[0m [1mSwarm::poll[0m: [2mlibp2p_swarm[0m[2m:[0m New listener address [3mlistener[0m[2m=[0mListenerId(2) [3maddress[0m[2m=[0m/ip4/172.20.37.32/tcp/37885
+[2m2025-07-12T17:55:52.290000Z[0m [32m INFO[0m [2mdatamesh::network_actor[0m[2m:[0m Listening on: /ip4/172.20.37.32/tcp/37885
+[2m2025-07-12T17:55:52.290810Z[0m [34mDEBUG[0m [1mSwarm::poll[0m: [2mlibp2p_swarm[0m[2m:[0m Connection attempt to peer failed with WrongPeerId { obtained: PeerId("12D3KooWJBiUjKvioRPx9Ahkhxdj9ak1zg6j2w8seanisvm3ZUgf"), address: /ip4/127.0.0.1/tcp/33000/p2p/12D3KooWQ6QGTdm2tyuTfMEzKevcy9d4zY7zyHLtfJGHDTs2n3YF }. [3mpeer[0m[2m=[0m12D3KooWQ6QGTdm2tyuTfMEzKevcy9d4zY7zyHLtfJGHDTs2n3YF
+[2m2025-07-12T17:55:52.290850Z[0m [33m WARN[0m [2mdatamesh::network_actor[0m[2m:[0m Put record failed: QuorumFailed { key: Key(b"O\x83cY\xd6\xec[\x10\xa0\xa8\0\x87%\xc9s\x18\xa8\xf1\x93\xe7\x91\x8d\x15\t\xd1z\xd4d\xdfI\xa2\x89"), success: [], quorum: 1 }
+[2m2025-07-12T17:55:52.290899Z[0m [32m INFO[0m [2mdfs::performance[0m[2m:[0m Operation 'file_put' failed after 3ms: Some("Network error: Put record failed: QuorumFailed { key: Key(b\"O\\x83cY\\xd6\\xec[\\x10\\xa0\\xa8\\0\\x87%\\xc9s\\x18\\xa8\\xf1\\x93\\xe7\\x91\\x8d\\x15\\t\\xd1z\\xd4d\\xdfI\\xa2\\x89\"), success: [], quorum: 1 }")
+[2m2025-07-12T17:55:52.290902Z[0m [32m INFO[0m [2mdatamesh::network_actor[0m[2m:[0m Network actor shutting down - channel closed
+[2m2025-07-12T17:55:52.290947Z[0m [32m INFO[0m [2mdatamesh::network_actor[0m[2m:[0m Network actor stopped
+❌ Network error: Put record failed: QuorumFailed { key: Key(b"O\x83cY\xd6\xec[\x10\xa0\xa8\0\x87%\xc9s\x18\xa8\xf1\x93\xe7\x91\x8d\x15\t\xd1z\xd4d\xdfI\xa2\x89"), success: [], quorum: 1 }: Network connectivity issue
+💡 Suggestions:
+   • Check if bootstrap nodes are running
+   • Verify network connectivity
+   • Try using --bootstrap-peer and --bootstrap-addr options
+   • Run 'dfs bootstrap' in another terminal
