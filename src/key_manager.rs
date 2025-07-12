@@ -561,7 +561,7 @@ mod tests {
         let key_manager = KeyManager::new(secret_key, "test".to_string());
 
         // Test with no specific public key (should use default)
-        let (pub_key, hex) = get_encryption_key(&None, &key_manager).unwrap();
+        let (_pub_key, hex) = get_encryption_key(&None, &key_manager).unwrap();
         assert_eq!(hex, key_manager.key_info.public_key_hex);
 
         // Test with specific public key

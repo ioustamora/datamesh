@@ -1756,7 +1756,7 @@ mod tests {
         let database = Arc::new(DatabaseManager::new(&db_path).unwrap());
 
         // Create test key manager with random key
-        use libsecp256k1::SecretKey;
+        use ecies::SecretKey;
         use rand::rngs::OsRng;
         let secret_key = SecretKey::random(&mut OsRng);
         let key_manager = Arc::new(KeyManager::new(secret_key, "test_key".to_string()));

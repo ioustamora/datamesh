@@ -1238,7 +1238,7 @@ mod tests {
         // Wait for cleanup to occur
         sleep(Duration::from_secs(3)).await;
 
-        let stats = db.get_storage_stats().await.unwrap();
+        let _stats = db.get_storage_stats().await.unwrap();
         // Data should be cleaned up due to short retention period
 
         db.stop().await.unwrap();
