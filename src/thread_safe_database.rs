@@ -33,6 +33,20 @@ impl ThreadSafeDatabaseManager {
         DatabaseManager::new(&path)
     }
 
+    /// Test database connectivity and health
+    pub fn test_connection(&self) -> DfsResult<()> {
+        let db = self.get_db().map_err(|e| {
+            crate::error::DfsError::Database(format!("Failed to open database: {}", e))
+        })?;
+
+        // Try to get database stats as a health check
+        db.get_stats().map_err(|e| {
+            crate::error::DfsError::Database(format!("Database health check failed: {}", e))
+        })?;
+
+        Ok(())
+    }
+
     /// Store file information in the database
     pub fn store_file(&self, file_entry: FileEntry) -> DfsResult<()> {
         let db = self.get_db().map_err(|e| {

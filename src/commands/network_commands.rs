@@ -7,7 +7,7 @@ use std::error::Error;
 
 use crate::commands::{CommandContext, CommandHandler};
 
-/// Peers command handler
+/// Peers command handler - connects to actual network actor
 #[derive(Debug, Clone)]
 pub struct PeersCommand {
     pub detailed: bool,
@@ -18,67 +18,74 @@ pub struct PeersCommand {
 impl CommandHandler for PeersCommand {
     async fn execute(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
         use crate::ui;
+        use crate::thread_safe_command_context::ThreadSafeCommandContext;
 
-        ui::print_header("Network Peers");
+        ui::print_header("Connected Network Peers");
 
-        // Get actual peer information from network diagnostics
-        if let Some(network_diagnostics) = context.network_diagnostics.as_ref() {
-            // Get network statistics from the diagnostics system
-            let network_stats = network_diagnostics.get_network_latency_stats();
-            
-            // For now, we'll get peer information from the peer stats
-            // In a future update, we'll connect this to the actual network swarm
-            let peer_stats = network_diagnostics.get_all_peer_stats();
-            
-            if peer_stats.is_empty() {
-                ui::print_info("No peer statistics available");
-                ui::print_info("Peers may be connected but no operations have been recorded yet");
-                ui::print_info("Try:");
-                ui::print_info("  - Performing file operations to generate peer stats");
-                ui::print_info("  - Starting a bootstrap node: datamesh service bootstrap");
-                ui::print_info("  - Using interactive mode: datamesh interactive");
-                return Ok(());
-            }
+        // Create thread-safe context to access network actor
+        let config = crate::config::Config::load_or_default(None).unwrap_or_default();
+        let thread_safe_context = ThreadSafeCommandContext::new(
+            context.cli.clone(),
+            context.key_manager.clone(),
+            std::sync::Arc::new(config),
+        )
+        .await?;
 
-            ui::print_success(&format!("Network statistics for {} peer(s):", peer_stats.len()));
+        // Get actual network statistics from the network actor
+        match thread_safe_context.get_network_stats().await {
+            Ok(stats) => {
+                ui::print_success(&format!("Network Statistics (Local Peer: {})", stats.local_peer_id));
+                ui::print_key_value("Connected Peers", &stats.connected_peers.to_string());
+                ui::print_key_value("Routing Table Size", &stats.routing_table_size.to_string());
+                ui::print_key_value("Pending Queries", &stats.pending_queries.to_string());
 
-            for (i, (peer_id, stats)) in peer_stats.iter().enumerate() {
-                println!("\n{}. Peer: {}", i + 1, peer_id);
-                
-                if self.detailed {
-                    // Get detailed peer statistics
-                    let avg_response_time = network_diagnostics.get_avg_response_time(*peer_id);
-                    let reputation = network_diagnostics.calculate_reputation(*peer_id);
-                    let (p50, p95, p99) = network_diagnostics.get_latency_percentiles(*peer_id);
-                    
-                    ui::print_key_value("  Reputation", &format!("{}/100", reputation));
-                    ui::print_key_value("  Avg Response", &format!("{} ms", avg_response_time));
-                    ui::print_key_value("  Latency P50/P95/P99", &format!("{}/{}/{} ms", p50, p95, p99));
-                    ui::print_key_value("  Successful Ops", &stats.successful_operations.to_string());
-                    ui::print_key_value("  Failed Ops", &stats.failed_operations.to_string());
-                    ui::print_key_value("  Bytes Sent", &format_bytes(stats.bytes_sent));
-                    ui::print_key_value("  Bytes Received", &format_bytes(stats.bytes_received));
+                if stats.connected_peers == 0 {
+                    ui::print_warning("No peers currently connected");
+                    ui::print_info("To connect to peers:");
+                    ui::print_info("  - Start a bootstrap node: datamesh bootstrap --port 40871");
+                    ui::print_info("  - Connect to existing network: datamesh service --bootstrap-peer <ID> --bootstrap-addr <ADDR>");
+                    ui::print_info("  - Join interactive mode: datamesh interactive");
                 } else {
-                    // Basic peer info
-                    let reputation = network_diagnostics.calculate_reputation(*peer_id);
-                    let total_ops = stats.successful_operations + stats.failed_operations;
-                    ui::print_key_value("  Status", "Known");
-                    ui::print_key_value("  Reputation", &format!("{}/100", reputation));
-                    ui::print_key_value("  Total Operations", &total_ops.to_string());
+                    // Attempt to get connected peer list
+                    if let Ok(connected_peers) = thread_safe_context.network.get_connected_peers().await {
+                        if self.detailed {
+                            ui::print_header("Connected Peer Details");
+                            for (i, peer_id) in connected_peers.iter().enumerate() {
+                                println!("{}. Peer ID: {}", i + 1, peer_id);
+                                ui::print_key_value("  Status", "Connected");
+                                ui::print_key_value("  Protocol", "libp2p/Kademlia DHT");
+                            }
+                        } else {
+                            ui::print_info(&format!("Peer IDs (showing first 5 of {}):", connected_peers.len()));
+                            for (i, peer_id) in connected_peers.iter().take(5).enumerate() {
+                                println!("  {}. {}", i + 1, peer_id);
+                            }
+                            if connected_peers.len() > 5 {
+                                println!("  ... and {} more peers", connected_peers.len() - 5);
+                                ui::print_info("Use --detailed flag to see all peers");
+                            }
+                        }
+                    }
+                }
+
+                if self.format.as_ref().map(|f| f.to_lowercase()) == Some("json".to_string()) {
+                    // Output JSON format for programmatic use
+                    let json_output = serde_json::json!({
+                        "local_peer_id": stats.local_peer_id.to_string(),
+                        "connected_peers": stats.connected_peers,
+                        "routing_table_size": stats.routing_table_size,
+                        "pending_queries": stats.pending_queries,
+                        "timestamp": chrono::Utc::now().to_rfc3339()
+                    });
+                    println!("{}", serde_json::to_string_pretty(&json_output)?);
                 }
             }
-
-            // Show network summary
-            ui::print_key_value("\nNetwork Status", "Diagnostics Available");
-            ui::print_key_value("Known Peers", &peer_stats.len().to_string());
-            ui::print_key_value("Avg Network Latency", &format!("{} ms", network_stats.avg_latency));
-            ui::print_key_value("Min/Max Latency", &format!("{}/{} ms", network_stats.min_latency, network_stats.max_latency));
-
-        } else {
-            ui::print_warning("Network diagnostics unavailable");
-            ui::print_info("Network may not be initialized. Try:");
-            ui::print_info("  - datamesh service bootstrap");
-            ui::print_info("  - datamesh interactive");
+            Err(e) => {
+                ui::print_error(&format!("Failed to get network statistics: {}", e));
+                ui::print_info("Network may not be initialized. Try:");
+                ui::print_info("  - datamesh bootstrap --port 40871");
+                ui::print_info("  - datamesh service --bootstrap-peer <ID> --bootstrap-addr <ADDR>");
+            }
         }
 
         Ok(())
@@ -89,7 +96,7 @@ impl CommandHandler for PeersCommand {
     }
 }
 
-/// Health command handler
+/// Health command handler - provides real network health monitoring
 #[derive(Debug, Clone)]
 pub struct HealthCommand {
     pub continuous: bool,
@@ -100,6 +107,7 @@ pub struct HealthCommand {
 impl CommandHandler for HealthCommand {
     async fn execute(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
         use crate::ui;
+        use crate::thread_safe_command_context::ThreadSafeCommandContext;
         use tokio::time::{sleep, Duration};
 
         ui::print_header("Network Health Monitor");
@@ -107,16 +115,121 @@ impl CommandHandler for HealthCommand {
         let run_continuous = self.continuous;
         let check_interval = Duration::from_secs(self.interval.unwrap_or(30));
 
+        // Create thread-safe context for network access
+        let config = crate::config::Config::load_or_default(None).unwrap_or_default();
+        let thread_safe_context = ThreadSafeCommandContext::new(
+            context.cli.clone(),
+            context.key_manager.clone(),
+            std::sync::Arc::new(config),
+        )
+        .await?;
+
         loop {
-            // Check network health
-            if let Some(_network_diagnostics) = context.network_diagnostics.as_ref() {
-                ui::print_info("Network health monitoring available in interactive mode");
-                ui::print_info("Use: datamesh interactive > health");
-            } else {
-                ui::print_warning("Network diagnostics unavailable");
-                // Basic health check
-                ui::print_info("Basic health check: System operational");
+            let start_time = std::time::Instant::now();
+            
+            // Perform comprehensive health check
+            ui::print_info(&format!("Health Check - {}", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC")));
+            
+            let mut health_score = 100u8;
+            let mut issues = Vec::<String>::new();
+
+            // 1. Network Connectivity Check
+            match thread_safe_context.get_network_stats().await {
+                Ok(stats) => {
+                    ui::print_success(&format!("✅ Network Layer: Operational (Peer: {})", stats.local_peer_id));
+                    
+                    // Check peer connectivity
+                    if stats.connected_peers == 0 {
+                        health_score -= 30;
+                        issues.push("No peers connected - network isolation".to_string());
+                        ui::print_warning("⚠️  Peer Connectivity: No peers connected");
+                    } else {
+                        ui::print_success(&format!("✅ Peer Connectivity: {} peers connected", stats.connected_peers));
+                    }
+
+                    // Check routing table health
+                    if stats.routing_table_size < 5 {
+                        health_score -= 10;
+                        issues.push("Small routing table - limited network reach".to_string());
+                        ui::print_warning(&format!("⚠️  Routing Table: Only {} peers known", stats.routing_table_size));
+                    } else {
+                        ui::print_success(&format!("✅ Routing Table: {} peers known", stats.routing_table_size));
+                    }
+
+                    // Check for excessive pending queries
+                    if stats.pending_queries > 10 {
+                        health_score -= 15;
+                        issues.push("High query load - potential network congestion".to_string());
+                        ui::print_warning(&format!("⚠️  Query Load: {} pending queries", stats.pending_queries));
+                    } else {
+                        ui::print_success(&format!("✅ Query Load: {} pending queries", stats.pending_queries));
+                    }
+                }
+                Err(e) => {
+                    health_score -= 50;
+                    issues.push(format!("Network actor unavailable: {}", e));
+                    ui::print_error(&format!("❌ Network Layer: Failed - {}", e));
+                }
             }
+
+            // 2. Database Health Check
+            match thread_safe_context.database.test_connection() {
+                Ok(_) => {
+                    ui::print_success("✅ Database: Operational");
+                }
+                Err(e) => {
+                    health_score -= 20;
+                    issues.push(format!("Database issues: {}", e));
+                    ui::print_error(&format!("❌ Database: Failed - {}", e));
+                }
+            }
+
+            // 3. Bootstrap Test (if applicable)
+            if let Ok(_bootstrap_result) = thread_safe_context.bootstrap().await {
+                ui::print_success("✅ Bootstrap: Successful");
+            } else {
+                // Bootstrap failure is not critical if we already have peers
+                if let Ok(stats) = thread_safe_context.get_network_stats().await {
+                    if stats.connected_peers == 0 {
+                        health_score -= 10;
+                        issues.push("Bootstrap failed and no peers connected".to_string());
+                        ui::print_warning("⚠️  Bootstrap: Failed (no peers available)");
+                    } else {
+                        ui::print_info("ℹ️  Bootstrap: Not needed (peers already connected)");
+                    }
+                }
+            }
+
+            // Overall Health Assessment
+            let health_status = match health_score {
+                90..=100 => ("🟢 EXCELLENT", "green"),
+                70..=89 => ("🟡 GOOD", "yellow"),
+                50..=69 => ("🟠 WARNING", "orange"), 
+                30..=49 => ("🔴 CRITICAL", "red"),
+                _ => ("💀 SYSTEM FAILURE", "red"),
+            };
+
+            ui::print_header(&format!("Overall Health: {} (Score: {}%)", health_status.0, health_score));
+            
+            if !issues.is_empty() {
+                ui::print_warning("Issues Detected:");
+                for issue in &issues {
+                    println!("  • {}", issue);
+                }
+                
+                ui::print_info("Recommendations:");
+                if issues.iter().any(|i| i.contains("No peers connected")) {
+                    ui::print_info("  - Connect to a bootstrap node: datamesh service --bootstrap-peer <ID> --bootstrap-addr <ADDR>");
+                    ui::print_info("  - Start your own bootstrap: datamesh bootstrap --port 40871");
+                }
+                if issues.iter().any(|i| i.contains("Database")) {
+                    ui::print_info("  - Check disk space and file permissions");
+                    ui::print_info("  - Try cleanup: datamesh cleanup --orphaned");
+                }
+            }
+
+            let check_duration = start_time.elapsed();
+            ui::print_info(&format!("Health check completed in {}ms", check_duration.as_millis()));
 
             if !run_continuous {
                 break;
