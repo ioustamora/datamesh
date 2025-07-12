@@ -100,6 +100,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let _monitor = performance::global_monitor();
 
     // Execute command using new handler system
+    tracing::error!("🔥 main.rs calling execute_command with command: {:?}", cli.command);
     if let Err(e) = commands::execute_command(cli, key_manager).await {
         let enhanced_error = error_handling::handle_error(e.as_ref());
         error_handling::display_enhanced_error(&enhanced_error);

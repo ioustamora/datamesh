@@ -332,6 +332,7 @@ impl NetworkActor {
             } => {
                 let key = record.key.clone();
 
+                tracing::error!("🔥 NetworkActor::put_record called with quorum: {:?}", quorum);
                 match self.swarm.behaviour_mut().kad.put_record(record, quorum) {
                     Ok(_) => {
                         // Store pending request

@@ -17,7 +17,7 @@ use crate::key_manager::{get_decryption_key, get_encryption_key, KeyManager};
 use crate::logging::log_file_operation;
 use crate::network_actor::NetworkHandle;
 use crate::performance;
-use crate::quorum_manager::{QuorumManager, QuorumConfig};
+// use crate::quorum_manager::{QuorumManager, QuorumConfig};
 // Note: High-performance and quorum management modules are implemented separately
 // These would be integrated in a production build with proper module exports
 use crate::thread_safe_database::ThreadSafeDatabaseManager;
@@ -115,9 +115,29 @@ impl ActorFileStorage {
                 tokio::time::sleep(std::time::Duration::from_millis(500)).await;
             }
 
-            // Use network actor to store the record with minimal quorum for better success rate
-            // In a single-peer setup, we need to use N quorum to allow storage on any available peer
-            self.network.put_record(record, Quorum::N(std::num::NonZeroUsize::new(1).unwrap())).await?;
+            // Get connected peers for intelligent quorum calculation
+            let connected_peers = self.network.get_connected_peers().await?;
+            tracing::info!("ActorFileStorage: {} connected peers for chunk storage", connected_peers.len());
+            
+            // Fixed intelligent quorum calculation - use Quorum::N(1) instead of Quorum::One
+            let quorum = if connected_peers.is_empty() {
+                tracing::info!("ActorFileStorage: No peers connected, using Quorum::N(1) as fallback");
+                Quorum::N(std::num::NonZeroUsize::new(1).unwrap())
+            } else if connected_peers.len() <= 2 {
+                tracing::info!("ActorFileStorage: Small network ({} peers), using Quorum::N(1)", connected_peers.len());
+                Quorum::N(std::num::NonZeroUsize::new(1).unwrap())
+            } else if connected_peers.len() <= 5 {
+                tracing::info!("ActorFileStorage: Medium network ({} peers), using Quorum::N(1)", connected_peers.len());
+                Quorum::N(std::num::NonZeroUsize::new(1).unwrap())
+            } else {
+                let quorum_size = std::cmp::max(2, (connected_peers.len() as f64 * 0.25).ceil() as usize);
+                let quorum_size = std::cmp::min(quorum_size, connected_peers.len());
+                tracing::info!("ActorFileStorage: Large network ({} peers), using Quorum::N({}) for chunks", connected_peers.len(), quorum_size);
+                Quorum::N(std::num::NonZeroUsize::new(quorum_size).unwrap())
+            };
+            
+            // Use network actor to store the record with intelligent quorum
+            self.network.put_record(record, quorum).await?;
 
             // Update progress
             let progress_value = ((i + 1) as f64 / total_shards as f64 * file_size as f64) as u64;
@@ -145,7 +165,25 @@ impl ActorFileStorage {
             expires: None,
         };
 
-        self.network.put_record(record, Quorum::N(std::num::NonZeroUsize::new(1).unwrap())).await?;
+        // Use the same fixed intelligent quorum for metadata storage
+        let connected_peers = self.network.get_connected_peers().await?;
+        let quorum = if connected_peers.is_empty() {
+            tracing::info!("ActorFileStorage: No peers connected for metadata, using Quorum::N(1) as fallback");
+            Quorum::N(std::num::NonZeroUsize::new(1).unwrap())
+        } else if connected_peers.len() <= 2 {
+            tracing::info!("ActorFileStorage: Small network ({} peers), using Quorum::N(1) for metadata", connected_peers.len());
+            Quorum::N(std::num::NonZeroUsize::new(1).unwrap())
+        } else if connected_peers.len() <= 5 {
+            tracing::info!("ActorFileStorage: Medium network ({} peers), using Quorum::N(1) for metadata", connected_peers.len());
+            Quorum::N(std::num::NonZeroUsize::new(1).unwrap())
+        } else {
+            let quorum_size = std::cmp::max(2, (connected_peers.len() as f64 * 0.25).ceil() as usize);
+            let quorum_size = std::cmp::min(quorum_size, connected_peers.len());
+            tracing::info!("ActorFileStorage: Large network ({} peers), using Quorum::N({}) for metadata", connected_peers.len(), quorum_size);
+            Quorum::N(std::num::NonZeroUsize::new(quorum_size).unwrap())
+        };
+        
+        self.network.put_record(record, quorum).await?;
 
         // Generate or use provided name
         let original_filename = path
@@ -422,20 +460,23 @@ pub async fn store_file_with_network(
     let connected_peers = network.get_connected_peers().await?;
     tracing::info!("Retrieved {} connected peers for quorum calculation", connected_peers.len());
     
-    // Initialize quorum manager with default config
-    let quorum_config = QuorumConfig::default();
-    let quorum_manager = QuorumManager::new(quorum_config);
-    
-    // Calculate optimal quorum based on network conditions
-    let quorum = match quorum_manager.calculate_quorum(&connected_peers).await {
-        Ok(q) => {
-            tracing::info!("Quorum calculation successful: {:?}", q);
-            q
-        }
-        Err(e) => {
-            tracing::warn!("Quorum calculation failed: {}, using fallback Quorum::One", e);
-            Quorum::One
-        }
+    // Fixed intelligent quorum logic - use Quorum::N(1) instead of Quorum::One
+    // Quorum::One means "wait for 1 response from K_VALUE (20) closest peers"
+    // Quorum::N(1) means "wait for exactly 1 successful response from any contacted peer"
+    let quorum = if connected_peers.is_empty() {
+        tracing::info!("No peers connected, using Quorum::N(1) as fallback");
+        Quorum::N(std::num::NonZeroUsize::new(1).unwrap())
+    } else if connected_peers.len() <= 2 {
+        tracing::info!("Small network ({} peers), using Quorum::N(1)", connected_peers.len());
+        Quorum::N(std::num::NonZeroUsize::new(1).unwrap())
+    } else if connected_peers.len() <= 5 {
+        tracing::info!("Medium network ({} peers), using Quorum::N(1)", connected_peers.len());
+        Quorum::N(std::num::NonZeroUsize::new(1).unwrap())
+    } else {
+        let quorum_size = std::cmp::max(2, (connected_peers.len() as f64 * 0.25).ceil() as usize);
+        let quorum_size = std::cmp::min(quorum_size, connected_peers.len());
+        tracing::info!("Large network ({} peers), using Quorum::N({})", connected_peers.len(), quorum_size);
+        Quorum::N(std::num::NonZeroUsize::new(quorum_size).unwrap())
     };
     
     // Store chunks in the DHT using the actor-based network

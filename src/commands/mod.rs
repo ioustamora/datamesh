@@ -181,7 +181,10 @@ pub fn create_command_handler(command: &Commands) -> Box<dyn CommandHandler> {
 
 /// Main command dispatcher
 pub async fn execute_command(cli: Cli, key_manager: Arc<KeyManager>) -> Result<(), Box<dyn Error>> {
+    tracing::error!("🔥 execute_command called with: {:?}", cli.command);
     let context = CommandContext::new(cli.clone(), key_manager);
+    tracing::error!("🔥 context created, calling create_command_handler");
     let handler = create_command_handler(&cli.command);
+    tracing::error!("🔥 handler created, calling execute_with_monitoring");
     handler.execute_with_monitoring(&context).await
 }

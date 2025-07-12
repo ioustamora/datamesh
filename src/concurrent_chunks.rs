@@ -614,10 +614,32 @@ impl ConcurrentChunkManager {
             expires: None,
         };
 
-        // Upload to DHT
+        // Upload to DHT with intelligent quorum
         {
             let mut swarm = swarm.write().await;
-            swarm.behaviour_mut().kad.put_record(record, Quorum::One)?;
+            
+            // Get connected peers for intelligent quorum calculation
+            let connected_peers: Vec<_> = swarm.connected_peers().cloned().collect();
+            tracing::info!("ConcurrentChunks: {} connected peers for quorum calculation", connected_peers.len());
+            
+            // Calculate intelligent quorum based on network size
+            let quorum = if connected_peers.is_empty() {
+                tracing::info!("ConcurrentChunks: No peers connected, using Quorum::All");
+                Quorum::All
+            } else if connected_peers.len() <= 2 {
+                tracing::info!("ConcurrentChunks: Small network ({} peers), using Quorum::One", connected_peers.len());
+                Quorum::One
+            } else if connected_peers.len() <= 5 {
+                tracing::info!("ConcurrentChunks: Medium network ({} peers), using Quorum::N(1)", connected_peers.len());
+                Quorum::N(std::num::NonZeroUsize::new(1).unwrap())
+            } else {
+                let quorum_size = std::cmp::max(2, (connected_peers.len() as f64 * 0.25).ceil() as usize);
+                let quorum_size = std::cmp::min(quorum_size, connected_peers.len());
+                tracing::info!("ConcurrentChunks: Large network ({} peers), using Quorum::N({})", connected_peers.len(), quorum_size);
+                Quorum::N(std::num::NonZeroUsize::new(quorum_size).unwrap())
+            };
+            
+            swarm.behaviour_mut().kad.put_record(record, quorum)?;
         }
 
         // Wait for confirmation with timeout
