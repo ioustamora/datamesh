@@ -22,6 +22,7 @@ pub struct PutCommand {
 #[async_trait::async_trait]
 impl CommandHandler for PutCommand {
     async fn execute(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
+        tracing::error!("🔥 PutCommand::execute called for: {}", self.path.display());
         // Create thread-safe context to avoid Swarm Send/Sync issues
         // Use the actual configuration instead of default to preserve bootstrap peers
         let config = match crate::config::Config::load_or_default(None) {

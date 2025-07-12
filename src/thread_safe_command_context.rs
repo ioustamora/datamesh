@@ -66,6 +66,7 @@ impl ThreadSafeCommandContext {
         name: &Option<String>,
         tags: &Option<Vec<String>>,
     ) -> DfsResult<String> {
+        tracing::info!("🔥 thread_safe_command_context.store_file called for: {}", file_path.display());
         // Use the actor-based file storage system
         crate::actor_file_storage::store_file_with_network(
             &self.cli,

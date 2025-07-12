@@ -49,6 +49,7 @@ impl ActorFileStorage {
         name: &Option<String>,
         tags: &Option<String>,
     ) -> DfsResult<String> {
+        tracing::error!("🔥 ActorFileStorage::put_file called for: {}", path.display());
         let _timer = performance::start_operation("actor_file_put");
 
         ui::print_info("Reading file...");
@@ -369,9 +370,19 @@ pub async fn store_file_with_network(
 ) -> DfsResult<String> {
     // Implementation using actor-based network operations
     // This avoids the Swarm Send/Sync issues by using message passing
+    
+    tracing::info!("🔥 store_file_with_network called for file: {}", file_path.display());
 
-    let file_data = std::fs::read(file_path)
-        .map_err(|e| DfsError::Io(format!("Failed to read file: {}", e)))?;
+    let file_data = match std::fs::read(file_path) {
+        Ok(data) => {
+            tracing::info!("🔥 File read successfully, {} bytes", data.len());
+            data
+        }
+        Err(e) => {
+            tracing::error!("🔥 Failed to read file: {}", e);
+            return Err(DfsError::Io(format!("Failed to read file: {}", e)));
+        }
+    };
 
     let original_filename = file_path
         .file_name()
