@@ -231,38 +231,31 @@ pub struct NetworkProposal {
     pub proposal_id: Uuid,
     pub title: String,
     pub description: String,
-    pub proposer: UserId,
     pub proposal_type: ProposalType,
-    pub voting_period: Duration,
-    pub required_quorum: f64,
+    pub author: UserId,
     pub status: ProposalStatus,
     pub votes_for: u64,
     pub votes_against: u64,
-    pub implementation_timeline: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
+    pub voting_ends_at: DateTime<Utc>,
+    pub execution_status: String,
 }
 
-/// Types of governance proposals
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ProposalType {
     NetworkUpgrade,
     FeeAdjustment,
     QuotaModification,
-    GovernanceChange,
-    BootstrapNodeAddition,
-    SecurityPolicy,
-    AbuseResponse,
+    OperatorRegistration,
+    Emergency,
 }
 
-/// Status of a governance proposal
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ProposalStatus {
-    Draft,
-    Voting,
+    Active,
     Passed,
-    Rejected,
-    Implemented,
-    Expired,
+    Failed,
+    Executed,
 }
 
 /// Vote on a governance proposal
@@ -270,9 +263,9 @@ pub enum ProposalStatus {
 pub struct Vote {
     pub vote_id: Uuid,
     pub proposal_id: Uuid,
-    pub voter: UserId,
-    pub vote_type: VoteType,
-    pub stake_weight: u64,
+    pub voter_id: UserId,
+    pub vote: VoteType,
+    pub reason: Option<String>,
     pub timestamp: DateTime<Utc>,
 }
 
@@ -422,6 +415,71 @@ impl UserRegistry {
             crate::error::DfsError::Authentication(format!("Failed to acquire user registry read lock: {}", e))
         })?;
         Ok(users.values().cloned().collect())
+    }
+
+    /// Update user profile
+    pub fn update_user_profile(
+        &self,
+        user_id: &UserId,
+        email: Option<String>,
+        display_name: Option<String>,
+    ) -> DfsResult<UserAccount> {
+        let mut users = self.users.write().map_err(|e| {
+            DfsError::Storage(format!("Failed to acquire users write lock: {}", e))
+        })?;
+
+        let user = users.get_mut(user_id).ok_or_else(|| {
+            DfsError::Authentication("User not found".to_string())
+        })?;
+
+        if let Some(email) = email {
+            user.email = email;
+        }
+
+        // For now, display_name is not part of UserAccount
+        // In a full implementation, you would extend UserAccount with display_name
+        let _ = display_name;
+
+        Ok(user.clone())
+    }
+
+    /// Verify user password
+    pub fn verify_password(&self, user_id: &UserId, password: &str) -> DfsResult<bool> {
+        let users = self.users.read().map_err(|e| {
+            DfsError::Storage(format!("Failed to acquire users read lock: {}", e))
+        })?;
+
+        let user = users.get(user_id).ok_or_else(|| {
+            DfsError::Authentication("User not found".to_string())
+        })?;
+
+        let parsed_hash = PasswordHash::new(&user.password_hash).map_err(|e| {
+            DfsError::Authentication(format!("Failed to parse password hash: {}", e))
+        })?;
+
+        Ok(Argon2::default().verify_password(password.as_bytes(), &parsed_hash).is_ok())
+    }
+
+    /// Update user password
+    pub fn update_password(&self, user_id: &UserId, new_password: &str) -> DfsResult<()> {
+        let mut users = self.users.write().map_err(|e| {
+            DfsError::Storage(format!("Failed to acquire users write lock: {}", e))
+        })?;
+
+        let user = users.get_mut(user_id).ok_or_else(|| {
+            DfsError::Authentication("User not found".to_string())
+        })?;
+
+        // Hash new password
+        let salt = SaltString::generate(&mut OsRng);
+        let password_hash = Argon2::default()
+            .hash_password(new_password.as_bytes(), &salt)
+            .map_err(|e| DfsError::Authentication(format!("Password hashing failed: {}", e)))?
+            .to_string();
+
+        user.password_hash = password_hash;
+
+        Ok(())
     }
 }
 

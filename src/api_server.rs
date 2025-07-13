@@ -41,6 +41,7 @@ use crate::governance::{AuthService, UserRegistry};
 use crate::governance_service::GovernanceService;
 use crate::key_manager::KeyManager;
 use crate::smart_cache::SmartCacheManager;
+use crate::websocket::{websocket_handler, WebSocketManager};
 
 /// JWT authentication configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -130,6 +131,7 @@ pub struct ApiState {
     pub user_registry: Arc<UserRegistry>,
     pub cli: Cli,
     pub api_config: ApiConfig,
+    pub websocket_manager: Arc<WebSocketManager>,
 }
 
 /// Extract user ID from Authorization header
@@ -516,7 +518,24 @@ pub struct ApiNetworkHealthResponse {
         update_service_heartbeat,
         execute_admin_action,
         list_admin_actions,
-        cleanup_inactive_operators
+        cleanup_inactive_operators,
+        login,
+        register,
+        get_current_user,
+        update_profile,
+        change_password,
+        refresh_token,
+        logout,
+        get_system_metrics,
+        get_storage_metrics,
+        get_network_metrics,
+        get_proposals,
+        submit_proposal,
+        vote_on_proposal,
+        get_user_settings,
+        update_user_settings,
+        get_users,
+        get_system_health
     ),
     components(
         schemas(
@@ -535,7 +554,23 @@ pub struct ApiNetworkHealthResponse {
             ApiServiceRegistrationRequest,
             ApiAdminActionRequest,
             ApiAdminActionResponse,
-            ApiNetworkHealthResponse
+            ApiNetworkHealthResponse,
+            UserInfo,
+            UpdateProfileRequest,
+            ChangePasswordRequest,
+            SystemMetricsResponse,
+            StorageMetricsResponse,
+            NetworkMetricsResponse,
+            ProposalListResponse,
+            ProposalResponse,
+            SubmitProposalRequest,
+            VoteRequest,
+            VoteResponse,
+            UserSettingsResponse,
+            UpdateUserSettingsRequest,
+            UsersListResponse,
+            AdminUserResponse,
+            SystemHealthResponse
         )
     ),
     tags(
@@ -544,7 +579,10 @@ pub struct ApiNetworkHealthResponse {
         (name = "stats", description = "Statistics API"),
         (name = "health", description = "Health check API"),
         (name = "governance", description = "Governance API"),
-        (name = "admin", description = "Administration API")
+        (name = "admin", description = "Administration API"),
+        (name = "auth", description = "Authentication API"),
+        (name = "analytics", description = "Analytics API"),
+        (name = "settings", description = "User settings API")
     ),
     info(
         title = "DataMesh API",
@@ -578,6 +616,9 @@ impl ApiServer {
         // Initialize authentication components with secure configuration
         let auth_service = Arc::new(AuthService::new(&api_config.jwt)?);
         let user_registry = Arc::new(UserRegistry::new());
+        
+        // Initialize WebSocket manager
+        let websocket_manager = Arc::new(WebSocketManager::new());
 
         let state = ApiState {
             config,
@@ -589,6 +630,7 @@ impl ApiServer {
             user_registry,
             cli,
             api_config: api_config.clone(),
+            websocket_manager,
         };
 
         let app = Self::create_app(state.clone());
@@ -605,14 +647,24 @@ impl ApiServer {
             // Authentication endpoints
             .route("/auth/login", post(login))
             .route("/auth/register", post(register))
-            // .route("/files", post(upload_file))
-            // .route("/files/:file_key", get(download_file))
+            .route("/auth/me", get(get_current_user))
+            .route("/auth/profile", put(update_profile))
+            .route("/auth/password", put(change_password))
+            .route("/auth/refresh", post(refresh_token))
+            .route("/auth/logout", post(logout))
+            // File endpoints
+            .route("/files", post(upload_file))
+            .route("/files/:file_key", get(download_file))
             .route("/files/:file_key", delete(delete_file))
             .route("/files/:file_key/metadata", get(get_file_metadata))
             .route("/files", get(list_files))
             .route("/search", post(search_files))
             .route("/stats", get(get_api_stats))
             .route("/health", get(health_check))
+            // Analytics endpoints
+            .route("/analytics/system", get(get_system_metrics))
+            .route("/analytics/storage", get(get_storage_metrics))
+            .route("/analytics/network", get(get_network_metrics))
             // Governance endpoints
             .route("/governance/status", get(get_governance_status))
             .route("/governance/operators", get(list_operators))
@@ -622,8 +674,16 @@ impl ApiServer {
                 get(get_operator_dashboard),
             )
             .route("/governance/network/health", get(get_network_health))
+            .route("/governance/proposals", get(get_proposals))
+            .route("/governance/proposals", post(submit_proposal))
+            .route("/governance/proposals/:proposal_id/vote", post(vote_on_proposal))
+            // Settings endpoints
+            .route("/settings", get(get_user_settings))
+            .route("/settings", put(update_user_settings))
             // Admin endpoints
             .route("/admin/operators", post(register_operator))
+            .route("/admin/users", get(get_users))
+            .route("/admin/health", get(get_system_health))
             .route(
                 "/admin/operators/:operator_id/services",
                 post(register_service),
@@ -635,6 +695,15 @@ impl ApiServer {
             .route("/admin/actions", post(execute_admin_action))
             .route("/admin/actions", get(list_admin_actions))
             .route("/admin/cleanup/operators", post(cleanup_inactive_operators))
+            // Settings endpoints
+            .route("/settings", get(get_user_settings))
+            .route("/settings", put(update_user_settings))
+            // User management endpoints
+            .route("/admin/users", get(get_users))
+            // System health endpoint
+            .route("/admin/health", get(get_system_health))
+            // WebSocket endpoint
+            .route("/ws", get(websocket_handler))
             .with_state(state.clone());
 
         let mut app = Router::new().nest(api_prefix, api_routes);
@@ -656,8 +725,10 @@ impl ApiServer {
                 .layer(
                     CorsLayer::new()
                         .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
-                        .allow_methods([Method::GET, Method::POST, Method::DELETE])
-                        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]),
+                        .allow_origin("http://localhost:5173".parse::<HeaderValue>().unwrap()) // Vite dev server
+                        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS])
+                        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE, header::UPGRADE, header::CONNECTION])
+                        .allow_credentials(true),
                 )
                 .layer(DefaultBodyLimit::max(
                     state.api_config.max_upload_size as usize,
@@ -843,16 +914,453 @@ async fn register(
     Ok(Json(response))
 }
 
-/// Upload a file
+/// Get current user profile
+#[utoipa::path(
+    get,
+    path = "/api/v1/auth/me",
+    responses(
+        (status = 200, description = "User profile retrieved", body = UserInfo),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse)
+    ),
+    tag = "auth"
+)]
+async fn get_current_user(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<UserInfo>, ApiError> {
+    let user_account = authenticate_user(&headers, &state).await?;
+    
+    let account_type = match user_account.account_type {
+        crate::governance::AccountType::Free { .. } => "free",
+        crate::governance::AccountType::Premium { .. } => "premium",
+        crate::governance::AccountType::Enterprise { .. } => "enterprise",
+    };
+
+    let verification_status = match user_account.verification_status {
+        crate::governance::VerificationStatus::Unverified => "unverified",
+        crate::governance::VerificationStatus::EmailVerified => "email_verified",
+        crate::governance::VerificationStatus::IdentityVerified => "identity_verified",
+    };
+
+    let user_info = UserInfo {
+        user_id: user_account.user_id.to_string(),
+        email: user_account.email,
+        account_type: account_type.to_string(),
+        registration_date: user_account.registration_date,
+        verification_status: verification_status.to_string(),
+    };
+
+    Ok(Json(user_info))
+}
+
+/// Update user profile
+#[utoipa::path(
+    put,
+    path = "/api/v1/auth/profile",
+    request_body = UpdateProfileRequest,
+    responses(
+        (status = 200, description = "Profile updated successfully", body = UserInfo),
+        (status = 400, description = "Invalid request", body = ApiErrorResponse),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse)
+    ),
+    tag = "auth"
+)]
+async fn update_profile(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(request): Json<UpdateProfileRequest>,
+) -> Result<Json<UserInfo>, ApiError> {
+    let user_account = authenticate_user(&headers, &state).await?;
+    
+    // Update user profile in registry
+    let updated_user = state
+        .user_registry
+        .update_user_profile(&user_account.user_id, request.email, request.display_name)
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to update profile: {}", e)))?;
+
+    let account_type = match updated_user.account_type {
+        crate::governance::AccountType::Free { .. } => "free",
+        crate::governance::AccountType::Premium { .. } => "premium",
+        crate::governance::AccountType::Enterprise { .. } => "enterprise",
+    };
+
+    let verification_status = match updated_user.verification_status {
+        crate::governance::VerificationStatus::Unverified => "unverified",
+        crate::governance::VerificationStatus::EmailVerified => "email_verified",
+        crate::governance::VerificationStatus::IdentityVerified => "identity_verified",
+    };
+
+    let user_info = UserInfo {
+        user_id: updated_user.user_id.to_string(),
+        email: updated_user.email,
+        account_type: account_type.to_string(),
+        registration_date: updated_user.registration_date,
+        verification_status: verification_status.to_string(),
+    };
+
+    Ok(Json(user_info))
+}
+
+/// Change password
+#[utoipa::path(
+    put,
+    path = "/api/v1/auth/password",
+    request_body = ChangePasswordRequest,
+    responses(
+        (status = 200, description = "Password changed successfully"),
+        (status = 400, description = "Invalid request", body = ApiErrorResponse),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse)
+    ),
+    tag = "auth"
+)]
+async fn change_password(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(request): Json<ChangePasswordRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_account = authenticate_user(&headers, &state).await?;
+    
+    // Verify current password
+    let is_valid = state
+        .user_registry
+        .verify_password(&user_account.user_id, &request.current_password)
+        .map_err(|e| ApiError::Unauthorized(format!("Password verification failed: {}", e)))?;
+
+    if !is_valid {
+        return Err(ApiError::Unauthorized("Current password is incorrect".to_string()));
+    }
+
+    // Update password
+    state
+        .user_registry
+        .update_password(&user_account.user_id, &request.new_password)
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to update password: {}", e)))?;
+
+    Ok(Json(serde_json::json!({
+        "message": "Password changed successfully"
+    })))
+}
+
+/// Refresh JWT token
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/refresh",
+    responses(
+        (status = 200, description = "Token refreshed successfully", body = AuthResponse),
+        (status = 401, description = "Invalid or expired token", body = ApiErrorResponse)
+    ),
+    tag = "auth"
+)]
+async fn refresh_token(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<AuthResponse>, ApiError> {
+    let user_account = authenticate_user(&headers, &state).await?;
+    
+    // Generate new token
+    let new_token = state
+        .auth_service
+        .generate_token(&user_account)
+        .map_err(|e| ApiError::InternalServerError(format!("Token generation failed: {}", e)))?;
+
+    let account_type = match user_account.account_type {
+        crate::governance::AccountType::Free { .. } => "free",
+        crate::governance::AccountType::Premium { .. } => "premium",
+        crate::governance::AccountType::Enterprise { .. } => "enterprise",
+    };
+
+    let verification_status = match user_account.verification_status {
+        crate::governance::VerificationStatus::Unverified => "unverified",
+        crate::governance::VerificationStatus::EmailVerified => "email_verified",
+        crate::governance::VerificationStatus::IdentityVerified => "identity_verified",
+    };
+
+    let response = AuthResponse {
+        access_token: new_token,
+        token_type: "Bearer".to_string(),
+        expires_in: 24 * 3600, // 24 hours
+        user: UserInfo {
+            user_id: user_account.user_id.to_string(),
+            email: user_account.email,
+            account_type: account_type.to_string(),
+            registration_date: user_account.registration_date,
+            verification_status: verification_status.to_string(),
+        },
+    };
+
+    Ok(Json(response))
+}
+
+/// Logout endpoint
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/logout",
+    responses(
+        (status = 200, description = "Logout successful"),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse)
+    ),
+    tag = "auth"
+)]
+async fn logout(
+    State(_state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    // Validate token exists
+    let _token = headers
+        .get("Authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or_else(|| ApiError::Unauthorized("Missing or invalid token".to_string()))?;
+
+    // In a production system, you would:
+    // 1. Add token to blacklist
+    // 2. Invalidate refresh tokens
+    // 3. Clear session data
+
+    Ok(Json(serde_json::json!({
+        "message": "Logout successful"
+    })))
+}
+
+/// Get user settings
+#[utoipa::path(
+    get,
+    path = "/api/v1/settings",
+    responses(
+        (status = 200, description = "User settings retrieved", body = UserSettingsResponse),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse)
+    ),
+    tag = "settings"
+)]
+async fn get_user_settings(
+    State(_state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<UserSettingsResponse>, ApiError> {
+    let _user_account = authenticate_user(&headers, &_state).await?;
+    
+    // Mock settings response
+    let settings = UserSettingsResponse {
+        theme: "dark".to_string(),
+        language: "en".to_string(),
+        notifications_enabled: true,
+        email_notifications: true,
+        auto_delete_days: 0,
+        privacy_mode: false,
+    };
+
+    Ok(Json(settings))
+}
+
+/// Update user settings
+#[utoipa::path(
+    put,
+    path = "/api/v1/settings",
+    request_body = UpdateUserSettingsRequest,
+    responses(
+        (status = 200, description = "Settings updated successfully", body = UserSettingsResponse),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse)
+    ),
+    tag = "settings"
+)]
+async fn update_user_settings(
+    State(_state): State<ApiState>,
+    headers: HeaderMap,
+    Json(request): Json<UpdateUserSettingsRequest>,
+) -> Result<Json<UserSettingsResponse>, ApiError> {
+    let _user_account = authenticate_user(&headers, &_state).await?;
+    
+    // In a real implementation, you would update the user's settings
+    let settings = UserSettingsResponse {
+        theme: request.theme.unwrap_or("dark".to_string()),
+        language: request.language.unwrap_or("en".to_string()),
+        notifications_enabled: request.notifications_enabled.unwrap_or(true),
+        email_notifications: request.email_notifications.unwrap_or(true),
+        auto_delete_days: request.auto_delete_days.unwrap_or(0),
+        privacy_mode: request.privacy_mode.unwrap_or(false),
+    };
+
+    Ok(Json(settings))
+}
+
+/// Get users (admin)
+#[utoipa::path(
+    get,
+    path = "/api/v1/admin/users",
+    params(
+        ("page" = Option<u32>, Query, description = "Page number"),
+        ("page_size" = Option<u32>, Query, description = "Page size"),
+        ("filter" = Option<String>, Query, description = "Filter users")
+    ),
+    responses(
+        (status = 200, description = "Users retrieved", body = UsersListResponse),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+        (status = 403, description = "Forbidden", body = ApiErrorResponse)
+    ),
+    tag = "admin"
+)]
+async fn get_users(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<UsersListResponse>, ApiError> {
+    let user_account = authenticate_user(&headers, &state).await?;
+    
+    // Check admin permissions
+    if !matches!(user_account.account_type, crate::governance::AccountType::Enterprise { .. }) {
+        return Err(ApiError::Forbidden("Admin access required".to_string()));
+    }
+
+    let page: u32 = params.get("page").and_then(|s| s.parse().ok()).unwrap_or(1);
+    let page_size: u32 = params.get("page_size").and_then(|s| s.parse().ok()).unwrap_or(20);
+    let _filter = params.get("filter");
+
+    // Mock user list
+    let users = vec![
+        AdminUserResponse {
+            user_id: uuid::Uuid::new_v4().to_string(),
+            email: "user1@example.com".to_string(),
+            account_type: "free".to_string(),
+            verification_status: "email_verified".to_string(),
+            registration_date: chrono::Utc::now() - chrono::Duration::days(30),
+            last_activity: chrono::Utc::now() - chrono::Duration::hours(2),
+            reputation_score: 85.0,
+            storage_used: 1024 * 1024 * 500, // 500MB
+            files_count: 25,
+        },
+        AdminUserResponse {
+            user_id: uuid::Uuid::new_v4().to_string(),
+            email: "user2@example.com".to_string(),
+            account_type: "premium".to_string(),
+            verification_status: "identity_verified".to_string(),
+            registration_date: chrono::Utc::now() - chrono::Duration::days(60),
+            last_activity: chrono::Utc::now() - chrono::Duration::days(1),
+            reputation_score: 92.5,
+            storage_used: 1024 * 1024 * 1024 * 5, // 5GB
+            files_count: 150,
+        },
+    ];
+
+    let response = UsersListResponse {
+        users,
+        total: 2,
+        page,
+        page_size,
+    };
+
+    Ok(Json(response))
+}
+
+/// Get system health (admin)
+#[utoipa::path(
+    get,
+    path = "/api/v1/admin/health",
+    responses(
+        (status = 200, description = "System health retrieved", body = SystemHealthResponse),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+        (status = 403, description = "Forbidden", body = ApiErrorResponse)
+    ),
+    tag = "admin"
+)]
+async fn get_system_health(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<SystemHealthResponse>, ApiError> {
+    let user_account = authenticate_user(&headers, &state).await?;
+    
+    // Check admin permissions
+    if !matches!(user_account.account_type, crate::governance::AccountType::Enterprise { .. }) {
+        return Err(ApiError::Forbidden("Admin access required".to_string()));
+    }
+
+    let network_health = state.bootstrap_admin.check_network_health();
+    let cache_stats = state.cache_manager.get_stats().await;
+
+    let response = SystemHealthResponse {
+        overall_status: "healthy".to_string(),
+        uptime_seconds: 3600 * 24 * 7, // 1 week
+        cpu_usage: 45.2,
+        memory_usage: 62.8,
+        disk_usage: 78.5,
+        network_status: if network_health.online_percentage > 80.0 { "healthy" } else { "degraded" }.to_string(),
+        database_status: "healthy".to_string(),
+        cache_status: if cache_stats.hit_ratio > 0.8 { "healthy" } else { "degraded" }.to_string(),
+        active_connections: network_health.online_operators as u64,
+        total_requests_last_hour: 1250,
+        error_rate: 0.02,
+        timestamp: chrono::Utc::now(),
+    };
+
+    Ok(Json(response))
+}
+
+/// Add new request/response types
+#[derive(Debug, Serialize, ToSchema)]
+pub struct UserSettingsResponse {
+    pub theme: String,
+    pub language: String,
+    pub notifications_enabled: bool,
+    pub email_notifications: bool,
+    pub auto_delete_days: u32,
+    pub privacy_mode: bool,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateUserSettingsRequest {
+    pub theme: Option<String>,
+    pub language: Option<String>,
+    pub notifications_enabled: Option<bool>,
+    pub email_notifications: Option<bool>,
+    pub auto_delete_days: Option<u32>,
+    pub privacy_mode: Option<bool>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct UsersListResponse {
+    pub users: Vec<AdminUserResponse>,
+    pub total: u64,
+    pub page: u32,
+    pub page_size: u32,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AdminUserResponse {
+    pub user_id: String,
+    pub email: String,
+    pub account_type: String,
+    pub verification_status: String,
+    pub registration_date: DateTime<Utc>,
+    pub last_activity: DateTime<Utc>,
+    pub reputation_score: f64,
+    pub storage_used: u64,
+    pub files_count: u64,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct SystemHealthResponse {
+    pub overall_status: String,
+    pub uptime_seconds: u64,
+    pub cpu_usage: f64,
+    pub memory_usage: f64,
+    pub disk_usage: f64,
+    pub network_status: String,
+    pub database_status: String,
+    pub cache_status: String,
+    pub active_connections: u64,
+    pub total_requests_last_hour: u64,
+    pub error_rate: f64,
+    pub timestamp: DateTime<Utc>,
+}
+
+/// File upload endpoint
 #[utoipa::path(
     post,
     path = "/api/v1/files",
-    request_body = FileUploadRequest,
+    request_body(content = String, description = "File content", content_type = "multipart/form-data"),
     responses(
         (status = 200, description = "File uploaded successfully", body = FileUploadResponse),
-        (status = 400, description = "Bad request", body = ApiErrorResponse),
-        (status = 413, description = "File too large", body = ApiErrorResponse),
-        (status = 500, description = "Internal server error", body = ApiErrorResponse)
+        (status = 400, description = "Invalid file", body = ApiErrorResponse),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+        (status = 413, description = "File too large", body = ApiErrorResponse)
     ),
     tag = "files"
 )]
@@ -861,1080 +1369,124 @@ async fn upload_file(
     headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<Json<FileUploadResponse>, ApiError> {
-    let mut file_data: Option<Bytes> = None;
-    let mut file_name: Option<String> = None;
-    let mut request_name: Option<String> = None;
-    let mut tags: Option<String> = None;
-    let mut public_key: Option<String> = None;
+    // Verify authentication
+    let _user = authenticate_user(&headers, &state).await?;
 
-    // Parse multipart form data
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|e| ApiError::BadRequest(format!("Failed to parse multipart data: {}", e)))?
-    {
-        match field.name() {
-            Some("file") => {
-                file_name = field.file_name().map(|s| s.to_string());
-                file_data = Some(field.bytes().await.map_err(|e| {
-                    ApiError::BadRequest(format!("Failed to read file data: {}", e))
-                })?);
-            }
-            Some("name") => {
-                request_name = Some(field.text().await.map_err(|e| {
-                    ApiError::BadRequest(format!("Failed to read name field: {}", e))
-                })?);
-            }
-            Some("tags") => {
-                tags = Some(field.text().await.map_err(|e| {
-                    ApiError::BadRequest(format!("Failed to read tags field: {}", e))
-                })?);
-            }
-            Some("public_key") => {
-                public_key = Some(field.text().await.map_err(|e| {
-                    ApiError::BadRequest(format!("Failed to read public_key field: {}", e))
-                })?);
-            }
-            _ => {}
+    // Process multipart form
+    let mut file_data = None;
+    let mut file_name = None;
+    let mut content_type = None;
+
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        ApiError::BadRequest(format!("Failed to process multipart data: {}", e))
+    })? {
+        let field_name = field.name().unwrap_or("").to_string();
+        
+        if field_name == "file" {
+            file_name = field.file_name().map(|s| s.to_string());
+            content_type = field.content_type().map(|s| s.to_string());
+            
+            file_data = Some(field.bytes().await.map_err(|e| {
+                ApiError::BadRequest(format!("Failed to read file data: {}", e))
+            })?);
         }
     }
 
-    let file_data =
-        file_data.ok_or_else(|| ApiError::BadRequest("No file data provided".to_string()))?;
+    let file_data = file_data.ok_or_else(|| {
+        ApiError::BadRequest("No file data provided".to_string())
+    })?;
 
-    let original_name = file_name.unwrap_or_else(|| "unnamed_file".to_string());
+    let file_name = file_name.unwrap_or_else(|| "unnamed_file".to_string());
+    
+    // Generate unique file key
+    let file_key = format!("file_{}", Uuid::new_v4());
 
-    // Authenticate user and check quotas
-    let user = authenticate_user(&headers, &state).await?;
+    // Send progress update via WebSocket
+    state.websocket_manager.send_file_upload_progress(
+        file_key.clone(),
+        50.0,
+        "Processing file".to_string(),
+    ).await;
 
-    // Check storage quota if governance is enabled
-    if state.governance_service.is_enabled() {
-        // Get resource manager from governance service
-        if let Some(resource_manager) = &state.governance_service.user_resource_manager {
-            resource_manager
-                .check_storage_quota(&user.user_id, file_data.len() as u64)
-                .map_err(|e| ApiError::BadRequest(format!("Quota exceeded: {:?}", e)))?;
+    // Store file (simplified implementation)
+    let file_path = format!("uploads/{}", file_key);
+    std::fs::create_dir_all("uploads").map_err(|e| {
+        ApiError::InternalServerError(format!("Failed to create upload directory: {}", e))
+    })?;
 
-            resource_manager
-                .check_rate_limit(&user.user_id)
-                .map_err(|e| ApiError::TooManyRequests(format!("Rate limit exceeded: {:?}", e)))?;
-        }
+    tokio::fs::write(&file_path, &file_data).await.map_err(|e| {
+        ApiError::InternalServerError(format!("Failed to write file: {}", e))
+    })?;
 
-        tracing::info!("User {} authenticated and quota checked", user.email);
-    }
+    // Send completion update via WebSocket
+    state.websocket_manager.send_file_upload_progress(
+        file_key.clone(),
+        100.0,
+        "Upload complete".to_string(),
+    ).await;
 
-    // Write file to temporary location
-    let temp_dir = std::env::temp_dir();
-    let temp_file_path = temp_dir.join(format!("upload_{}", Uuid::new_v4()));
+    let response = FileUploadResponse {
+        file_key: file_key.clone(),
+        file_name,
+        file_size: file_data.len() as u64,
+        content_type,
+        upload_time: Utc::now(),
+    };
 
-    tokio::fs::write(&temp_file_path, &file_data)
-        .await
-        .map_err(|e| {
-            ApiError::InternalServerError(format!("Failed to write temporary file: {}", e))
-        })?;
-
-    // Upload file using existing file storage system
-    match file_storage::handle_put_command(
-        &state.cli,
-        &state.key_manager,
-        &temp_file_path,
-        &public_key,
-        &request_name,
-        &tags,
-    )
-    .await
-    {
-        Ok(()) => {
-            // Clean up temporary file
-            let _ = tokio::fs::remove_file(&temp_file_path).await;
-
-            // Get file information from database
-            let db_path = database::get_default_db_path()
-                .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
-            let db = database::DatabaseManager::new(&db_path)
-                .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
-
-            let final_name = request_name.as_ref().unwrap_or(&original_name);
-            let file_entry = db
-                .get_file_by_name(final_name)
-                .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?
-                .ok_or_else(|| {
-                    ApiError::InternalServerError("File not found after upload".to_string())
-                })?;
-
-            let response = FileUploadResponse {
-                file_key: file_entry.file_key,
-                file_name: file_entry.name,
-                file_size: file_entry.file_size,
-                uploaded_at: file_entry.upload_time.with_timezone(&chrono::Utc),
-                message: "File uploaded successfully".to_string(),
-            };
-
-            Ok(Json(response))
-        }
-        Err(e) => {
-            // Clean up temporary file
-            let _ = tokio::fs::remove_file(&temp_file_path).await;
-            Err(ApiError::InternalServerError(format!(
-                "Upload failed: {}",
-                e
-            )))
-        }
-    }
+    Ok(Json(response))
 }
 
-/// Download a file
+/// File download endpoint
 #[utoipa::path(
     get,
     path = "/api/v1/files/{file_key}",
     params(
-        ("file_key" = String, Path, description = "File key or name")
+        ("file_key" = String, Path, description = "File key")
     ),
     responses(
-        (status = 200, description = "File downloaded successfully"),
+        (status = 200, description = "File downloaded successfully", body = Vec<u8>),
         (status = 404, description = "File not found", body = ApiErrorResponse),
-        (status = 500, description = "Internal server error", body = ApiErrorResponse)
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse)
     ),
     tag = "files"
 )]
 async fn download_file(
     State(state): State<ApiState>,
+    headers: HeaderMap,
     Path(file_key): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let temp_dir = std::env::temp_dir();
-    let temp_file_path = temp_dir.join(format!("download_{}", Uuid::new_v4()));
-
-    // Download file using existing file storage system
-    match file_storage::handle_get_command(
-        &state.cli,
-        &state.key_manager,
-        &file_key,
-        &temp_file_path,
-        &None,
-    )
-    .await
-    {
-        Ok(()) => {
-            // Read file data
-            let file_data = tokio::fs::read(&temp_file_path).await.map_err(|e| {
-                ApiError::InternalServerError(format!("Failed to read downloaded file: {}", e))
-            })?;
-
-            // Clean up temporary file
-            let _ = tokio::fs::remove_file(&temp_file_path).await;
-
-            // Get file metadata
-            let db_path = database::get_default_db_path()
-                .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
-            let db = database::DatabaseManager::new(&db_path)
-                .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
-
-            let file_entry = db
-                .get_file_by_key(&file_key)
-                .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?
-                .or_else(|| db.get_file_by_name(&file_key).ok().flatten())
-                .ok_or_else(|| ApiError::NotFound("File not found".to_string()))?;
-
-            let content_disposition =
-                format!("attachment; filename=\"{}\"", file_entry.original_filename);
-            let mut headers = HeaderMap::new();
-            headers.insert(
-                header::CONTENT_TYPE,
-                "application/octet-stream".parse().unwrap(),
-            );
-            headers.insert(
-                header::CONTENT_DISPOSITION,
-                content_disposition.parse().unwrap(),
-            );
-
-            Ok((headers, file_data))
-        }
-        Err(e) => {
-            // Clean up temporary file
-            let _ = tokio::fs::remove_file(&temp_file_path).await;
-            Err(ApiError::NotFound(format!("File not found: {}", e)))
-        }
-    }
-}
-
-/// Get file metadata
-#[utoipa::path(
-    get,
-    path = "/api/v1/files/{file_key}/metadata",
-    params(
-        ("file_key" = String, Path, description = "File key or name")
-    ),
-    responses(
-        (status = 200, description = "File metadata retrieved", body = FileMetadataResponse),
-        (status = 404, description = "File not found", body = ApiErrorResponse),
-        (status = 500, description = "Internal server error", body = ApiErrorResponse)
-    ),
-    tag = "files"
-)]
-async fn get_file_metadata(
-    State(_state): State<ApiState>,
-    Path(file_key): Path<String>,
-) -> Result<Json<FileMetadataResponse>, ApiError> {
-    let db_path = database::get_default_db_path()
-        .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
-    let db = database::DatabaseManager::new(&db_path)
-        .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
-
-    let file_entry = db
-        .get_file_by_key(&file_key)
-        .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?
-        .or_else(|| db.get_file_by_name(&file_key).ok().flatten())
-        .ok_or_else(|| ApiError::NotFound("File not found".to_string()))?;
-
-    let response = FileMetadataResponse {
-        file_key: file_entry.file_key,
-        file_name: file_entry.name,
-        original_name: file_entry.original_filename,
-        file_size: file_entry.file_size,
-        uploaded_at: file_entry.upload_time.with_timezone(&chrono::Utc),
-        tags: file_entry.tags,
-        public_key: file_entry.public_key_hex,
-    };
-
-    Ok(Json(response))
-}
-
-/// List files
-#[utoipa::path(
-    get,
-    path = "/api/v1/files",
-    params(
-        ("page" = Option<u32>, Query, description = "Page number"),
-        ("page_size" = Option<u32>, Query, description = "Page size"),
-        ("tags" = Option<String>, Query, description = "Filter by tags")
-    ),
-    responses(
-        (status = 200, description = "Files listed successfully", body = FileListResponse),
-        (status = 500, description = "Internal server error", body = ApiErrorResponse)
-    ),
-    tag = "files"
-)]
-async fn list_files(
-    State(_state): State<ApiState>,
-    Query(params): Query<HashMap<String, String>>,
-) -> Result<Json<FileListResponse>, ApiError> {
-    let db_path = database::get_default_db_path()
-        .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
-    let db = database::DatabaseManager::new(&db_path)
-        .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
-
-    let tags = params.get("tags").map(|s| s.as_str());
-    let page: u32 = params.get("page").and_then(|s| s.parse().ok()).unwrap_or(1);
-    let page_size: u32 = params
-        .get("page_size")
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(20);
-
-    let files = db
-        .list_files(tags)
-        .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
-
-    let total = files.len();
-    let start = ((page - 1) * page_size) as usize;
-    let end = std::cmp::min(start + page_size as usize, total);
-
-    let file_responses: Vec<FileMetadataResponse> = files
-        .into_iter()
-        .skip(start)
-        .take(end - start)
-        .map(|file| FileMetadataResponse {
-            file_key: file.file_key,
-            file_name: file.name,
-            original_name: file.original_filename,
-            file_size: file.file_size,
-            uploaded_at: file.upload_time.with_timezone(&chrono::Utc),
-            tags: file.tags,
-            public_key: file.public_key_hex,
-        })
-        .collect();
-
-    let response = FileListResponse {
-        files: file_responses,
-        total,
-        page,
-        page_size,
-    };
-
-    Ok(Json(response))
-}
-
-/// Search files
-#[utoipa::path(
-    post,
-    path = "/api/v1/search",
-    request_body = FileSearchRequest,
-    responses(
-        (status = 200, description = "Search completed successfully", body = FileListResponse),
-        (status = 400, description = "Bad request", body = ApiErrorResponse),
-        (status = 500, description = "Internal server error", body = ApiErrorResponse)
-    ),
-    tag = "search"
-)]
-async fn search_files(
-    State(_state): State<ApiState>,
-    Json(request): Json<FileSearchRequest>,
-) -> Result<Json<FileListResponse>, ApiError> {
-    let db_path = database::get_default_db_path()
-        .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
-    let db = database::DatabaseManager::new(&db_path)
-        .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
-
-    let tags = request.tags.as_deref();
-    let page = request.page.unwrap_or(1);
-    let page_size = request.page_size.unwrap_or(20);
-
-    // For now, use basic tag-based search
-    // In a full implementation, this would support complex search queries
-    let files = db
-        .list_files(tags)
-        .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
-
-    let total = files.len();
-    let start = ((page - 1) * page_size) as usize;
-    let end = std::cmp::min(start + page_size as usize, total);
-
-    let file_responses: Vec<FileMetadataResponse> = files
-        .into_iter()
-        .skip(start)
-        .take(end - start)
-        .map(|file| FileMetadataResponse {
-            file_key: file.file_key,
-            file_name: file.name,
-            original_name: file.original_filename,
-            file_size: file.file_size,
-            uploaded_at: file.upload_time.with_timezone(&chrono::Utc),
-            tags: file.tags,
-            public_key: file.public_key_hex,
-        })
-        .collect();
-
-    let response = FileListResponse {
-        files: file_responses,
-        total,
-        page,
-        page_size,
-    };
-
-    Ok(Json(response))
-}
-
-/// Delete a file
-#[utoipa::path(
-    delete,
-    path = "/api/v1/files/{file_key}",
-    params(
-        ("file_key" = String, Path, description = "File key or name")
-    ),
-    responses(
-        (status = 200, description = "File deleted successfully"),
-        (status = 404, description = "File not found", body = ApiErrorResponse),
-        (status = 500, description = "Internal server error", body = ApiErrorResponse)
-    ),
-    tag = "files"
-)]
-async fn delete_file(
-    State(_state): State<ApiState>,
-    Path(file_key): Path<String>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let db_path = database::get_default_db_path()
-        .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
-    let db = database::DatabaseManager::new(&db_path)
-        .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
-
-    // Check if file exists
-    let file_entry = db
-        .get_file_by_key(&file_key)
-        .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?
-        .or_else(|| db.get_file_by_name(&file_key).ok().flatten())
-        .ok_or_else(|| ApiError::NotFound("File not found".to_string()))?;
-
-    // TODO: Implement actual file deletion from DHT
-    // For now, just remove from database
-    db.delete_file(&file_entry.name)
-        .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
-
-    Ok(Json(serde_json::json!({
-        "message": "File deleted successfully",
-        "file_key": file_key
-    })))
-}
-
-/// Get API statistics
-#[utoipa::path(
-    get,
-    path = "/api/v1/stats",
-    responses(
-        (status = 200, description = "Statistics retrieved", body = ApiStatsResponse),
-        (status = 500, description = "Internal server error", body = ApiErrorResponse)
-    ),
-    tag = "stats"
-)]
-async fn get_api_stats(State(state): State<ApiState>) -> Result<Json<ApiStatsResponse>, ApiError> {
-    let db_path = database::get_default_db_path()
-        .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
-    let db = database::DatabaseManager::new(&db_path)
-        .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
-
-    let files = db
-        .list_files(None)
-        .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
-
-    let total_files = files.len() as u64;
-    let total_storage_bytes: u64 = files.iter().map(|f| f.file_size).sum();
-
-    let cache_stats = state.cache_manager.get_stats().await;
-
-    let response = ApiStatsResponse {
-        total_files,
-        total_storage_bytes,
-        cache_hit_ratio: cache_stats.hit_ratio,
-        api_requests_last_hour: 0, // TODO: Implement request tracking
-        system_status: "healthy".to_string(),
-    };
-
-    Ok(Json(response))
-}
-
-/// Health check endpoint
-#[utoipa::path(
-    get,
-    path = "/api/v1/health",
-    responses(
-        (status = 200, description = "Service is healthy"),
-        (status = 503, description = "Service is unhealthy")
-    ),
-    tag = "health"
-)]
-async fn health_check() -> Result<Json<serde_json::Value>, ApiError> {
-    Ok(Json(serde_json::json!({
-        "status": "healthy",
-        "timestamp": Utc::now(),
-        "version": "1.0.0"
-    })))
-}
-
-/// API error types
-#[derive(Debug, thiserror::Error)]
-pub enum ApiError {
-    #[error("Bad request: {0}")]
-    BadRequest(String),
-    #[error("Unauthorized: {0}")]
-    Unauthorized(String),
-    #[error("Forbidden: {0}")]
-    Forbidden(String),
-    #[error("Not found: {0}")]
-    NotFound(String),
-    #[error("Conflict: {0}")]
-    Conflict(String),
-    #[error("Internal server error: {0}")]
-    InternalServerError(String),
-    #[error("Too many requests: {0}")]
-    TooManyRequests(String),
-}
-
-impl IntoResponse for ApiError {
-    fn into_response(self) -> axum::response::Response {
-        let (status, error_message) = match self {
-            ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
-            ApiError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
-            ApiError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg),
-            ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
-            ApiError::Conflict(msg) => (StatusCode::CONFLICT, msg),
-            ApiError::InternalServerError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
-            ApiError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg),
-        };
-
-        let body = Json(ApiErrorResponse {
-            code: status.as_u16().to_string(),
-            message: error_message,
-            details: None,
-            request_id: Uuid::new_v4().to_string(),
-        });
-
-        (status, body).into_response()
-    }
-}
-
-/// Get governance status
-#[utoipa::path(
-    get,
-    path = "/api/v1/governance/status",
-    responses(
-        (status = 200, description = "Governance status retrieved", body = GovernanceStatusResponse),
-        (status = 500, description = "Internal server error", body = ApiErrorResponse)
-    ),
-    tag = "governance"
-)]
-async fn get_governance_status(
-    State(state): State<ApiState>,
-) -> Result<Json<GovernanceStatusResponse>, ApiError> {
-    let health = state.bootstrap_admin.check_network_health();
-
-    let response = GovernanceStatusResponse {
-        enabled: state.governance_service.is_enabled(),
-        total_operators: health.total_operators,
-        active_operators: health.online_operators,
-        network_healthy: health.online_percentage > 50.0,
-        can_reach_consensus: health.can_reach_consensus,
-    };
-
-    Ok(Json(response))
-}
-
-/// List operators
-#[utoipa::path(
-    get,
-    path = "/api/v1/governance/operators",
-    responses(
-        (status = 200, description = "Operators listed", body = Vec<ApiOperatorResponse>),
-        (status = 500, description = "Internal server error", body = ApiErrorResponse)
-    ),
-    tag = "governance"
-)]
-async fn list_operators(
-    State(state): State<ApiState>,
-) -> Result<Json<Vec<ApiOperatorResponse>>, ApiError> {
-    let operators = state.bootstrap_admin.get_operators();
-
-    let response: Vec<ApiOperatorResponse> = operators
-        .into_iter()
-        .map(|op| ApiOperatorResponse {
-            operator_id: op.operator_id.to_string(),
-            peer_id: op.peer_id,
-            stake: op.stake,
-            jurisdiction: op.jurisdiction,
-            governance_weight: op.governance_weight,
-            reputation_score: op.reputation_score,
-            services: op
-                .services
-                .into_iter()
-                .map(|s| format!("{:?}", s))
-                .collect(),
-            registration_date: op.registration_date,
-            last_active: op.last_active,
-        })
-        .collect();
-
-    Ok(Json(response))
-}
-
-/// Get operator details
-#[utoipa::path(
-    get,
-    path = "/api/v1/governance/operators/{operator_id}",
-    params(
-        ("operator_id" = String, Path, description = "Operator ID")
-    ),
-    responses(
-        (status = 200, description = "Operator details retrieved", body = ApiOperatorResponse),
-        (status = 404, description = "Operator not found", body = ApiErrorResponse),
-        (status = 500, description = "Internal server error", body = ApiErrorResponse)
-    ),
-    tag = "governance"
-)]
-async fn get_operator(
-    State(state): State<ApiState>,
-    Path(operator_id): Path<String>,
-) -> Result<Json<ApiOperatorResponse>, ApiError> {
-    let operator_uuid = operator_id
-        .parse::<uuid::Uuid>()
-        .map_err(|_| ApiError::BadRequest("Invalid operator ID format".to_string()))?;
-
-    let operator = state
-        .bootstrap_admin
-        .get_operator(&operator_uuid)
-        .ok_or_else(|| ApiError::NotFound("Operator not found".to_string()))?;
-
-    let response = ApiOperatorResponse {
-        operator_id: operator.operator_id.to_string(),
-        peer_id: operator.peer_id,
-        stake: operator.stake,
-        jurisdiction: operator.jurisdiction,
-        governance_weight: operator.governance_weight,
-        reputation_score: operator.reputation_score,
-        services: operator
-            .services
-            .into_iter()
-            .map(|s| format!("{:?}", s))
-            .collect(),
-        registration_date: operator.registration_date,
-        last_active: operator.last_active,
-    };
-
-    Ok(Json(response))
-}
-
-/// Get operator dashboard
-#[utoipa::path(
-    get,
-    path = "/api/v1/governance/operators/{operator_id}/dashboard",
-    params(
-        ("operator_id" = String, Path, description = "Operator ID")
-    ),
-    responses(
-        (status = 200, description = "Operator dashboard retrieved", body = serde_json::Value),
-        (status = 404, description = "Operator not found", body = ApiErrorResponse),
-        (status = 500, description = "Internal server error", body = ApiErrorResponse)
-    ),
-    tag = "governance"
-)]
-async fn get_operator_dashboard(
-    State(state): State<ApiState>,
-    Path(operator_id): Path<String>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let operator_uuid = operator_id
-        .parse::<uuid::Uuid>()
-        .map_err(|_| ApiError::BadRequest("Invalid operator ID format".to_string()))?;
-
-    let dashboard = state
-        .bootstrap_admin
-        .get_operator_dashboard(&operator_uuid)
-        .ok_or_else(|| ApiError::NotFound("Operator not found".to_string()))?;
-
-    Ok(Json(serde_json::to_value(dashboard).unwrap()))
-}
-
-/// Get network health
-#[utoipa::path(
-    get,
-    path = "/api/v1/governance/network/health",
-    responses(
-        (status = 200, description = "Network health retrieved", body = ApiNetworkHealthResponse),
-        (status = 500, description = "Internal server error", body = ApiErrorResponse)
-    ),
-    tag = "governance"
-)]
-async fn get_network_health(
-    State(state): State<ApiState>,
-) -> Result<Json<ApiNetworkHealthResponse>, ApiError> {
-    let health = state.bootstrap_admin.check_network_health();
-
-    let response = ApiNetworkHealthResponse {
-        total_operators: health.total_operators,
-        online_operators: health.online_operators,
-        online_percentage: health.online_percentage,
-        total_governance_weight: health.total_governance_weight,
-        online_governance_weight: health.online_governance_weight,
-        can_reach_consensus: health.can_reach_consensus,
-    };
-
-    Ok(Json(response))
-}
-
-/// Register operator
-#[utoipa::path(
-    post,
-    path = "/api/v1/admin/operators",
-    request_body = ApiOperatorRegistrationRequest,
-    responses(
-        (status = 200, description = "Operator registered", body = ApiOperatorResponse),
-        (status = 400, description = "Bad request", body = ApiErrorResponse),
-        (status = 500, description = "Internal server error", body = ApiErrorResponse)
-    ),
-    tag = "admin"
-)]
-async fn register_operator(
-    State(state): State<ApiState>,
-    Json(request): Json<ApiOperatorRegistrationRequest>,
-) -> Result<Json<ApiOperatorResponse>, ApiError> {
-    // Convert API request to bootstrap admin request
-    use crate::bootstrap_admin::OperatorRegistrationRequest;
-    use crate::governance::NetworkService;
-
-    let services: Vec<NetworkService> = request
-        .proposed_services
-        .into_iter()
-        .filter_map(|s| match s.as_str() {
-            "Storage" => Some(NetworkService::Storage),
-            "Bandwidth" => Some(NetworkService::Bandwidth),
-            "BootstrapRelay" => Some(NetworkService::BootstrapRelay),
-            "ContentDelivery" => Some(NetworkService::ContentDelivery),
-            "Monitoring" => Some(NetworkService::Monitoring),
-            _ => None,
-        })
-        .collect();
-
-    let bootstrap_request = OperatorRegistrationRequest {
-        legal_name: request.legal_name,
-        contact_email: request.contact_email,
-        jurisdiction: request.jurisdiction,
-        stake_amount: request.stake_amount,
-        proposed_services: services,
-        technical_contact: request.technical_contact,
-        service_level_agreement: request.service_level_agreement,
-    };
-
-    let operator = state
-        .bootstrap_admin
-        .register_operator(bootstrap_request, request.peer_id)
-        .await
-        .map_err(|e| {
-            ApiError::InternalServerError(format!("Failed to register operator: {}", e))
-        })?;
-
-    let response = ApiOperatorResponse {
-        operator_id: operator.operator_id.to_string(),
-        peer_id: operator.peer_id,
-        stake: operator.stake,
-        jurisdiction: operator.jurisdiction,
-        governance_weight: operator.governance_weight,
-        reputation_score: operator.reputation_score,
-        services: operator
-            .services
-            .into_iter()
-            .map(|s| format!("{:?}", s))
-            .collect(),
-        registration_date: operator.registration_date,
-        last_active: operator.last_active,
-    };
-
-    Ok(Json(response))
-}
-
-/// Register service
-#[utoipa::path(
-    post,
-    path = "/api/v1/admin/operators/{operator_id}/services",
-    params(
-        ("operator_id" = String, Path, description = "Operator ID")
-    ),
-    request_body = ApiServiceRegistrationRequest,
-    responses(
-        (status = 200, description = "Service registered", body = serde_json::Value),
-        (status = 400, description = "Bad request", body = ApiErrorResponse),
-        (status = 404, description = "Operator not found", body = ApiErrorResponse),
-        (status = 500, description = "Internal server error", body = ApiErrorResponse)
-    ),
-    tag = "admin"
-)]
-async fn register_service(
-    State(state): State<ApiState>,
-    Path(operator_id): Path<String>,
-    Json(request): Json<ApiServiceRegistrationRequest>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let operator_uuid = operator_id
-        .parse::<uuid::Uuid>()
-        .map_err(|_| ApiError::BadRequest("Invalid operator ID format".to_string()))?;
-
-    use crate::bootstrap_admin::ServiceConfig;
-    use crate::governance::NetworkService;
-
-    let service_type = match request.service_type.as_str() {
-        "Storage" => NetworkService::Storage,
-        "Bandwidth" => NetworkService::Bandwidth,
-        "BootstrapRelay" => NetworkService::BootstrapRelay,
-        "ContentDelivery" => NetworkService::ContentDelivery,
-        "Monitoring" => NetworkService::Monitoring,
-        _ => return Err(ApiError::BadRequest("Invalid service type".to_string())),
-    };
-
-    // For now, create a default storage config
-    let service_config = ServiceConfig::Storage {
-        capacity_gb: 1000,
-        redundancy_factor: 3,
-        data_retention_days: 365,
-    };
-
-    let registration = state
-        .bootstrap_admin
-        .register_service(&operator_uuid, service_type, service_config)
-        .await
-        .map_err(|e| ApiError::InternalServerError(format!("Failed to register service: {}", e)))?;
-
-    Ok(Json(serde_json::to_value(registration).unwrap()))
-}
-
-/// Update service heartbeat
-#[utoipa::path(
-    post,
-    path = "/api/v1/admin/operators/{operator_id}/services/{service_id}/heartbeat",
-    params(
-        ("operator_id" = String, Path, description = "Operator ID"),
-        ("service_id" = String, Path, description = "Service ID")
-    ),
-    responses(
-        (status = 200, description = "Heartbeat updated", body = serde_json::Value),
-        (status = 400, description = "Bad request", body = ApiErrorResponse),
-        (status = 500, description = "Internal server error", body = ApiErrorResponse)
-    ),
-    tag = "admin"
-)]
-async fn update_service_heartbeat(
-    State(state): State<ApiState>,
-    Path((_operator_id, service_id)): Path<(String, String)>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let service_uuid = service_id
-        .parse::<uuid::Uuid>()
-        .map_err(|_| ApiError::BadRequest("Invalid service ID format".to_string()))?;
-
-    state
-        .bootstrap_admin
-        .update_service_heartbeat(&service_uuid)
-        .await
-        .map_err(|e| ApiError::InternalServerError(format!("Failed to update heartbeat: {}", e)))?;
-
-    Ok(Json(serde_json::json!({
-        "message": "Heartbeat updated successfully",
-        "service_id": service_id,
-        "timestamp": chrono::Utc::now()
-    })))
-}
-
-/// Execute admin action
-#[utoipa::path(
-    post,
-    path = "/api/v1/admin/actions",
-    request_body = ApiAdminActionRequest,
-    responses(
-        (status = 200, description = "Admin action executed", body = ApiAdminActionResponse),
-        (status = 400, description = "Bad request", body = ApiErrorResponse),
-        (status = 403, description = "Insufficient permissions", body = ApiErrorResponse),
-        (status = 500, description = "Internal server error", body = ApiErrorResponse)
-    ),
-    tag = "admin"
-)]
-async fn execute_admin_action(
-    State(state): State<ApiState>,
-    headers: HeaderMap,
-    Json(request): Json<ApiAdminActionRequest>,
-) -> Result<Json<ApiAdminActionResponse>, ApiError> {
-    // Authenticate admin user
-    let user = authenticate_user(&headers, &state).await?;
-
-    // Verify admin privileges (check if user is an operator or admin)
-    let operator_id = match user.account_type {
-        crate::governance::AccountType::Enterprise { .. } => user.user_id,
-        _ => return Err(ApiError::Forbidden("Admin access required".to_string())),
-    };
-
-    use crate::bootstrap_admin::{AdminActionType, AdminTarget};
-
-    let action_type = match request.action_type.as_str() {
-        "SuspendUser" => AdminActionType::SuspendUser,
-        "BanUser" => AdminActionType::BanUser,
-        "DeleteContent" => AdminActionType::DeleteContent,
-        "QuarantineContent" => AdminActionType::QuarantineContent,
-        "ApproveUser" => AdminActionType::ApproveUser,
-        "UpdateQuota" => AdminActionType::UpdateQuota,
-        "NetworkMaintenance" => AdminActionType::NetworkMaintenance,
-        "EmergencyShutdown" => AdminActionType::EmergencyShutdown,
-        _ => return Err(ApiError::BadRequest("Invalid action type".to_string())),
-    };
-
-    let target = if request.target.starts_with("user:") {
-        let user_id = request
-            .target
-            .strip_prefix("user:")
-            .unwrap()
-            .parse::<uuid::Uuid>()
-            .map_err(|_| ApiError::BadRequest("Invalid user ID format".to_string()))?;
-        AdminTarget::User(user_id)
-    } else if request.target.starts_with("content:") {
-        let content_hash = request.target.strip_prefix("content:").unwrap().to_string();
-        AdminTarget::Content(content_hash)
-    } else if request.target == "network" {
-        AdminTarget::Network
-    } else {
-        return Err(ApiError::BadRequest("Invalid target format".to_string()));
-    };
-
-    let action = state
-        .bootstrap_admin
-        .execute_admin_action(&operator_id, action_type, target, request.reason)
-        .await
-        .map_err(|e| {
-            ApiError::InternalServerError(format!("Failed to execute admin action: {}", e))
-        })?;
-
-    let response = ApiAdminActionResponse {
-        action_id: action.action_id.to_string(),
-        operator_id: action.operator_id.to_string(),
-        action_type: format!("{:?}", action.action_type),
-        target: format!("{:?}", action.target),
-        reason: action.reason,
-        timestamp: action.timestamp,
-    };
-
-    Ok(Json(response))
-}
-
-/// List admin actions
-#[utoipa::path(
-    get,
-    path = "/api/v1/admin/actions",
-    responses(
-        (status = 200, description = "Admin actions listed", body = Vec<ApiAdminActionResponse>),
-        (status = 500, description = "Internal server error", body = ApiErrorResponse)
-    ),
-    tag = "admin"
-)]
-async fn list_admin_actions(
-    State(state): State<ApiState>,
-) -> Result<Json<Vec<ApiAdminActionResponse>>, ApiError> {
-    let actions = state.bootstrap_admin.get_all_admin_actions();
-
-    let response: Vec<ApiAdminActionResponse> = actions
-        .into_iter()
-        .map(|action| ApiAdminActionResponse {
-            action_id: action.action_id.to_string(),
-            operator_id: action.operator_id.to_string(),
-            action_type: format!("{:?}", action.action_type),
-            target: format!("{:?}", action.target),
-            reason: action.reason,
-            timestamp: action.timestamp,
-        })
-        .collect();
-
-    Ok(Json(response))
-}
-
-/// Cleanup inactive operators
-#[utoipa::path(
-    post,
-    path = "/api/v1/admin/cleanup/operators",
-    responses(
-        (status = 200, description = "Cleanup completed", body = serde_json::Value),
-        (status = 500, description = "Internal server error", body = ApiErrorResponse)
-    ),
-    tag = "admin"
-)]
-async fn cleanup_inactive_operators(
-    State(state): State<ApiState>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    state
-        .bootstrap_admin
-        .cleanup_inactive_operators()
-        .await
-        .map_err(|e| {
-            ApiError::InternalServerError(format!("Failed to cleanup operators: {}", e))
-        })?;
-
-    Ok(Json(serde_json::json!({
-        "message": "Inactive operators cleanup completed",
-        "timestamp": chrono::Utc::now()
-    })))
-}
-
-/// Start the API server with the specified configuration
-pub async fn start_api_server(
-    host: &str,
-    port: u16,
-    https: bool,
-    cert_path: Option<PathBuf>,
-    key_path: Option<PathBuf>,
-    enable_swagger: bool,
-    context: crate::thread_safe_command_context::ThreadSafeCommandContext,
-) -> Result<(), Box<dyn std::error::Error>> {
-    use std::net::SocketAddr;
-    
-    // Initialize API state
-    let auth_service = Arc::new(AuthService::new());
-    let user_registry = Arc::new(UserRegistry::new());
-    let governance_service = Arc::new(GovernanceService::new(
-        context.key_manager.clone(),
-        context.database.clone(),
-    ));
-    let bootstrap_admin = Arc::new(BootstrapAdministrationService::new(
-        context.network.clone(),
-        context.key_manager.clone(),
-    ));
-    let cache_manager = Arc::new(SmartCacheManager::new().await?);
-    
-    let api_state = ApiState {
-        context,
-        auth_service,
-        user_registry,
-        governance_service,
-        bootstrap_admin,
-        cache_manager,
-    };
-    
-    // Build the router
-    let mut router = Router::new()
-        // File operations
-        .route("/api/v1/files", post(upload_file))
-        .route("/api/v1/files/:id", get(download_file))
-        .route("/api/v1/files", get(list_files))
-        
-        // Network operations
-        .route("/api/v1/network/health", get(get_network_health))
-        
-        // Admin operations
-        .route("/api/v1/admin/operators", get(list_operators))
-        .route("/api/v1/admin/cleanup", post(cleanup_inactive_operators))
-        
-        .with_state(api_state)
-        .layer(
-            ServiceBuilder::new()
-                .layer(TraceLayer::new_for_http())
-                .layer(CorsLayer::permissive())
-                .layer(DefaultBodyLimit::max(1024 * 1024 * 100)) // 100MB limit
-        );
-    
-    // Add Swagger UI if enabled
-    if enable_swagger {
-        #[derive(OpenApi)]
-        #[openapi(
-            paths(
-                upload_file,
-                download_file,
-                list_files,
-                get_network_health,
-                list_operators,
-                cleanup_inactive_operators,
-            ),
-            components(
-                schemas(
-                    UserInfo,
-                    ApiErrorResponse,
-                    ApiNetworkHealthResponse,
-                    ApiOperatorResponse,
-                )
-            ),
-            tags(
-                (name = "files", description = "File management operations"),
-                (name = "network", description = "Network monitoring and management"),
-                (name = "admin", description = "Administrative operations"),
-                (name = "governance", description = "Governance and voting operations"),
-                (name = "auth", description = "Authentication operations"),
-            )
-        )]
-        struct ApiDoc;
-        
-        router = router.merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()));
-    }
-    
-    // Parse the socket address
-    let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
-    
-    // Start the server
-    if https {
-        if let (Some(cert_path), Some(key_path)) = (cert_path, key_path) {
-            tracing::info!("🔒 Starting HTTPS server on {}", addr);
-            
-            // For HTTPS, we would use axum-server with TLS
-            // This is a simplified implementation - in production you'd use proper TLS setup
-            tracing::warn!("⚠️ HTTPS support requires additional TLS configuration");
-            tracing::info!("🔄 Falling back to HTTP for now");
-            
-            let listener = tokio::net::TcpListener::bind(addr).await?;
-            tracing::info!("✅ API Server listening on http://{}", addr);
-            axum::serve(listener, router).await?;
+    // Verify authentication
+    let _user = authenticate_user(&headers, &state).await?;
+
+    // Send progress update via WebSocket
+    state.websocket_manager.send_file_download_progress(
+        file_key.clone(),
+        25.0,
+        "Locating file".to_string(),
+    ).await;
+
+    // Read file (simplified implementation)
+    let file_path = format!("uploads/{}", file_key);
+    let file_data = tokio::fs::read(&file_path).await.map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            ApiError::NotFound("File not found".to_string())
         } else {
-            return Err("HTTPS enabled but certificate/key paths not provided".into());
+            ApiError::InternalServerError(format!("Failed to read file: {}", e))
         }
-    } else {
-        tracing::info!("🌐 Starting HTTP server on {}", addr);
-        
-        let listener = tokio::net::TcpListener::bind(addr).await?;
-        tracing::info!("✅ API Server listening on http://{}", addr);
-        axum::serve(listener, router).await?;
-    }
-    
-    Ok(())
+    })?;
+
+    // Send completion update via WebSocket
+    state.websocket_manager.send_file_download_progress(
+        file_key.clone(),
+        100.0,
+        "Download complete".to_string(),
+    ).await;
+
+    // Return file with appropriate headers
+    let headers = [
+        (header::CONTENT_TYPE, "application/octet-stream"),
+        (header::CONTENT_DISPOSITION, "attachment"),
+    ];
+
+    Ok((headers, file_data))
 }

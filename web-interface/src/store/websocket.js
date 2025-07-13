@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { io } from 'socket.io-client'
 
 export const useWebSocketStore = defineStore('websocket', () => {
   // State
@@ -57,14 +56,11 @@ export const useWebSocketStore = defineStore('websocket', () => {
     error.value = null
     
     try {
-      socket.value = io({
-        path: '/ws',
-        transports: ['websocket'],
-        upgrade: true,
-        rememberUpgrade: true,
-        timeout: 10000,
-        forceNew: true
-      })
+      // Use native WebSocket instead of Socket.IO
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const wsUrl = `${protocol}//${window.location.hostname}:8080/api/v1/ws`
+      
+      socket.value = new WebSocket(wsUrl)
       
       setupEventListeners()
     } catch (err) {
@@ -76,7 +72,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
   
   const disconnect = () => {
     if (socket.value) {
-      socket.value.disconnect()
+      socket.value.close()
       socket.value = null
     }
     
@@ -105,7 +101,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
   const pauseConnection = () => {
     paused.value = true
     if (socket.value) {
-      socket.value.disconnect()
+      socket.value.close()
     }
   }
   
