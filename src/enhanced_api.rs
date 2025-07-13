@@ -8,8 +8,8 @@ use crate::gamification::ContributionGameification;
 use crate::intelligent_cli::IntelligentCLIAssistant;
 use crate::pricing_assistant::PricingAssistant;
 use crate::error::Result;
-use crate::database::Database;
-use crate::economics::EconomicsEngine;
+use crate::database::DatabaseManager;
+use crate::economics::EconomicService;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnhancedApiServer {
@@ -18,8 +18,8 @@ pub struct EnhancedApiServer {
     pub gamification: Arc<RwLock<ContributionGameification>>,
     pub cli_assistant: Arc<RwLock<IntelligentCLIAssistant>>,
     pub pricing_assistant: Arc<RwLock<PricingAssistant>>,
-    pub database: Arc<Database>,
-    pub economics: Arc<EconomicsEngine>,
+    pub database: Arc<DatabaseManager>,
+    pub economics: Arc<EconomicService>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -272,8 +272,8 @@ impl EnhancedApiServer {
         gamification: ContributionGameification,
         cli_assistant: IntelligentCLIAssistant,
         pricing_assistant: PricingAssistant,
-        database: Arc<Database>,
-        economics: Arc<EconomicsEngine>,
+        database: Arc<DatabaseManager>,
+        economics: Arc<EconomicService>,
     ) -> Self {
         Self {
             pricing_engine: Arc::new(RwLock::new(pricing_engine)),

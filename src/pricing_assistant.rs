@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use chrono::{DateTime, Utc, Duration};
-use crate::economics::EconomicsEngine;
-use crate::database::Database;
+use crate::economics::EconomicService;
+use crate::database::DatabaseManager;
 use crate::error::Result;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -611,7 +611,7 @@ pub struct ConfigurationComparison {
 }
 
 impl PricingAssistant {
-    pub fn new(economics: &EconomicsEngine, database: &Database) -> Self {
+    pub fn new(economics: &EconomicService, database: &DatabaseManager) -> Self {
         Self {
             recommendations: Vec::new(),
             market_analysis: MarketAnalysis::new(),

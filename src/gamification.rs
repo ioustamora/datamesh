@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use chrono::{DateTime, Utc, Duration};
 use crate::error::Result;
-use crate::database::Database;
+use crate::database::DatabaseManager;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContributionGameification {
