@@ -20,7 +20,7 @@ Based on comprehensive codebase analysis, DataMesh shows excellent engineering p
 
 ### 1. **Extract Command Handlers from main.rs**
 
-**Problem**: Single massive function (1,437 lines) handling 38 commands
+**Problem**: Single massive function (1,437 lines) handling 47+ commands
 **Impact**: Extremely difficult to maintain, test, and extend
 **Effort**: Medium (2-3 days)
 
@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         Commands::Put { .. } => { /* 50+ lines */ }
         Commands::Get { .. } => { /* 30+ lines */ }
         Commands::List { .. } => { /* 40+ lines */ }
-        // ... 35 more commands
+        // ... 44 more commands
     }
 }
 ```

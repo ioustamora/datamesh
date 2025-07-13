@@ -6,7 +6,7 @@ Welcome to the comprehensive documentation for DataMesh, a distributed storage s
 
 ### 🚀 **Getting Started**
 - **[Main README](../README.md)** - Project overview and quick start guide
-- **[USAGE.md](USAGE.md)** - Complete usage guide for all 38 CLI commands
+- **[USAGE.md](USAGE.md)** - Complete usage guide for all 47 CLI commands
 - **[Installation & Setup](../README.md#installation--setup)** - Build and installation instructions
 
 ### 🏗️ **Architecture & Design**
@@ -28,7 +28,7 @@ Welcome to the comprehensive documentation for DataMesh, a distributed storage s
 
 ### **For Users**
 1. **Getting Started**: Read the [main README](../README.md) and [USAGE.md](USAGE.md)
-2. **Using the CLI**: See [USAGE.md](USAGE.md) for all 38 commands
+2. **Using the CLI**: See [USAGE.md](USAGE.md) for all 47 commands
 3. **Web Interface**: Check [API.md](API.md) for web interface documentation (in development)
 
 ### **For Administrators**

@@ -1,9 +1,9 @@
 # DataMesh - Distributed Data Storage Network
 
-A distributed data storage system built with Rust and libp2p. **Currently in active development** - core features stable, advanced features in progress.
+A distributed data storage system built with Rust and libp2p. **Currently in active development** - core features working, advanced features in progress.
 
 ![Last Updated](https://img.shields.io/badge/Last%20Updated-January%202025-blue)
-![Status](https://img.shields.io/badge/Status-Core%20Features%20Stable-green)
+![Status](https://img.shields.io/badge/Status-Core%20Features%20Working-yellow)
 ![Security](https://img.shields.io/badge/Security-Core%20Implemented-orange)
 ![License](https://img.shields.io/badge/License-MIT-orange)
 ![Architecture](https://img.shields.io/badge/Architecture-Modular-purple)
@@ -89,20 +89,15 @@ Comprehensive testing infrastructure in the [`examples/`](examples/) directory:
 # Basic functionality test
 ./examples/simple_test.sh
 
-# Ultimate comprehensive cluster test (all 38 commands)
+# Comprehensive cluster test (all 47 commands)
+./examples/comprehensive_cluster_test.sh
+
+# Interactive cluster management dashboard
 ./examples/perfect_cluster_test.sh
 ```
 
 ### 🔧 Available Scripts
-- **`perfect_cluster_test.sh`** - The ultimate cluster test: 7 nodes + comprehensive coverage
-- **`simple_test.sh`** - Quick validation test for basic operations
-
-### ✅ **Testing Features**
-- **Complete CLI Coverage**: All 38 commands tested
-- **Multi-node Cluster**: 7 service nodes + 1 bootstrap node  
-- **Advanced Testing**: Fault injection, performance benchmarks, network analysis
-- **Interactive Dashboard**: Real-time monitoring and management
-- **Professional UX**: Progress indicators, colored output, comprehensive logging
+- **`perfect_cluster_test.sh`** - Interactive cluster management with monitoring
 - **`comprehensive_cluster_test.sh`** - Automated testing of all CLI commands
 - **`interactive_dashboard_functions.sh`** - Real-time cluster management
 - **`start_bootstrap.sh`** - Bootstrap node setup

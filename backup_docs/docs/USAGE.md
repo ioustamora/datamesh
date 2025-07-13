@@ -1,7 +1,7 @@
 # DataMesh Usage Guide
 
 ## Overview
-DataMesh is a comprehensive distributed data storage system with **38 commands** covering all aspects of distributed storage. Built with libp2p, Kademlia DHT, ECIES encryption, and Reed-Solomon erasure coding for secure, fault-tolerant, high-performance data operations.
+DataMesh is a comprehensive distributed data storage system with **51 commands** covering all aspects of distributed storage. Built with libp2p, Kademlia DHT, ECIES encryption, and Reed-Solomon erasure coding for secure, fault-tolerant, high-performance data operations.
 
 ## 🚀 Quick Command Reference
 
