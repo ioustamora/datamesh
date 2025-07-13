@@ -270,6 +270,36 @@ impl Default for StorageEconomyConfig {
     }
 }
 
+/// Economy transaction for tracking storage contributions and payments
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EconomyTransaction {
+    pub transaction_id: String,
+    pub user_id: String,
+    pub transaction_type: EconomyTransactionType,
+    pub amount: u64,
+    pub currency: String,
+    pub timestamp: DateTime<Utc>,
+    pub status: TransactionStatus,
+    pub metadata: std::collections::HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum EconomyTransactionType {
+    StorageContribution,
+    PremiumUpgrade,
+    PremiumRenewal,
+    ReputationReward,
+    ViolationPenalty,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TransactionStatus {
+    Pending,
+    Confirmed,
+    Failed,
+    Refunded,
+}
+
 /// Main storage economy manager
 pub struct StorageEconomyManager {
     config: StorageEconomyConfig,
@@ -417,6 +447,11 @@ impl StorageEconomyManager {
             max_storage,
             subscription_expires,
             payment_method,
+            
+            // Enhanced premium features
+            premium_features: vec!["priority_support".to_string(), "backup_retention".to_string()],
+            support_priority: 1,
+            backup_redundancy: 3,
         };
 
         self.create_user_profile(user_id, new_tier).await?;
@@ -516,6 +551,14 @@ impl StorageEconomyManager {
             expected_response: blake3::hash(&challenge_data).to_hex().to_string(),
             created_at: Utc::now(),
             expires_at: Utc::now() + chrono::Duration::minutes(self.config.verification_timeout_minutes as i64),
+            
+            // Enhanced challenge fields
+            challenge_type: ChallengeType::BasicFileTest,
+            difficulty_level: 1,
+            required_space: 1024 * 1024, // 1MB
+            verification_steps: Vec::new(),
+            bonus_reward: 0,
+            consecutive_challenge: 0,
         };
 
         let mut active_challenges = self.active_challenges.write().await;
@@ -551,6 +594,14 @@ impl StorageEconomyManager {
                     challenge_response: response.to_string(),
                     verification_status: ProofStatus::Verified,
                     next_verification: Utc::now() + chrono::Duration::hours(self.config.verification_interval_hours as i64),
+                    
+                    // Enhanced proof-of-space fields
+                    proof_type: ProofType::SimpleSpace,
+                    challenge_rounds: 1,
+                    avg_response_time: 0.0,
+                    consistency_score: 100.0,
+                    proof_hash: format!("{:x}", md5::compute(format!("{}-{}", challenge.user_id, 0))),
+                    verification_metadata: HashMap::new(),
                 };
 
                 let mut storage_proofs = self.storage_proofs.write().await;
@@ -605,6 +656,14 @@ impl StorageEconomyManager {
             last_activity: Utc::now(),
             reputation_score: 75.0,
             violations: Vec::new(),
+            
+            // Enhanced tracking fields
+            network_contribution_score: 0.0,
+            total_data_served: 0,
+            uptime_percentage: 100.0,
+            verification_streak: 0,
+            bonus_credits: 0,
+            referral_credits: 0,
         }
     }
 
@@ -655,9 +714,7 @@ impl StorageEconomyManager {
         }
         Ok(())
     }
-}
 
-impl StorageEconomyManager {
     pub async fn assign_tier_to_user(&self, user_id: &str, tier: StorageTier) -> Result<(), DfsError> {
         let profile = UserStorageProfile {
             user_id: user_id.to_string(),
@@ -668,6 +725,14 @@ impl StorageEconomyManager {
             last_activity: Utc::now(),
             reputation_score: 80.0, // Start with decent reputation
             violations: Vec::new(),
+            
+            // Enhanced tracking fields
+            network_contribution_score: 0.0,
+            total_data_served: 0,
+            uptime_percentage: 100.0,
+            verification_streak: 0,
+            bonus_credits: 0,
+            referral_credits: 0,
         };
 
         let mut profiles = self.user_profiles.write().await;
@@ -738,7 +803,7 @@ impl StorageEconomyManager {
         }
 
         // Verify storage path is accessible and has claimed space
-        let actual_space = self.verify_storage_space(&storage_path).await?;
+        let actual_space = self.verify_storage_space(&storage_path, claimed_space).await?;
         
         if actual_space < claimed_space {
             return Err(DfsError::Storage(format!(
@@ -759,6 +824,14 @@ impl StorageEconomyManager {
             challenge_response: String::new(),
             verification_status: ProofStatus::Pending,
             next_verification: Utc::now() + chrono::Duration::hours(self.config.verification_interval_hours as i64),
+            
+            // Enhanced proof-of-space fields
+            proof_type: ProofType::SimpleSpace,
+            challenge_rounds: 0,
+            avg_response_time: 0.0,
+            consistency_score: 100.0,
+            proof_hash: format!("{:x}", md5::compute(format!("{}-{}", user_id, actual_space))),
+            verification_metadata: HashMap::new(),
         };
 
         // Store proof
@@ -774,6 +847,12 @@ impl StorageEconomyManager {
             earned_storage,
             verification_path: storage_path,
             last_verified: Utc::now(),
+            
+            // Enhanced verification tracking
+            verification_challenges_passed: 0,
+            verification_challenges_failed: 0,
+            next_verification_due: Utc::now() + chrono::Duration::hours(self.config.verification_interval_hours as i64),
+            proof_of_space_enabled: true,
         };
 
         self.update_user_tier(user_id, new_tier).await?;
@@ -803,6 +882,14 @@ impl StorageEconomyManager {
             expected_response,
             created_at: Utc::now(),
             expires_at: Utc::now() + chrono::Duration::minutes(self.config.verification_timeout_minutes as i64),
+            
+            // Enhanced challenge fields
+            challenge_type: ChallengeType::RandomDataTest,
+            difficulty_level: 1,
+            required_space: 1024 * 1024, // 1MB
+            verification_steps: Vec::new(),
+            bonus_reward: 0,
+            consecutive_challenge: 0,
         };
 
         // Store active challenge
@@ -853,7 +940,7 @@ impl StorageEconomyManager {
     }
 
     /// Get storage statistics for user
-    pub async fn get_user_storage_stats(&self, user_id: &str) -> DfsResult<UserStorageStats> {
+    pub async fn get_user_storage_stats(&self, user_id: &str) -> DfsResult<UserStorageStatistics> {
         let profile = self.get_user_profile(user_id).await?
             .ok_or_else(|| DfsError::Storage("User profile not found".to_string()))?;
 
@@ -861,7 +948,7 @@ impl StorageEconomyManager {
         let upload_quota = self.get_upload_quota_for_tier(&profile.tier);
         let download_quota = self.get_download_quota_for_tier(&profile.tier);
 
-        Ok(UserStorageStats {
+        Ok(UserStorageStatistics {
             current_usage: profile.current_usage,
             max_storage,
             upload_quota_used: profile.upload_quota_used,
@@ -875,75 +962,7 @@ impl StorageEconomyManager {
         })
     }
 
-    /// Economy transaction for tracking storage contributions and payments
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct EconomyTransaction {
-        pub transaction_id: String,
-        pub user_id: String,
-        pub transaction_type: EconomyTransactionType,
-        pub amount: u64,
-        pub currency: String,
-        pub timestamp: DateTime<Utc>,
-        pub status: TransactionStatus,
-        pub metadata: std::collections::HashMap<String, String>,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub enum EconomyTransactionType {
-        StorageContribution,
-        PremiumUpgrade,
-        PremiumRenewal,
-        ReputationReward,
-        ViolationPenalty,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub enum TransactionStatus {
-        Pending,
-        Confirmed,
-        Failed,
-        Refunded,
-    }
-
     /// Private helper methods
-    
-    async fn verify_storage_space(&self, path: &PathBuf) -> DfsResult<u64> {
-        use std::fs;
-        
-        let metadata = fs::metadata(path)
-            .map_err(|e| DfsError::Io(format!("Cannot access storage path: {}", e)))?;
-
-        if !metadata.is_dir() {
-            return Err(DfsError::Io("Storage path must be a directory".to_string()));
-        }
-
-        // Get available space using platform-specific methods
-        #[cfg(unix)]
-        {
-            use std::ffi::CString;
-            use std::mem;
-            
-            let path_c = CString::new(path.to_string_lossy().as_bytes())
-                .map_err(|_| DfsError::Io("Invalid path".to_string()))?;
-            
-            let mut statvfs: libc::statvfs = unsafe { mem::zeroed() };
-            let result = unsafe { libc::statvfs(path_c.as_ptr(), &mut statvfs) };
-            
-            if result == 0 {
-                let available_bytes = statvfs.f_bavail * statvfs.f_frsize;
-                Ok(available_bytes)
-            } else {
-                Err(DfsError::Io("Failed to get filesystem statistics".to_string()))
-            }
-        }
-        
-        #[cfg(windows)]
-        {
-            // Windows implementation would go here
-            // For now, return a placeholder
-            Ok(1024 * 1024 * 1024) // 1GB placeholder
-        }
-    }
 
     async fn get_user_storage_proof(&self, user_id: &str) -> DfsResult<Option<StorageProof>> {
         let proofs = self.storage_proofs.read().await;
@@ -1068,6 +1087,8 @@ pub struct UserStorageStatistics {
     pub reputation_score: f64,
     pub violations_count: usize,
     pub last_activity: DateTime<Utc>,
+}
+
 }
 
 /// Storage economy service integration

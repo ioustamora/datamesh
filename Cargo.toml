@@ -70,6 +70,7 @@ hostname = "0.3"
 fastrand = "2.3.0"
 async-trait = "0.1"
 jsonwebtoken = "9.3"
+md5 = "0.8.0"
 
 [dev-dependencies]
 tempfile = "3.0"
