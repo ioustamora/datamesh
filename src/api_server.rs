@@ -1007,8 +1007,8 @@ async fn update_profile(
     path = "/api/v1/auth/password",
     request_body = ChangePasswordRequest,
     responses(
-        (status = 200, description = "Password changed successfully"),
-        (status = 400, description = "Invalid request", body = ApiErrorResponse),
+        (status = 200, description = "Password changed successfully", body = serde_json::Value),
+        (status = 400, description = "Invalid password", body = ApiErrorResponse),
         (status = 401, description = "Unauthorized", body = ApiErrorResponse)
     ),
     tag = "auth"
@@ -1018,72 +1018,73 @@ async fn change_password(
     headers: HeaderMap,
     Json(request): Json<ChangePasswordRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let user_account = authenticate_user(&headers, &state).await?;
+    let user = authenticate_user(&headers, &state).await?;
     
     // Verify current password
-    let is_valid = state
-        .user_registry
-        .verify_password(&user_account.user_id, &request.current_password)
-        .map_err(|e| ApiError::Unauthorized(format!("Password verification failed: {}", e)))?;
-
-    if !is_valid {
-        return Err(ApiError::Unauthorized("Current password is incorrect".to_string()));
+    let password_valid = state.user_registry.verify_password(&user.user_id, &request.current_password)
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to verify password: {}", e)))?;
+    
+    if !password_valid {
+        return Err(ApiError::BadRequest("Current password is incorrect".to_string()));
     }
-
+    
     // Update password
-    state
-        .user_registry
-        .update_password(&user_account.user_id, &request.new_password)
+    state.user_registry.update_password(&user.user_id, &request.new_password)
         .map_err(|e| ApiError::InternalServerError(format!("Failed to update password: {}", e)))?;
-
+    
     Ok(Json(serde_json::json!({
         "message": "Password changed successfully"
     })))
 }
 
-/// Refresh JWT token
+/// Refresh token
 #[utoipa::path(
     post,
     path = "/api/v1/auth/refresh",
+    request_body = RefreshTokenRequest,
     responses(
-        (status = 200, description = "Token refreshed successfully", body = AuthResponse),
-        (status = 401, description = "Invalid or expired token", body = ApiErrorResponse)
+        (status = 200, description = "Token refreshed", body = AuthResponse),
+        (status = 401, description = "Invalid refresh token", body = ApiErrorResponse)
     ),
     tag = "auth"
 )]
 async fn refresh_token(
     State(state): State<ApiState>,
-    headers: HeaderMap,
+    Json(request): Json<RefreshTokenRequest>,
 ) -> Result<Json<AuthResponse>, ApiError> {
-    let user_account = authenticate_user(&headers, &state).await?;
+    // Validate refresh token and get user
+    let user_id = state.auth_service.validate_refresh_token(&request.refresh_token)
+        .map_err(|e| ApiError::Unauthorized(format!("Invalid refresh token: {}", e)))?;
     
-    // Generate new token
-    let new_token = state
-        .auth_service
-        .generate_token(&user_account)
-        .map_err(|e| ApiError::InternalServerError(format!("Token generation failed: {}", e)))?;
-
-    let account_type = match user_account.account_type {
+    let user = state.user_registry.get_user(&user_id)
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to get user: {}", e)))?
+        .ok_or_else(|| ApiError::Unauthorized("User not found".to_string()))?;
+    
+    // Generate new access token
+    let token = state.auth_service.generate_token(&user_id)
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to generate token: {}", e)))?;
+    
+    let account_type = match user.account_type {
         crate::governance::AccountType::Free { .. } => "free",
         crate::governance::AccountType::Premium { .. } => "premium",
         crate::governance::AccountType::Enterprise { .. } => "enterprise",
     };
 
-    let verification_status = match user_account.verification_status {
+    let verification_status = match user.verification_status {
         crate::governance::VerificationStatus::Unverified => "unverified",
         crate::governance::VerificationStatus::EmailVerified => "email_verified",
         crate::governance::VerificationStatus::IdentityVerified => "identity_verified",
     };
 
     let response = AuthResponse {
-        access_token: new_token,
+        access_token: token,
         token_type: "Bearer".to_string(),
         expires_in: 24 * 3600, // 24 hours
         user: UserInfo {
-            user_id: user_account.user_id.to_string(),
-            email: user_account.email,
+            user_id: user.user_id.to_string(),
+            email: user.email,
             account_type: account_type.to_string(),
-            registration_date: user_account.registration_date,
+            registration_date: user.registration_date,
             verification_status: verification_status.to_string(),
         },
     };
@@ -1293,61 +1294,190 @@ async fn get_system_health(
     Ok(Json(response))
 }
 
-/// Add new request/response types
+/// Update profile request
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateProfileRequest {
+    /// User email
+    pub email: String,
+    /// Display name
+    pub display_name: Option<String>,
+}
+
+/// Change password request
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ChangePasswordRequest {
+    /// Current password
+    pub current_password: String,
+    /// New password
+    pub new_password: String,
+}
+
+/// Refresh token request
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct RefreshTokenRequest {
+    /// Refresh token
+    pub refresh_token: String,
+}
+
+/// User settings response
 #[derive(Debug, Serialize, ToSchema)]
 pub struct UserSettingsResponse {
+    /// UI theme
     pub theme: String,
+    /// Language preference
     pub language: String,
+    /// Notifications enabled
     pub notifications_enabled: bool,
+    /// Email notifications
     pub email_notifications: bool,
+    /// Auto delete days
     pub auto_delete_days: u32,
+    /// Privacy mode
     pub privacy_mode: bool,
 }
 
+/// Update user settings request
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateUserSettingsRequest {
+    /// UI theme
     pub theme: Option<String>,
+    /// Language preference
     pub language: Option<String>,
+    /// Notifications enabled
     pub notifications_enabled: Option<bool>,
+    /// Email notifications
     pub email_notifications: Option<bool>,
+    /// Auto delete days
     pub auto_delete_days: Option<u32>,
+    /// Privacy mode
     pub privacy_mode: Option<bool>,
 }
 
+/// System metrics response
+#[derive(Debug, Serialize, ToSchema)]
+pub struct SystemMetricsResponse {
+    /// CPU usage percentage
+    pub cpu_usage: f64,
+    /// Memory usage percentage
+    pub memory_usage: f64,
+    /// Disk usage percentage
+    pub disk_usage: f64,
+    /// Network throughput
+    pub network_throughput: f64,
+    /// Active connections
+    pub active_connections: u64,
+    /// Timestamp
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Storage metrics response
+#[derive(Debug, Serialize, ToSchema)]
+pub struct StorageMetricsResponse {
+    /// Total storage capacity
+    pub total_capacity: u64,
+    /// Used storage
+    pub used_storage: u64,
+    /// Available storage
+    pub available_storage: u64,
+    /// Files count
+    pub files_count: u64,
+    /// Average file size
+    pub average_file_size: f64,
+    /// Timestamp
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Network metrics response
+#[derive(Debug, Serialize, ToSchema)]
+pub struct NetworkMetricsResponse {
+    /// Total peers
+    pub total_peers: u64,
+    /// Connected peers
+    pub connected_peers: u64,
+    /// Network latency
+    pub network_latency: f64,
+    /// Bandwidth usage
+    pub bandwidth_usage: f64,
+    /// Packet loss rate
+    pub packet_loss_rate: f64,
+    /// Timestamp
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Proposal response
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ProposalResponse {
+    /// Proposal ID
+    pub id: String,
+    /// Proposal title
+    pub title: String,
+    /// Proposal description
+    pub description: String,
+    /// Proposal type
+    pub proposal_type: String,
+    /// Proposal status
+    pub status: String,
+    /// Votes for
+    pub votes_for: u64,
+    /// Votes against
+    pub votes_against: u64,
+    /// Created at
+    pub created_at: DateTime<Utc>,
+    /// Expires at
+    pub expires_at: DateTime<Utc>,
+}
+
+/// Submit proposal request
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct SubmitProposalRequest {
+    /// Proposal title
+    pub title: String,
+    /// Proposal description
+    pub description: String,
+    /// Proposal type
+    pub proposal_type: String,
+    /// Proposal data
+    pub data: serde_json::Value,
+}
+
+/// Vote request
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct VoteRequest {
+    /// Vote (true for yes, false for no)
+    pub vote: bool,
+    /// Vote weight
+    pub weight: Option<f64>,
+}
+
+/// Users list response
 #[derive(Debug, Serialize, ToSchema)]
 pub struct UsersListResponse {
-    pub users: Vec<AdminUserResponse>,
+    /// Users
+    pub users: Vec<UserInfo>,
+    /// Total count
     pub total: u64,
+    /// Current page
     pub page: u32,
+    /// Page size
     pub page_size: u32,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
-pub struct AdminUserResponse {
-    pub user_id: String,
-    pub email: String,
-    pub account_type: String,
-    pub verification_status: String,
-    pub registration_date: DateTime<Utc>,
-    pub last_activity: DateTime<Utc>,
-    pub reputation_score: f64,
-    pub storage_used: u64,
-    pub files_count: u64,
-}
-
+/// System health response
 #[derive(Debug, Serialize, ToSchema)]
 pub struct SystemHealthResponse {
-    pub overall_status: String,
+    /// Overall health status
+    pub status: String,
+    /// Database health
+    pub database_health: String,
+    /// Network health
+    pub network_health: String,
+    /// Storage health
+    pub storage_health: String,
+    /// Websocket connections
+    pub websocket_connections: u64,
+    /// Uptime seconds
     pub uptime_seconds: u64,
-    pub cpu_usage: f64,
-    pub memory_usage: f64,
-    pub disk_usage: f64,
-    pub network_status: String,
-    pub database_status: String,
-    pub cache_status: String,
-    pub active_connections: u64,
-    pub total_requests_last_hour: u64,
-    pub error_rate: f64,
+    /// Timestamp
     pub timestamp: DateTime<Utc>,
 }
 
@@ -1427,10 +1557,10 @@ async fn upload_file(
 
     let response = FileUploadResponse {
         file_key: file_key.clone(),
-        file_name,
+        file_name: file_name.clone(),
         file_size: file_data.len() as u64,
-        content_type,
-        upload_time: Utc::now(),
+        uploaded_at: Utc::now(),
+        message: "File uploaded successfully".to_string(),
     };
 
     Ok(Json(response))
@@ -1489,4 +1619,206 @@ async fn download_file(
     ];
 
     Ok((headers, file_data))
+}
+
+/// Get system metrics
+#[utoipa::path(
+    get,
+    path = "/api/v1/analytics/system",
+    responses(
+        (status = 200, description = "System metrics retrieved", body = SystemMetricsResponse),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse)
+    ),
+    tag = "analytics"
+)]
+async fn get_system_metrics(
+    State(_state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<SystemMetricsResponse>, ApiError> {
+    let _user = authenticate_user(&headers, &_state).await?;
+    
+    // Mock system metrics
+    let metrics = SystemMetricsResponse {
+        cpu_usage: 45.2,
+        memory_usage: 67.8,
+        disk_usage: 23.1,
+        network_throughput: 1024.5,
+        active_connections: 42,
+        timestamp: Utc::now(),
+    };
+    
+    Ok(Json(metrics))
+}
+
+/// Get storage metrics
+#[utoipa::path(
+    get,
+    path = "/api/v1/analytics/storage",
+    responses(
+        (status = 200, description = "Storage metrics retrieved", body = StorageMetricsResponse),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse)
+    ),
+    tag = "analytics"
+)]
+async fn get_storage_metrics(
+    State(_state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<StorageMetricsResponse>, ApiError> {
+    let _user = authenticate_user(&headers, &_state).await?;
+    
+    // Mock storage metrics
+    let metrics = StorageMetricsResponse {
+        total_capacity: 1000000000000, // 1TB
+        used_storage: 450000000000,    // 450GB
+        available_storage: 550000000000, // 550GB
+        files_count: 15420,
+        average_file_size: 29200.5,
+        timestamp: Utc::now(),
+    };
+    
+    Ok(Json(metrics))
+}
+
+/// Get network metrics
+#[utoipa::path(
+    get,
+    path = "/api/v1/analytics/network",
+    responses(
+        (status = 200, description = "Network metrics retrieved", body = NetworkMetricsResponse),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse)
+    ),
+    tag = "analytics"
+)]
+async fn get_network_metrics(
+    State(_state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<NetworkMetricsResponse>, ApiError> {
+    let _user = authenticate_user(&headers, &_state).await?;
+    
+    // Mock network metrics
+    let metrics = NetworkMetricsResponse {
+        total_peers: 156,
+        connected_peers: 142,
+        network_latency: 45.3,
+        bandwidth_usage: 78.2,
+        packet_loss_rate: f64::from_bits(0x3f80000000000000u64), // 0.05
+        timestamp: Utc::now(),
+    };
+    
+    Ok(Json(metrics))
+}
+
+/// Get governance proposals
+#[utoipa::path(
+    get,
+    path = "/api/v1/governance/proposals",
+    responses(
+        (status = 200, description = "Proposals retrieved", body = Vec<ProposalResponse>),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse)
+    ),
+    tag = "governance"
+)]
+async fn get_proposals(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<ProposalResponse>>, ApiError> {
+    let _user = authenticate_user(&headers, &state).await?;
+    
+    // Get proposals from governance service
+    let proposals = state.governance_service.get_proposals().await
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to get proposals: {}", e)))?;
+    
+    Ok(Json(proposals))
+}
+
+/// Submit governance proposal
+#[utoipa::path(
+    post,
+    path = "/api/v1/governance/proposals",
+    request_body = SubmitProposalRequest,
+    responses(
+        (status = 201, description = "Proposal submitted", body = ProposalResponse),
+        (status = 400, description = "Invalid proposal", body = ApiErrorResponse),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse)
+    ),
+    tag = "governance"
+)]
+async fn submit_proposal(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(request): Json<SubmitProposalRequest>,
+) -> Result<Json<ProposalResponse>, ApiError> {
+    let user = authenticate_user(&headers, &state).await?;
+    
+    // Submit proposal to governance service
+    let proposal = state.governance_service.submit_proposal(
+        &user.user_id,
+        request.title,
+        request.description,
+        request.proposal_type,
+        request.data,
+    ).await
+    .map_err(|e| ApiError::InternalServerError(format!("Failed to submit proposal: {}", e)))?;
+    
+    // Send WebSocket notification
+    state.websocket_manager.send_governance_update(
+        "proposal_submitted".to_string(),
+        serde_json::json!({
+            "proposal_id": proposal.id,
+            "title": proposal.title,
+            "submitter": user.user_id.to_string()
+        }),
+    ).await;
+    
+    Ok(Json(proposal))
+}
+
+/// Vote on proposal
+#[utoipa::path(
+    post,
+    path = "/api/v1/governance/vote/{proposal_id}",
+    params(
+        ("proposal_id" = String, Path, description = "Proposal ID")
+    ),
+    request_body = VoteRequest,
+    responses(
+        (status = 200, description = "Vote recorded", body = serde_json::Value),
+        (status = 400, description = "Invalid vote", body = ApiErrorResponse),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+        (status = 404, description = "Proposal not found", body = ApiErrorResponse)
+    ),
+    tag = "governance"
+)]
+async fn vote_on_proposal(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Path(proposal_id): Path<String>,
+    Json(request): Json<VoteRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user = authenticate_user(&headers, &state).await?;
+    
+    // Record vote in governance service
+    state.governance_service.vote_on_proposal(
+        &proposal_id,
+        &user.user_id,
+        request.vote,
+        request.weight.unwrap_or(1.0),
+    ).await
+    .map_err(|e| ApiError::InternalServerError(format!("Failed to record vote: {}", e)))?;
+    
+    // Send WebSocket notification
+    state.websocket_manager.send_governance_update(
+        "vote_cast".to_string(),
+        serde_json::json!({
+            "proposal_id": proposal_id,
+            "voter": user.user_id.to_string(),
+            "vote": request.vote
+        }),
+    ).await;
+    
+    Ok(Json(serde_json::json!({
+        "message": "Vote recorded successfully",
+        "proposal_id": proposal_id,
+        "vote": request.vote
+    })))
 }

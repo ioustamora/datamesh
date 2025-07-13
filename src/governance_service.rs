@@ -5,7 +5,9 @@
 /// the various governance components to provide a unified interface for network
 /// administration.
 
-// Temporarily simplified implementation for compilation
+use serde_json;
+use tracing::{info, error};
+use uuid::Uuid;
 
 /// Simplified governance service for compilation
 pub struct GovernanceService {
@@ -145,6 +147,86 @@ impl GovernanceService {
         // 4. Update proposal vote counts
         
         Ok(vote_record)
+    }
+
+    /// Get governance proposals
+    pub async fn get_proposals(&self) -> Result<Vec<crate::api_server::ProposalResponse>, crate::error::DfsError> {
+        // Mock proposals for now
+        let proposals = vec![
+            crate::api_server::ProposalResponse {
+                id: "prop_1".to_string(),
+                title: "Increase Storage Capacity".to_string(),
+                description: "Proposal to increase network storage capacity by 50%".to_string(),
+                proposal_type: "capacity_increase".to_string(),
+                status: "active".to_string(),
+                votes_for: 42,
+                votes_against: 8,
+                created_at: chrono::Utc::now() - chrono::Duration::days(2),
+                expires_at: chrono::Utc::now() + chrono::Duration::days(5),
+            },
+            crate::api_server::ProposalResponse {
+                id: "prop_2".to_string(),
+                title: "Network Fee Adjustment".to_string(),
+                description: "Reduce transaction fees by 25%".to_string(),
+                proposal_type: "fee_adjustment".to_string(),
+                status: "active".to_string(),
+                votes_for: 67,
+                votes_against: 15,
+                created_at: chrono::Utc::now() - chrono::Duration::days(1),
+                expires_at: chrono::Utc::now() + chrono::Duration::days(6),
+            },
+        ];
+        
+        Ok(proposals)
+    }
+
+    /// Submit a governance proposal
+    pub async fn submit_proposal(
+        &self,
+        submitter: &crate::governance::UserId,
+        title: String,
+        description: String,
+        proposal_type: String,
+        data: serde_json::Value,
+    ) -> Result<crate::api_server::ProposalResponse, crate::error::DfsError> {
+        // Generate proposal ID
+        let proposal_id = format!("prop_{}", Uuid::new_v4());
+        
+        // Mock proposal creation
+        let proposal = crate::api_server::ProposalResponse {
+            id: proposal_id,
+            title,
+            description,
+            proposal_type,
+            status: "active".to_string(),
+            votes_for: 0,
+            votes_against: 0,
+            created_at: chrono::Utc::now(),
+            expires_at: chrono::Utc::now() + chrono::Duration::days(7),
+        };
+        
+        Ok(proposal)
+    }
+
+    /// Vote on a proposal
+    pub async fn vote_on_proposal(
+        &self,
+        proposal_id: &str,
+        voter: &crate::governance::UserId,
+        vote: bool,
+        weight: f64,
+    ) -> Result<(), crate::error::DfsError> {
+        // In a real implementation, you'd record the vote in the database
+        // For now, just log it
+        tracing::info!(
+            "Vote recorded: proposal_id={}, voter={}, vote={}, weight={}",
+            proposal_id,
+            voter.to_string(),
+            vote,
+            weight
+        );
+        
+        Ok(())
     }
 }
 

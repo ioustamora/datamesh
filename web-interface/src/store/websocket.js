@@ -115,8 +115,8 @@ export const useWebSocketStore = defineStore('websocket', () => {
   const setupEventListeners = () => {
     if (!socket.value) return
     
-    // Connection events
-    socket.value.on('connect', () => {
+    // Connection events - use native WebSocket events
+    socket.value.onopen = () => {
       console.log('WebSocket connected')
       connected.value = true
       connecting.value = false
@@ -129,114 +129,129 @@ export const useWebSocketStore = defineStore('websocket', () => {
         message: 'WebSocket connected',
         timestamp: new Date()
       }
-    })
+    }
     
-    socket.value.on('disconnect', (reason) => {
-      console.log('WebSocket disconnected:', reason)
+    socket.value.onclose = (event) => {
+      console.log('WebSocket disconnected:', event.reason)
       connected.value = false
       connecting.value = false
       
       systemStatus.value = {
         status: 'disconnected',
-        message: `Disconnected: ${reason}`,
+        message: `Disconnected: ${event.reason || 'Connection closed'}`,
         timestamp: new Date()
       }
       
       // Auto-reconnect if not paused and not manually disconnected
-      if (!paused.value && reason !== 'io client disconnect') {
+      if (!paused.value && event.code !== 1000) {
         reconnect()
       }
-    })
+    }
     
-    socket.value.on('connect_error', (err) => {
+    socket.value.onerror = (err) => {
       console.error('WebSocket connection error:', err)
-      error.value = err.message
+      error.value = 'WebSocket connection error'
       connecting.value = false
       
       systemStatus.value = {
         status: 'error',
-        message: `Connection error: ${err.message}`,
+        message: 'WebSocket connection error',
         timestamp: new Date()
       }
       
       if (!paused.value) {
         reconnect()
       }
-    })
+    }
     
-    // Data events
-    socket.value.on('system_status', (data) => {
-      systemStatus.value = {
-        ...data,
-        timestamp: new Date()
+    // Message events - parse JSON messages from backend
+    socket.value.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data)
+        handleWebSocketMessage(message)
+      } catch (err) {
+        console.error('Failed to parse WebSocket message:', err)
       }
-    })
+    }
+  }
+  
+  const handleWebSocketMessage = (message) => {
+    if (!message.type) return
     
-    socket.value.on('file_upload_progress', (data) => {
-      fileUploadProgress.value.set(data.file_key, {
-        ...data,
-        timestamp: new Date()
-      })
-    })
-    
-    socket.value.on('file_download_progress', (data) => {
-      fileDownloadProgress.value.set(data.file_key, {
-        ...data,
-        timestamp: new Date()
-      })
-    })
-    
-    socket.value.on('cache_stats', (data) => {
-      cacheStats.value = {
-        ...data,
-        timestamp: new Date()
-      }
-    })
-    
-    socket.value.on('network_health', (data) => {
-      networkHealth.value = {
-        ...data,
-        timestamp: new Date()
-      }
-    })
-    
-    // Governance events
-    socket.value.on('governance_update', (data) => {
-      console.log('Governance update:', data)
-      // Emit to governance store
-      emitToListeners('governance_update', data)
-    })
-    
-    socket.value.on('operator_status_change', (data) => {
-      console.log('Operator status change:', data)
-      emitToListeners('operator_status_change', data)
-    })
-    
-    socket.value.on('admin_action_executed', (data) => {
-      console.log('Admin action executed:', data)
-      emitToListeners('admin_action_executed', data)
-    })
-    
-    // File events
-    socket.value.on('file_uploaded', (data) => {
-      console.log('File uploaded:', data)
-      emitToListeners('file_uploaded', data)
-    })
-    
-    socket.value.on('file_deleted', (data) => {
-      console.log('File deleted:', data)
-      emitToListeners('file_deleted', data)
-    })
-    
-    socket.value.on('storage_stats_update', (data) => {
-      console.log('Storage stats update:', data)
-      emitToListeners('storage_stats_update', data)
-    })
+    switch (message.type) {
+      case 'SystemStatus':
+        systemStatus.value = {
+          status: message.status,
+          message: message.message,
+          timestamp: new Date()
+        }
+        break
+        
+      case 'FileUploadProgress':
+        fileUploadProgress.value.set(message.file_key, {
+          ...message,
+          timestamp: new Date()
+        })
+        break
+        
+      case 'FileDownloadProgress':
+        fileDownloadProgress.value.set(message.file_key, {
+          ...message,
+          timestamp: new Date()
+        })
+        break
+        
+      case 'CacheStats':
+        cacheStats.value = {
+          hit_ratio: message.hit_ratio,
+          cache_size: message.cache_size,
+          timestamp: new Date()
+        }
+        break
+        
+      case 'NetworkHealth':
+        networkHealth.value = {
+          total_operators: message.total_operators,
+          online_operators: message.online_operators,
+          online_percentage: message.online_percentage,
+          can_reach_consensus: message.can_reach_consensus,
+          timestamp: new Date()
+        }
+        break
+        
+      case 'GovernanceUpdate':
+        console.log('Governance update:', message)
+        emitToListeners('governance_update', message.data)
+        break
+        
+      case 'OperatorStatusChange':
+        console.log('Operator status change:', message)
+        emitToListeners('operator_status_change', message)
+        break
+        
+      case 'AdminActionExecuted':
+        console.log('Admin action executed:', message)
+        emitToListeners('admin_action_executed', message)
+        break
+        
+      case 'Heartbeat':
+        // Handle heartbeat - update connection status
+        console.log('Heartbeat received')
+        break
+        
+      default:
+        console.log('Unknown WebSocket message type:', message.type)
+    }
   }
   
   const emit = (event, data) => {
     if (socket.value && connected.value) {
-      socket.value.emit(event, data)
+      const message = {
+        type: event,
+        data: data,
+        timestamp: new Date().toISOString()
+      }
+      socket.value.send(JSON.stringify(message))
     } else {
       console.warn('WebSocket not connected, cannot emit event:', event)
     }
@@ -325,15 +340,34 @@ export const useWebSocketStore = defineStore('websocket', () => {
   const ping = () => {
     if (socket.value && connected.value) {
       const startTime = Date.now()
-      socket.value.emit('ping', { timestamp: startTime })
-      
-      const handlePong = (data) => {
-        const latency = Date.now() - startTime
-        console.log(`WebSocket latency: ${latency}ms`)
-        socket.value.off('pong', handlePong)
+      const pingMessage = {
+        type: 'ping',
+        timestamp: startTime
       }
+      socket.value.send(JSON.stringify(pingMessage))
       
-      socket.value.on('pong', handlePong)
+      // Store ping time for latency calculation
+      const pingTimeout = setTimeout(() => {
+        console.warn('Ping timeout - no pong received')
+      }, 5000)
+      
+      // Listen for pong in message handler
+      const originalOnMessage = socket.value.onmessage
+      socket.value.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data)
+          if (message.type === 'pong') {
+            clearTimeout(pingTimeout)
+            const latency = Date.now() - startTime
+            console.log(`WebSocket latency: ${latency}ms`)
+            socket.value.onmessage = originalOnMessage
+          } else {
+            originalOnMessage(event)
+          }
+        } catch (err) {
+          originalOnMessage(event)
+        }
+      }
     }
   }
   

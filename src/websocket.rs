@@ -13,6 +13,7 @@ use axum::{
 };
 use futures_util::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
+use serde_json;
 use std::{
     collections::HashMap,
     sync::Arc,
@@ -222,7 +223,53 @@ async fn handle_websocket(socket: WebSocket, state: ApiState) {
             match msg {
                 Ok(Message::Text(text)) => {
                     debug!("Received WebSocket message: {}", text);
-                    // Handle client messages (subscription changes, etc.)
+                    
+                    // Parse JSON message from client
+                    if let Ok(client_message) = serde_json::from_str::<serde_json::Value>(&text) {
+                        if let Some(message_type) = client_message.get("type").and_then(|v| v.as_str()) {
+                            match message_type {
+                                "ping" => {
+                                    // Respond with pong
+                                    let pong_message = serde_json::json!({
+                                        "type": "pong",
+                                        "timestamp": chrono::Utc::now()
+                                    });
+                                    
+                                    if let Err(e) = sender.send(Message::Text(pong_message.to_string())).await {
+                                        error!("Failed to send pong: {}", e);
+                                        break;
+                                    }
+                                }
+                                "subscribe_file_progress" => {
+                                    debug!("Client subscribed to file progress");
+                                    // Handle file progress subscription
+                                }
+                                "unsubscribe_file_progress" => {
+                                    debug!("Client unsubscribed from file progress");
+                                    // Handle file progress unsubscription
+                                }
+                                "subscribe_system_updates" => {
+                                    debug!("Client subscribed to system updates");
+                                    // Handle system updates subscription
+                                }
+                                "unsubscribe_system_updates" => {
+                                    debug!("Client unsubscribed from system updates");
+                                    // Handle system updates unsubscription
+                                }
+                                "subscribe_governance_updates" => {
+                                    debug!("Client subscribed to governance updates");
+                                    // Handle governance updates subscription
+                                }
+                                "unsubscribe_governance_updates" => {
+                                    debug!("Client unsubscribed from governance updates");
+                                    // Handle governance updates unsubscription
+                                }
+                                _ => {
+                                    debug!("Unknown message type: {}", message_type);
+                                }
+                            }
+                        }
+                    }
                 }
                 Ok(Message::Close(_)) => {
                     info!("WebSocket connection closed by client");
