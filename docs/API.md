@@ -104,6 +104,190 @@ GET /system/metrics
 }
 ```
 
+## 🔍 Search & Discovery APIs
+
+### File Search
+
+Perform advanced file search with multiple criteria:
+
+```http
+POST /files/search
+```
+
+**Request Body:**
+```json
+{
+  "query": "document",
+  "tags": "project,important",
+  "size_range": [1048576, 10485760],
+  "date_range": ["2024-01-01T00:00:00Z", "2024-12-31T23:59:59Z"],
+  "page": 1,
+  "page_size": 20
+}
+```
+
+**Parameters:**
+- `query` (string, optional): Text search query
+- `tags` (string, optional): Comma-separated tags filter
+- `size_range` (array, optional): [min_bytes, max_bytes] size filter
+- `date_range` (array, optional): [from_date, to_date] date filter
+- `page` (integer, optional): Page number (default: 1)
+- `page_size` (integer, optional): Results per page (default: 20, max: 100)
+
+**Response:**
+```json
+{
+  "files": [
+    {
+      "id": "file_abc123",
+      "name": "project_document.pdf",
+      "original_filename": "Project Document.pdf",
+      "file_key": "def456ghi789",
+      "size": 2048576,
+      "upload_time": "2024-01-15T10:30:00Z",
+      "tags": ["project", "document", "important"],
+      "file_type": "pdf",
+      "relevance_score": 0.95,
+      "chunks_total": 4,
+      "chunks_healthy": 4
+    }
+  ],
+  "total": 142,
+  "page": 1,
+  "page_size": 20,
+  "query_time": 0.045
+}
+```
+
+### Recent Files
+
+Get recently uploaded or accessed files:
+
+```http
+GET /files/recent
+```
+
+**Query Parameters:**
+- `count` (integer, optional): Number of files to return (default: 20)
+- `days` (integer, optional): Show files from last N days (default: 7)
+- `file_type` (string, optional): Filter by file extension
+
+**Response:**
+```json
+{
+  "files": [
+    {
+      "id": "file_xyz789",
+      "name": "recent_upload.jpg",
+      "size": 3145728,
+      "upload_time": "2024-01-20T14:22:00Z",
+      "tags": ["photo", "recent"],
+      "file_type": "jpg"
+    }
+  ],
+  "total": 15,
+  "period": "7 days"
+}
+```
+
+### Popular Files
+
+Get most frequently accessed files:
+
+```http
+GET /files/popular
+```
+
+**Query Parameters:**
+- `timeframe` (string, optional): Time period (day, week, month, year)
+- `category` (string, optional): Filter by category/tag
+- `limit` (integer, optional): Maximum results (default: 20)
+
+**Response:**
+```json
+{
+  "files": [
+    {
+      "id": "file_popular1",
+      "name": "frequently_accessed.pdf",
+      "size": 1572864,
+      "access_count": 45,
+      "last_accessed": "2024-01-20T16:45:00Z",
+      "tags": ["document", "popular"],
+      "file_type": "pdf"
+    }
+  ],
+  "timeframe": "week",
+  "total": 10
+}
+```
+
+### Search Suggestions
+
+Get search suggestions and autocomplete:
+
+```http
+GET /search/suggestions
+```
+
+**Query Parameters:**
+- `query` (string, required): Partial search query
+- `limit` (integer, optional): Maximum suggestions (default: 10)
+
+**Response:**
+```json
+{
+  "suggestions": [
+    {
+      "text": "project documents",
+      "type": "query",
+      "count": 25
+    },
+    {
+      "text": "project-alpha",
+      "type": "tag",
+      "count": 12
+    }
+  ],
+  "query": "project",
+  "response_time": 0.012
+}
+```
+
+### Search Analytics
+
+Get search analytics and performance metrics:
+
+```http
+GET /search/analytics
+```
+
+**Query Parameters:**
+- `period` (string, optional): Time period (hour, day, week, month)
+- `metric` (string, optional): Specific metric (queries, performance, popular_terms)
+
+**Response:**
+```json
+{
+  "period": "day",
+  "metrics": {
+    "total_queries": 1250,
+    "average_response_time": 0.087,
+    "cache_hit_rate": 0.78,
+    "popular_terms": [
+      {"term": "document", "count": 156},
+      {"term": "project", "count": 89},
+      {"term": "report", "count": 67}
+    ],
+    "search_performance": {
+      "simple_queries": 0.045,
+      "complex_queries": 0.156,
+      "regex_queries": 0.234
+    }
+  }
+}
+```
+
 ## ⚖️ Load Balancer APIs
 
 ### Load Balancer Status

@@ -2,7 +2,7 @@
 
 A distributed data storage system built with Rust and libp2p. **Currently in active development** - core features stable, advanced features in progress.
 
-![Last Updated](https://img.shields.io/badge/Last%20Updated-January%202025-blue)
+![Last Updated](https://img.shields.io/badge/Last%20Updated-July%202025-blue)
 ![Status](https://img.shields.io/badge/Status-Core%20Features%20Stable-green)
 ![Security](https://img.shields.io/badge/Security-Core%20Implemented-orange)
 ![License](https://img.shields.io/badge/License-MIT-orange)
@@ -65,6 +65,7 @@ All documentation is now organized in the [`docs/`](docs/) directory:
 
 ### 📖 Core Documentation
 - **[USAGE.md](docs/USAGE.md)** - Complete usage guide for all 47 commands
+- **[SEARCH.md](docs/SEARCH.md)** - Comprehensive search and discovery guide
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Technical architecture overview
 - **[API.md](docs/API.md)** - REST API documentation
 - **[MODULES.md](docs/MODULES.md)** - Detailed module documentation
@@ -234,8 +235,10 @@ DataMesh provides **47 comprehensive commands** organized into logical categorie
 ### File Management (5 commands)
 - `sync`, `backup`, `restore`, `duplicate`, `rename`
 
-### Search & Discovery (3 commands)
-- `search`, `recent`, `popular`
+### 🔍 Search & Discovery (3 commands)
+- **`search`** - Advanced multi-criteria file search with regex support, filtering by name, tags, size, and date
+- **`recent`** - Show recently uploaded/accessed files with time-based filters
+- **`popular`** - Display most frequently accessed files by timeframe
 
 ### Batch Operations (3 commands)
 - `batch-put`, `batch-get`, `batch-tag`

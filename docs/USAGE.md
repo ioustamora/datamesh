@@ -31,9 +31,56 @@ DataMesh is a comprehensive distributed data storage system with **38 commands**
 - `rename` - Rename files without re-uploading content
 
 ### Search & Discovery (3 commands)
-- `search` - Advanced multi-criteria file search with regex support
-- `recent` - Show recently uploaded/accessed files with filters
+- `search` - Advanced multi-criteria file search with regex support, filtering by name, tags, size, and date
+- `recent` - Show recently uploaded/accessed files with time-based filters
 - `popular` - Display most frequently accessed files by timeframe
+
+#### **Search Command Examples:**
+```bash
+# Basic text search
+datamesh search "document"
+
+# Search with file type filter
+datamesh search "report" --file-type pdf
+
+# Search with size constraints
+datamesh search "image" --size ">1MB"
+datamesh search "backup" --size "100MB-1GB"
+
+# Search with date range
+datamesh search "project" --date "last week"
+datamesh search "archive" --date "2024-01-01:2024-06-30"
+
+# Regex pattern search
+datamesh search "file[0-9]+" --regex
+
+# Combined filters
+datamesh search "important" --file-type pdf --size ">1MB" --date "last month" --limit 25
+```
+
+#### **Recent Files Examples:**
+```bash
+# Show 20 most recent files
+datamesh recent
+
+# Show 50 recent files from last 3 days
+datamesh recent --count 50 --days 3
+
+# Recent PDF files only
+datamesh recent --file-type pdf --days 7
+```
+
+#### **Popular Files Examples:**
+```bash
+# Show most accessed files
+datamesh popular
+
+# Popular files from last month
+datamesh popular --timeframe "last month"
+
+# Popular files by category
+datamesh popular --category documents --limit 15
+```
 
 ### Batch Operations (3 commands)
 - `batch-put` - Upload multiple files with pattern matching and parallel processing

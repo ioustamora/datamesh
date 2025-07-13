@@ -198,9 +198,64 @@ let loaded_manager = EncryptedKeyManager::load_with_password(
 ### Key Features
 - **Directory Sync**: Bidirectional sync with watch mode
 - **Backup & Restore**: Versioned backups with incremental support
-- **Advanced Search**: Multi-criteria search with regex support
+- **Advanced Search**: Multi-criteria search with regex support and relevance scoring
 - **File Operations**: Duplicate, rename, and organize files
-- **Recent Files**: Track recently accessed files
+- **Recent Files**: Track recently accessed files with time-based filtering
+
+### Search Implementation Details
+
+The search system implements a comprehensive multi-layered approach:
+
+1. **Database Layer**: SQL-based queries with optimized indexes
+2. **Filtering Engine**: Size, date, and file type filters
+3. **Regex Engine**: Optional pattern matching support
+4. **Relevance Scoring**: Semantic matching with weighted scoring
+5. **Caching**: Query result caching for performance
+
+#### Search Criteria Structure
+```rust
+#[derive(Debug, Clone)]
+pub struct SearchCriteria {
+    pub query: String,
+    pub file_type: Option<String>,
+    pub size_range: Option<SizeRange>,
+    pub date_range: Option<DateRange>,
+    pub use_regex: bool,
+    pub limit: usize,
+}
+
+#[derive(Debug, Clone)]
+pub enum SizeRange {
+    LessThan(u64),
+    GreaterThan(u64),
+    Between(u64, u64),
+}
+
+#[derive(Debug, Clone)]
+pub enum DateRange {
+    LastDays(u32),
+    LastWeeks(u32),
+    LastMonths(u32),
+    Between(DateTime<Local>, DateTime<Local>),
+}
+```
+
+#### Relevance Scoring Algorithm
+```rust
+fn calculate_relevance_score(filename: &str, query: &str) -> f64 {
+    // Exact match gets highest score
+    if filename.to_lowercase().contains(&query.to_lowercase()) {
+        return 1.0;
+    }
+    
+    // Partial matching with word overlap scoring
+    let query_words: Vec<&str> = query.split_whitespace().collect();
+    let filename_words: Vec<&str> = filename.split_whitespace().collect();
+    
+    // Calculate intersection and position weighting
+    // Implementation includes fuzzy matching and relevance weighting
+}
+```
 
 ### Example Usage
 ```rust

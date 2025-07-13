@@ -6,7 +6,8 @@ Welcome to the comprehensive documentation for DataMesh, a distributed storage s
 
 ### 🚀 **Getting Started**
 - **[Main README](../README.md)** - Project overview and quick start guide
-- **[USAGE.md](USAGE.md)** - Complete usage guide for all 38 CLI commands
+- **[USAGE.md](USAGE.md)** - Complete usage guide for all 47 CLI commands
+- **[SEARCH.md](SEARCH.md)** - Comprehensive search and discovery guide
 - **[Installation & Setup](../README.md#installation--setup)** - Build and installation instructions
 
 ### 🏗️ **Architecture & Design**
@@ -16,13 +17,11 @@ Welcome to the comprehensive documentation for DataMesh, a distributed storage s
 
 ### 🔧 **Administration & Deployment**
 - **[ADMIN.md](ADMIN.md)** - Administration and deployment guide
-- **[vps_requirements.md](vps_requirements.md)** - VPS requirements for bootstrap nodes
 - **[GOVERNANCE.md](GOVERNANCE.md)** - Network governance and user management
 
 ### 📈 **Development & Contributing**
 - **[ROADMAP.md](ROADMAP.md)** - Development roadmap and planned features
 - **[CURRENT_IMPLEMENTATION_STATUS.md](../CURRENT_IMPLEMENTATION_STATUS.md)** - Current implementation status
-- **[cli_ux_improvements.md](cli_ux_improvements.md)** - CLI/UX enhancement details
 
 ## 🎯 Quick Navigation
 
@@ -33,8 +32,8 @@ Welcome to the comprehensive documentation for DataMesh, a distributed storage s
 
 ### **For Administrators**
 1. **Deployment**: Start with [ADMIN.md](ADMIN.md) for deployment guidance
-2. **VPS Setup**: Review [vps_requirements.md](vps_requirements.md) for server requirements
-3. **Network Management**: See [GOVERNANCE.md](GOVERNANCE.md) for user and network administration
+2. **Network Management**: See [GOVERNANCE.md](GOVERNANCE.md) for user and network administration
+3. **Storage Economy**: Review [STORAGE_ECONOMY.md](STORAGE_ECONOMY.md) for economic model
 
 ### **For Developers**
 1. **Architecture**: Understand the system via [ARCHITECTURE.md](ARCHITECTURE.md)
@@ -88,15 +87,14 @@ Documentation improvements are welcome! Please:
 |------|---------|---------|
 | `README.md` | This documentation index | ✅ Current |
 | `USAGE.md` | Complete CLI usage guide | ✅ Current |
+| `SEARCH.md` | Search and discovery guide | ✅ Current |
 | `ARCHITECTURE.md` | System architecture overview | ✅ Current |
 | `MODULES.md` | Code module documentation | ✅ Current |
 | `API.md` | REST API documentation | ✅ Current |
 | `ADMIN.md` | Administration guide | ✅ Current |
 | `GOVERNANCE.md` | Network governance details | ✅ Current |
 | `ROADMAP.md` | Development roadmap | ✅ Current |
-| `IMPLEMENTATION_STATUS.md` | Implementation status | ✅ Current |
-| `cli_ux_improvements.md` | CLI enhancement details | ✅ Current |
-| `vps_requirements.md` | VPS deployment requirements | ✅ Current |
+| `STORAGE_ECONOMY.md` | Economic model documentation | ✅ Current |
 
 ---
 
