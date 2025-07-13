@@ -111,6 +111,12 @@ pub mod batch_operations;             // Batch processing capabilities for bulk 
 pub mod datamesh_core;                // Core system functionality and shared utilities
 pub mod websocket;                    // WebSocket functionality for real-time updates
 
+// ===== ECONOMY & UX ENHANCEMENT MODULES =====
+pub mod dynamic_pricing;          // Dynamic pricing models for storage and retrieval
+pub mod flexible_storage;         // Flexible storage solutions and configurations
+pub mod gamification;             // Gamification elements to encourage network participation
+pub mod intelligent_cli;          // Intelligent command-line interface enhancements
+
 // ===== CONVENIENCE RE-EXPORTS =====
 // These re-exports provide easy access to the most commonly used types
 // and functions when using DataMesh as a library
