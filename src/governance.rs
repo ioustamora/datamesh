@@ -454,9 +454,9 @@ impl UserRegistry {
         email: String,
         display_name: Option<String>,
     ) -> Result<UserAccount, GovernanceError> {
-        let mut accounts = self.accounts.write().unwrap();
+        let mut users = self.users.write().unwrap();
         
-        if let Some(account) = accounts.get_mut(user_id) {
+        if let Some(account) = users.get_mut(user_id) {
             account.email = email;
             // In a real implementation, you'd also update display_name field
             Ok(account.clone())
@@ -467,9 +467,9 @@ impl UserRegistry {
 
     /// Verify user password
     pub fn verify_password(&self, user_id: &UserId, password: &str) -> Result<bool, GovernanceError> {
-        let accounts = self.accounts.read().unwrap();
+        let users = self.users.read().unwrap();
         
-        if let Some(_account) = accounts.get(user_id) {
+        if let Some(_account) = users.get(user_id) {
             // In a real implementation, you'd hash the password and compare
             // For now, just return true for demo purposes
             Ok(true)
@@ -480,9 +480,9 @@ impl UserRegistry {
 
     /// Update user password
     pub fn update_password(&self, user_id: &UserId, new_password: &str) -> Result<(), GovernanceError> {
-        let mut accounts = self.accounts.write().unwrap();
+        let mut users = self.users.write().unwrap();
         
-        if let Some(_account) = accounts.get_mut(user_id) {
+        if let Some(_account) = users.get_mut(user_id) {
             // In a real implementation, you'd hash and store the password
             // For now, just return success for demo purposes
             Ok(())

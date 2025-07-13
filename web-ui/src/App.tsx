@@ -7,6 +7,7 @@ import { Files } from '@/pages/Files'
 import { Upload } from '@/pages/Upload'
 import { Network } from '@/pages/Network'
 import { Governance } from '@/pages/Governance'
+import Economy from '@/pages/Economy'
 import { Settings } from '@/pages/Settings'
 import { Login } from '@/pages/Login'
 import { Register } from '@/pages/Register'
@@ -53,6 +54,7 @@ function App() {
           <Route path="upload" element={<Upload />} />
           <Route path="network" element={<Network />} />
           <Route path="governance" element={<Governance />} />
+          <Route path="economy" element={<Economy />} />
           <Route path="settings" element={<Settings />} />
         </Route>
         

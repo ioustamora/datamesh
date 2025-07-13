@@ -44,6 +44,7 @@ use crate::governance::{AuthService, UserRegistry};
 use crate::governance_service::GovernanceService;
 use crate::key_manager::KeyManager;
 use crate::smart_cache::SmartCacheManager;
+use crate::storage_economy::{StorageEconomyService, UserStorageProfile, UserStorageStatistics, StorageTier, EconomyTransaction};
 use crate::websocket::{websocket_handler, WebSocketManager};
 
 /// API error types for HTTP responses
@@ -167,6 +168,7 @@ pub struct ApiState {
     pub api_config: ApiConfig,
     pub websocket_manager: Arc<WebSocketManager>,
     pub file_storage: Arc<ActorFileStorage>,
+    pub storage_economy: Arc<StorageEconomyService>,
 }
 
 /// Extract user ID from Authorization header
@@ -531,6 +533,139 @@ pub struct ApiNetworkHealthResponse {
     pub can_reach_consensus: bool,
 }
 
+/// Economy status response
+#[derive(Debug, Serialize, ToSchema)]
+pub struct EconomyStatusResponse {
+    /// Overall economy health
+    pub health: String,
+    /// Total contributors
+    pub total_contributors: u64,
+    /// Total storage contributed
+    pub total_storage_contributed: u64,
+    /// Active verifications
+    pub active_verifications: u64,
+    /// Network utilization
+    pub network_utilization: f64,
+}
+
+/// User economy profile response
+#[derive(Debug, Serialize, ToSchema)]
+pub struct UserEconomyProfileResponse {
+    /// User ID
+    pub user_id: String,
+    /// Current storage tier
+    pub tier: String,
+    /// Current storage usage
+    pub current_usage: u64,
+    /// Maximum storage allowed
+    pub max_storage: u64,
+    /// Upload quota used
+    pub upload_quota_used: u64,
+    /// Upload quota limit
+    pub upload_quota_limit: u64,
+    /// Download quota used
+    pub download_quota_used: u64,
+    /// Download quota limit
+    pub download_quota_limit: u64,
+    /// Reputation score
+    pub reputation_score: f64,
+    /// Violations count
+    pub violations_count: usize,
+    /// Last activity timestamp
+    pub last_activity: DateTime<Utc>,
+    /// Whether user can contribute
+    pub can_contribute: bool,
+}
+
+/// Storage contribution request
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct StorageContributionRequest {
+    /// Storage path
+    pub storage_path: String,
+    /// Amount to contribute in bytes
+    pub amount: u64,
+}
+
+/// Storage tier upgrade request
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct StorageTierUpgradeRequest {
+    /// Target tier
+    pub target_tier: String,
+    /// Payment method
+    pub payment_method: String,
+    /// Additional storage amount
+    pub additional_storage: Option<u64>,
+}
+
+/// Challenge response request
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ChallengeResponseRequest {
+    /// Challenge ID
+    pub challenge_id: String,
+    /// Response data
+    pub response_data: String,
+}
+
+/// Storage tiers response
+#[derive(Debug, Serialize, ToSchema)]
+pub struct StorageTiersResponse {
+    /// Available tiers
+    pub tiers: Vec<StorageTierInfo>,
+}
+
+/// Storage tier information
+#[derive(Debug, Serialize, ToSchema)]
+pub struct StorageTierInfo {
+    /// Tier name
+    pub name: String,
+    /// Maximum storage
+    pub max_storage: u64,
+    /// Upload quota
+    pub upload_quota: u64,
+    /// Download quota
+    pub download_quota: u64,
+    /// Monthly cost
+    pub monthly_cost: Option<f64>,
+    /// Description
+    pub description: String,
+}
+
+/// Economy transaction response
+#[derive(Debug, Serialize, ToSchema)]
+pub struct EconomyTransactionResponse {
+    /// Transaction ID
+    pub transaction_id: String,
+    /// Transaction type
+    pub transaction_type: String,
+    /// Amount
+    pub amount: u64,
+    /// Description
+    pub description: String,
+    /// Timestamp
+    pub timestamp: DateTime<Utc>,
+    /// Status
+    pub status: String,
+}
+
+/// Quota status response
+#[derive(Debug, Serialize, ToSchema)]
+pub struct QuotaStatusResponse {
+    /// Storage quota used
+    pub storage_used: u64,
+    /// Storage quota limit
+    pub storage_limit: u64,
+    /// Upload quota used
+    pub upload_quota_used: u64,
+    /// Upload quota limit
+    pub upload_quota_limit: u64,
+    /// Download quota used
+    pub download_quota_used: u64,
+    /// Download quota limit
+    pub download_quota_limit: u64,
+    /// Next reset time
+    pub next_reset: DateTime<Utc>,
+}
+
 /// OpenAPI documentation
 #[derive(OpenApi)]
 #[openapi(
@@ -556,7 +691,19 @@ pub struct ApiNetworkHealthResponse {
         get_user_settings,
         update_user_settings,
         get_users,
-        get_system_health
+        get_system_health,
+        get_economy_status,
+        get_user_economy_profile,
+        update_economy_profile,
+        start_storage_contribution,
+        get_contribution_status,
+        stop_storage_contribution,
+        get_storage_tiers,
+        upgrade_storage_tier,
+        get_verification_status,
+        respond_to_challenge,
+        get_economy_transactions,
+        get_quota_status
     ),
     components(
         schemas(
@@ -588,7 +735,16 @@ pub struct ApiNetworkHealthResponse {
             UserSettingsResponse,
             UpdateUserSettingsRequest,
             UsersListResponse,
-            SystemHealthResponse
+            SystemHealthResponse,
+            EconomyStatusResponse,
+            UserEconomyProfileResponse,
+            StorageContributionRequest,
+            StorageTierUpgradeRequest,
+            ChallengeResponseRequest,
+            StorageTiersResponse,
+            StorageTierInfo,
+            EconomyTransactionResponse,
+            QuotaStatusResponse
         )
     ),
     tags(
@@ -600,7 +756,8 @@ pub struct ApiNetworkHealthResponse {
         (name = "admin", description = "Administration API"),
         (name = "auth", description = "Authentication API"),
         (name = "analytics", description = "Analytics API"),
-        (name = "settings", description = "User settings API")
+        (name = "settings", description = "User settings API"),
+        (name = "economy", description = "Storage Economy API")
     ),
     info(
         title = "DataMesh API",
@@ -645,6 +802,13 @@ impl ApiServer {
                 .map_err(|e| DfsError::Storage(format!("Failed to initialize file storage: {}", e)))?
         );
 
+        // Initialize storage economy service
+        let storage_economy = Arc::new(
+            StorageEconomyService::new(&config)
+                .await
+                .map_err(|e| DfsError::Storage(format!("Failed to initialize storage economy: {}", e)))?
+        );
+
         let state = ApiState {
             config,
             key_manager,
@@ -657,6 +821,7 @@ impl ApiServer {
             api_config: api_config.clone(),
             websocket_manager,
             file_storage,
+            storage_economy,
         };
 
         let app = Self::create_app(state.clone());
@@ -691,6 +856,19 @@ impl ApiServer {
             .route("/analytics/system", get(get_system_metrics))
             .route("/analytics/storage", get(get_storage_metrics))
             .route("/analytics/network", get(get_network_metrics))
+            // Economy endpoints
+            .route("/economy/status", get(get_economy_status))
+            .route("/economy/profile", get(get_user_economy_profile))
+            .route("/economy/profile", put(update_economy_profile))
+            .route("/economy/contribute", post(start_storage_contribution))
+            .route("/economy/contribute", get(get_contribution_status))
+            .route("/economy/contribute", delete(stop_storage_contribution))
+            .route("/economy/tiers", get(get_storage_tiers))
+            .route("/economy/upgrade", post(upgrade_storage_tier))
+            .route("/economy/verification", get(get_verification_status))
+            .route("/economy/verification/challenge", post(respond_to_challenge))
+            .route("/economy/transactions", get(get_economy_transactions))
+            .route("/economy/quota", get(get_quota_status))
             // Governance endpoints
             // .route("/governance/status", get(get_governance_status)) // TODO: Implement get_governance_status
             // .route("/governance/operators", get(list_operators)) // TODO: Implement list_operators
@@ -2130,4 +2308,411 @@ pub struct SystemHealthResponseDetailed {
     pub error_rate: f64,
     /// Timestamp
     pub timestamp: chrono::DateTime<chrono::Utc>,
+}
+
+// ============================================================================
+// ECONOMY API HANDLERS
+// ============================================================================
+
+/// Get economy status endpoint
+#[utoipa::path(
+    get,
+    path = "/api/v1/economy/status",
+    responses(
+        (status = 200, description = "Economy status retrieved", body = EconomyStatusResponse),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse)
+    ),
+    tag = "economy"
+)]
+async fn get_economy_status(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<EconomyStatusResponse>, ApiError> {
+    let _user = authenticate_user(&headers, &state).await?;
+    
+    let status = state.storage_economy.get_economy_status().await
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to get economy status: {}", e)))?;
+    
+    let response = EconomyStatusResponse {
+        health: "healthy".to_string(),
+        total_contributors: status.total_contributors,
+        total_storage_contributed: status.total_storage_contributed,
+        active_verifications: status.active_verifications,
+        network_utilization: status.network_utilization,
+    };
+    
+    Ok(Json(response))
+}
+
+/// Get user economy profile endpoint
+#[utoipa::path(
+    get,
+    path = "/api/v1/economy/profile",
+    responses(
+        (status = 200, description = "User economy profile retrieved", body = UserEconomyProfileResponse),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+        (status = 404, description = "Profile not found", body = ApiErrorResponse)
+    ),
+    tag = "economy"
+)]
+async fn get_user_economy_profile(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<UserEconomyProfileResponse>, ApiError> {
+    let user_id = extract_user_id(&headers, &state).await?;
+    
+    let stats = state.storage_economy.get_user_storage_statistics(&user_id).await
+        .map_err(|e| match e {
+            crate::error::DfsError::UserNotFound(_) => ApiError::NotFound("User profile not found".to_string()),
+            _ => ApiError::InternalServerError(format!("Failed to get user profile: {}", e)),
+        })?;
+    
+    let response = UserEconomyProfileResponse {
+        user_id: stats.user_id,
+        tier: stats.storage_tier,
+        current_usage: stats.current_usage,
+        max_storage: stats.max_storage,
+        upload_quota_used: stats.upload_quota_used,
+        upload_quota_limit: stats.upload_quota_limit,
+        download_quota_used: stats.download_quota_used,
+        download_quota_limit: stats.download_quota_limit,
+        reputation_score: stats.reputation_score,
+        violations_count: stats.violations_count,
+        last_activity: stats.last_activity,
+        can_contribute: stats.can_contribute,
+    };
+    
+    Ok(Json(response))
+}
+
+/// Update economy profile endpoint
+#[utoipa::path(
+    put,
+    path = "/api/v1/economy/profile",
+    request_body = UserEconomyProfileResponse,
+    responses(
+        (status = 200, description = "Profile updated", body = UserEconomyProfileResponse),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+        (status = 400, description = "Bad request", body = ApiErrorResponse)
+    ),
+    tag = "economy"
+)]
+async fn update_economy_profile(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(request): Json<UserEconomyProfileResponse>,
+) -> Result<Json<UserEconomyProfileResponse>, ApiError> {
+    let user_id = extract_user_id(&headers, &state).await?;
+    
+    // Update user profile via storage economy service
+    let updated_profile = state.storage_economy.update_user_profile(&user_id, &request.tier).await
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to update profile: {}", e)))?;
+    
+    // Return updated profile
+    get_user_economy_profile(State(state), headers).await
+}
+
+/// Start storage contribution endpoint
+#[utoipa::path(
+    post,
+    path = "/api/v1/economy/contribute",
+    request_body = StorageContributionRequest,
+    responses(
+        (status = 200, description = "Storage contribution started", body = serde_json::Value),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+        (status = 400, description = "Bad request", body = ApiErrorResponse)
+    ),
+    tag = "economy"
+)]
+async fn start_storage_contribution(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(request): Json<StorageContributionRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = extract_user_id(&headers, &state).await?;
+    
+    let result = state.storage_economy.start_storage_contribution(
+        &user_id,
+        &std::path::PathBuf::from(&request.storage_path),
+        request.amount
+    ).await
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to start contribution: {}", e)))?;
+    
+    Ok(Json(serde_json::json!({
+        "status": "started",
+        "contribution_id": result.contribution_id,
+        "message": "Storage contribution started successfully"
+    })))
+}
+
+/// Get contribution status endpoint
+#[utoipa::path(
+    get,
+    path = "/api/v1/economy/contribute",
+    responses(
+        (status = 200, description = "Contribution status retrieved", body = serde_json::Value),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse)
+    ),
+    tag = "economy"
+)]
+async fn get_contribution_status(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = extract_user_id(&headers, &state).await?;
+    
+    let status = state.storage_economy.get_contribution_status(&user_id).await
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to get contribution status: {}", e)))?;
+    
+    Ok(Json(serde_json::json!({
+        "active": status.active,
+        "contributed_amount": status.contributed_amount,
+        "verified_amount": status.verified_amount,
+        "last_verification": status.last_verification,
+        "status": status.status
+    })))
+}
+
+/// Stop storage contribution endpoint
+#[utoipa::path(
+    delete,
+    path = "/api/v1/economy/contribute",
+    responses(
+        (status = 200, description = "Storage contribution stopped", body = serde_json::Value),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse)
+    ),
+    tag = "economy"
+)]
+async fn stop_storage_contribution(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = extract_user_id(&headers, &state).await?;
+    
+    state.storage_economy.stop_storage_contribution(&user_id).await
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to stop contribution: {}", e)))?;
+    
+    Ok(Json(serde_json::json!({
+        "status": "stopped",
+        "message": "Storage contribution stopped successfully"
+    })))
+}
+
+/// Get storage tiers endpoint
+#[utoipa::path(
+    get,
+    path = "/api/v1/economy/tiers",
+    responses(
+        (status = 200, description = "Storage tiers retrieved", body = StorageTiersResponse),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse)
+    ),
+    tag = "economy"
+)]
+async fn get_storage_tiers(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<StorageTiersResponse>, ApiError> {
+    let _user = authenticate_user(&headers, &state).await?;
+    
+    let tiers = vec![
+        StorageTierInfo {
+            name: "Free".to_string(),
+            max_storage: 1024 * 1024 * 1024, // 1GB
+            upload_quota: 100 * 1024 * 1024, // 100MB
+            download_quota: 500 * 1024 * 1024, // 500MB
+            monthly_cost: None,
+            description: "Basic free tier with limited storage".to_string(),
+        },
+        StorageTierInfo {
+            name: "Contributor".to_string(),
+            max_storage: 4 * 1024 * 1024 * 1024, // 4GB
+            upload_quota: 1024 * 1024 * 1024, // 1GB
+            download_quota: 2 * 1024 * 1024 * 1024, // 2GB
+            monthly_cost: None,
+            description: "Contribute storage to earn additional space".to_string(),
+        },
+        StorageTierInfo {
+            name: "Premium".to_string(),
+            max_storage: 100 * 1024 * 1024 * 1024, // 100GB
+            upload_quota: 10 * 1024 * 1024 * 1024, // 10GB
+            download_quota: 20 * 1024 * 1024 * 1024, // 20GB
+            monthly_cost: Some(9.99),
+            description: "Premium tier with high storage limits".to_string(),
+        },
+        StorageTierInfo {
+            name: "Enterprise".to_string(),
+            max_storage: 1024 * 1024 * 1024 * 1024, // 1TB
+            upload_quota: 100 * 1024 * 1024 * 1024, // 100GB
+            download_quota: 200 * 1024 * 1024 * 1024, // 200GB
+            monthly_cost: Some(99.99),
+            description: "Enterprise tier with unlimited features".to_string(),
+        },
+    ];
+    
+    Ok(Json(StorageTiersResponse { tiers }))
+}
+
+/// Upgrade storage tier endpoint
+#[utoipa::path(
+    post,
+    path = "/api/v1/economy/upgrade",
+    request_body = StorageTierUpgradeRequest,
+    responses(
+        (status = 200, description = "Tier upgrade initiated", body = serde_json::Value),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+        (status = 400, description = "Bad request", body = ApiErrorResponse)
+    ),
+    tag = "economy"
+)]
+async fn upgrade_storage_tier(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(request): Json<StorageTierUpgradeRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = extract_user_id(&headers, &state).await?;
+    
+    let result = state.storage_economy.upgrade_storage_tier(
+        &user_id,
+        &request.target_tier,
+        &request.payment_method
+    ).await
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to upgrade tier: {}", e)))?;
+    
+    Ok(Json(serde_json::json!({
+        "status": "upgrade_initiated",
+        "upgrade_id": result.upgrade_id,
+        "target_tier": request.target_tier,
+        "message": "Tier upgrade initiated successfully"
+    })))
+}
+
+/// Get verification status endpoint
+#[utoipa::path(
+    get,
+    path = "/api/v1/economy/verification",
+    responses(
+        (status = 200, description = "Verification status retrieved", body = serde_json::Value),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse)
+    ),
+    tag = "economy"
+)]
+async fn get_verification_status(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = extract_user_id(&headers, &state).await?;
+    
+    let status = state.storage_economy.get_verification_status(&user_id).await
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to get verification status: {}", e)))?;
+    
+    Ok(Json(serde_json::json!({
+        "verification_active": status.verification_active,
+        "last_challenge": status.last_challenge,
+        "success_rate": status.success_rate,
+        "pending_challenges": status.pending_challenges,
+        "reputation_score": status.reputation_score
+    })))
+}
+
+/// Respond to challenge endpoint
+#[utoipa::path(
+    post,
+    path = "/api/v1/economy/verification/challenge",
+    request_body = ChallengeResponseRequest,
+    responses(
+        (status = 200, description = "Challenge response submitted", body = serde_json::Value),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+        (status = 400, description = "Bad request", body = ApiErrorResponse)
+    ),
+    tag = "economy"
+)]
+async fn respond_to_challenge(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(request): Json<ChallengeResponseRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = extract_user_id(&headers, &state).await?;
+    
+    let result = state.storage_economy.respond_to_challenge(
+        &user_id,
+        &request.challenge_id,
+        &request.response_data
+    ).await
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to respond to challenge: {}", e)))?;
+    
+    Ok(Json(serde_json::json!({
+        "status": "response_submitted",
+        "challenge_id": request.challenge_id,
+        "verification_successful": result.verification_successful,
+        "message": "Challenge response submitted successfully"
+    })))
+}
+
+/// Get economy transactions endpoint
+#[utoipa::path(
+    get,
+    path = "/api/v1/economy/transactions",
+    responses(
+        (status = 200, description = "Economy transactions retrieved", body = Vec<EconomyTransactionResponse>),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse)
+    ),
+    tag = "economy"
+)]
+async fn get_economy_transactions(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<Vec<EconomyTransactionResponse>>, ApiError> {
+    let user_id = extract_user_id(&headers, &state).await?;
+    
+    let limit: usize = params.get("limit").and_then(|s| s.parse().ok()).unwrap_or(50);
+    let offset: usize = params.get("offset").and_then(|s| s.parse().ok()).unwrap_or(0);
+    
+    let transactions = state.storage_economy.get_user_transactions(&user_id, limit, offset).await
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to get transactions: {}", e)))?;
+    
+    let response: Vec<EconomyTransactionResponse> = transactions.into_iter().map(|tx| {
+        EconomyTransactionResponse {
+            transaction_id: tx.transaction_id,
+            transaction_type: tx.transaction_type,
+            amount: tx.amount,
+            description: tx.description,
+            timestamp: tx.timestamp,
+            status: tx.status,
+        }
+    }).collect();
+    
+    Ok(Json(response))
+}
+
+/// Get quota status endpoint
+#[utoipa::path(
+    get,
+    path = "/api/v1/economy/quota",
+    responses(
+        (status = 200, description = "Quota status retrieved", body = QuotaStatusResponse),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse)
+    ),
+    tag = "economy"
+)]
+async fn get_quota_status(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> Result<Json<QuotaStatusResponse>, ApiError> {
+    let user_id = extract_user_id(&headers, &state).await?;
+    
+    let stats = state.storage_economy.get_user_storage_statistics(&user_id).await
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to get quota status: {}", e)))?;
+    
+    let response = QuotaStatusResponse {
+        storage_used: stats.current_usage,
+        storage_limit: stats.max_storage,
+        upload_quota_used: stats.upload_quota_used,
+        upload_quota_limit: stats.upload_quota_limit,
+        download_quota_used: stats.download_quota_used,
+        download_quota_limit: stats.download_quota_limit,
+        next_reset: Utc::now() + chrono::Duration::days(30), // Monthly reset
+    };
+    
+    Ok(Json(response))
 }

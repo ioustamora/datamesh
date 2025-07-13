@@ -253,3 +253,28 @@ export const getFileTypeIcon = (fileName: string): string => {
       return '📁'
   }
 }
+
+// Economy API endpoints
+export const economyAPI = {
+  // Status and profile
+  getStatus: () => api.get('/economy/status'),
+  getProfile: () => api.get('/economy/profile'),
+  updateProfile: (profileData: any) => api.put('/economy/profile', profileData),
+  
+  // Storage contribution
+  startContribution: (contributionData: any) => api.post('/economy/contribute', contributionData),
+  getContributionStatus: () => api.get('/economy/contribute'),
+  stopContribution: () => api.delete('/economy/contribute'),
+  
+  // Storage tiers
+  getTiers: () => api.get('/economy/tiers'),
+  upgradeTier: (upgradeData: any) => api.post('/economy/upgrade', upgradeData),
+  
+  // Verification
+  getVerificationStatus: () => api.get('/economy/verification'),
+  respondToChallenge: (challengeData: any) => api.post('/economy/verification/challenge', challengeData),
+  
+  // Transactions and quota
+  getTransactions: (params = {}) => api.get('/economy/transactions', { params }),
+  getQuotaStatus: () => api.get('/economy/quota')
+}

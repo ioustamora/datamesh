@@ -655,7 +655,7 @@ impl ActorFileStorage {
 
     /// List files in the system
     pub async fn list_files(&self, tag_filter: Option<&str>) -> DfsResult<Vec<FileMetadata>> {
-        let files = self.db.list_files(tag_filter)?;
+        let files = self.db.list_files(None)?;
         
         Ok(files.into_iter().map(|file_entry| FileMetadata {
             file_name: file_entry.original_filename,

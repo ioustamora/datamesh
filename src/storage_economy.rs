@@ -917,15 +917,20 @@ impl StorageEconomyManager {
         let download_quota = self.get_download_quota_for_tier(&profile.tier);
 
         Ok(UserStorageStatistics {
+            user_id: user_id.to_string(),
+            tier: profile.tier,
             current_usage: profile.current_usage,
             max_storage,
+            upload_quota: upload_quota,
+            download_quota: download_quota,
             upload_quota_used: profile.upload_quota_used,
-            upload_quota_limit: upload_quota,
             download_quota_used: profile.download_quota_used,
-            download_quota_limit: download_quota,
-            storage_tier: format!("{:?}", profile.tier),
             reputation_score: profile.reputation_score,
             violations_count: profile.violations.len(),
+            last_activity: profile.last_activity,
+            upload_quota_limit: upload_quota,
+            download_quota_limit: download_quota,
+            storage_tier: format!("{:?}", profile.tier),
             can_contribute: profile.reputation_score >= self.config.min_reputation_for_contributor,
         })
     }

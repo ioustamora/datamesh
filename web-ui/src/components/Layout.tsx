@@ -6,6 +6,7 @@ import {
   CloudArrowUpIcon,
   GlobeAltIcon,
   CogIcon,
+  CurrencyDollarIcon,
   ArrowRightOnRectangleIcon,
   Bars3Icon,
   XMarkIcon,
@@ -22,6 +23,7 @@ const navigation = [
   { name: 'Upload', href: '/upload', icon: CloudArrowUpIcon },
   { name: 'Network', href: '/network', icon: GlobeAltIcon },
   { name: 'Governance', href: '/governance', icon: CogIcon },
+  { name: 'Economy', href: '/economy', icon: CurrencyDollarIcon },
   { name: 'Settings', href: '/settings', icon: CogIcon },
 ]
 

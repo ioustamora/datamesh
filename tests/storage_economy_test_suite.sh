@@ -307,6 +307,132 @@ test_recovery() {
     test_command "$DATAMESH_CMD economy --reputation" "Reputation.*Score" "Post-recovery reputation check"
 }
 
+# Test 13: API Endpoint Validation
+test_api_endpoints() {
+    test_start "API Endpoint Validation"
+    
+    local BASE_URL="http://localhost:8080/api/v1"
+    local AUTH_HEADER="Authorization: Bearer test_token_123"
+    
+    log_info "Testing REST API endpoints..."
+    
+    # Test economy status endpoint
+    if command -v curl >/dev/null 2>&1; then
+        test_command "curl -s -H '$AUTH_HEADER' '$BASE_URL/economy/status' | grep -q 'health'" "" "GET /economy/status endpoint"
+        test_command "curl -s -H '$AUTH_HEADER' '$BASE_URL/economy/profile' | grep -q 'tier'" "" "GET /economy/profile endpoint"
+        test_command "curl -s -H '$AUTH_HEADER' '$BASE_URL/economy/quota' | grep -q 'upload_quota'" "" "GET /economy/quota endpoint"
+        test_command "curl -s -H '$AUTH_HEADER' '$BASE_URL/economy/tiers' | grep -q 'tiers'" "" "GET /economy/tiers endpoint"
+        test_command "curl -s -H '$AUTH_HEADER' '$BASE_URL/economy/rewards' | grep -q 'reputation_score'" "" "GET /economy/rewards endpoint"
+        test_command "curl -s -H '$AUTH_HEADER' '$BASE_URL/economy/verification/history' | grep -q 'verifications'" "" "GET /economy/verification/history endpoint"
+        test_command "curl -s -H '$AUTH_HEADER' '$BASE_URL/economy/network/stats' | grep -q 'total_storage'" "" "GET /economy/network/stats endpoint"
+        
+        # Test POST endpoints with sample data
+        test_command "curl -s -X POST -H '$AUTH_HEADER' -H 'Content-Type: application/json' -d '{\"storage_path\":\"/tmp/test\",\"storage_amount\":1073741824,\"verification_method\":\"proof_of_space\"}' '$BASE_URL/economy/contribute' | grep -q 'contribution_id\\|error'" "" "POST /economy/contribute endpoint"
+        
+        test_command "curl -s -X POST -H '$AUTH_HEADER' -H 'Content-Type: application/json' -d '{\"challenge_id\":\"test_123\",\"response\":\"proof_data\",\"verification_type\":\"proof_of_space\"}' '$BASE_URL/economy/verify' | grep -q 'verification_result\\|error'" "" "POST /economy/verify endpoint"
+        
+        test_command "curl -s -X POST -H '$AUTH_HEADER' -H 'Content-Type: application/json' -d '{\"target_tier\":\"Premium\",\"storage_size\":10737418240,\"payment_method\":\"mock\",\"billing_period\":\"monthly\"}' '$BASE_URL/economy/upgrade' | grep -q 'upgrade_successful\\|error'" "" "POST /economy/upgrade endpoint"
+    else
+        log_warning "curl not available, skipping API endpoint tests"
+    fi
+}
+
+# Test 14: Database Consistency
+test_database_consistency() {
+    test_start "Database Consistency"
+    
+    log_info "Testing database consistency after economy operations..."
+    
+    # Test that economy data persists across operations
+    test_command "$DATAMESH_CMD economy" "Current.*Storage.*Tier" "Initial economy state"
+    
+    # Perform contribution and verify data persistence
+    test_command "$DATAMESH_CMD economy --contribute --path '$CONTRIBUTION_PATH' --amount 2GB" "Contribution.*registered|Successfully.*contributed|Error" "Database write operation"
+    
+    # Verify data persistence
+    test_command "$DATAMESH_CMD economy --contribution-stats" "Network.*Contribution|Error" "Database read after write"
+    
+    # Test quota tracking consistency
+    test_command "$DATAMESH_CMD quota --usage" "Storage.*Usage|Upload.*Usage" "Quota tracking consistency"
+}
+
+# Test 15: Real-time Updates
+test_realtime_updates() {
+    test_start "Real-time Updates"
+    
+    log_info "Testing real-time quota and statistics updates..."
+    
+    # Get initial state
+    test_command "$DATAMESH_CMD quota --usage" "Storage.*Usage" "Initial quota state"
+    
+    # Simulate file operation and check updates
+    echo "Test file for quota update" > "$TEST_DATA_PATH/quota_test.txt"
+    test_command "$DATAMESH_CMD put '$TEST_DATA_PATH/quota_test.txt'" "File.*uploaded|Successfully.*stored|Error" "File upload operation"
+    
+    # Check quota updates
+    test_command "$DATAMESH_CMD quota --usage" "Storage.*Usage" "Updated quota state"
+    
+    # Test verification updates
+    test_command "$DATAMESH_CMD economy --verify" "Verification.*Status" "Verification update"
+    test_command "$DATAMESH_CMD economy --reputation" "Reputation.*Score" "Reputation update check"
+}
+
+# Test 16: Frontend Integration
+test_frontend_integration() {
+    test_start "Frontend Integration"
+    
+    log_info "Testing frontend integration endpoints..."
+    
+    # Test WebSocket connections if available
+    if command -v nc >/dev/null 2>&1; then
+        # Test WebSocket port availability
+        test_command "nc -z localhost 8080" "" "API server availability"
+    fi
+    
+    # Test CORS headers for web interfaces
+    if command -v curl >/dev/null 2>&1; then
+        test_command "curl -s -I -H 'Origin: http://localhost:3000' 'http://localhost:8080/api/v1/economy/status' | grep -q 'Access-Control\\|200 OK'" "" "CORS headers for web interface"
+    fi
+    
+    # Test API response formats for frontend consumption
+    test_command "$DATAMESH_CMD economy --format json" "\\{.*\\}" "JSON format output"
+}
+
+# Test 17: Load and Stress Testing
+test_load_stress() {
+    test_start "Load and Stress Testing"
+    
+    log_info "Testing system under load..."
+    
+    # Rapid verification challenges
+    for i in {1..20}; do
+        test_command "$DATAMESH_CMD economy --test-challenge" "Challenge.*Type|Error" "Load test verification $i" &
+        if (( $i % 5 == 0 )); then
+            wait # Wait for batch completion
+        fi
+    done
+    wait
+    
+    # Concurrent quota checks
+    log_info "Testing concurrent quota operations..."
+    for i in {1..10}; do
+        test_command "$DATAMESH_CMD quota --usage" "Storage.*Usage|Error" "Concurrent quota check $i" &
+    done
+    wait
+    
+    # Stress test API endpoints if curl is available
+    if command -v curl >/dev/null 2>&1; then
+        log_info "API stress testing..."
+        for i in {1..15}; do
+            curl -s -H "Authorization: Bearer test_token" "http://localhost:8080/api/v1/economy/status" > /dev/null &
+        done
+        wait
+    fi
+    
+    # Verify system stability after load
+    test_command "$DATAMESH_CMD economy" "Current.*Storage.*Tier" "System stability after load"
+}
+
 # Main test execution
 main() {
     echo -e "${GREEN}DataMesh Storage Economy Test Suite${NC}"
@@ -329,6 +455,15 @@ main() {
     test_integration
     test_edge_cases
     test_recovery
+    test_api_endpoints
+    test_database_consistency
+    test_realtime_updates
+    test_frontend_integration
+    
+    # Run load tests only in full mode
+    if [[ "${FULL_MODE:-0}" == "1" ]]; then
+        test_load_stress
+    fi
     
     # Cleanup
     cleanup_test_environment

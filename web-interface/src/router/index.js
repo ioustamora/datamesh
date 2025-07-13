@@ -12,6 +12,7 @@ import FileManager from '../views/FileManager.vue'
 import Governance from '../views/Governance.vue'
 import Administration from '../views/Administration.vue'
 import Analytics from '../views/Analytics.vue'
+import Economy from '../views/Economy.vue'
 import Settings from '../views/Settings.vue'
 import Profile from '../views/Profile.vue'
 import Login from '../views/auth/Login.vue'
@@ -162,6 +163,12 @@ const routes = [
         name: 'Analytics',
         component: Analytics,
         meta: { title: 'Analytics', icon: 'TrendCharts' }
+      },
+      {
+        path: 'economy',
+        name: 'Economy',
+        component: Economy,
+        meta: { title: 'Storage Economy', icon: 'Wallet' }
       },
       {
         path: 'settings',
