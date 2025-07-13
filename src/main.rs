@@ -45,6 +45,7 @@ mod actor_file_storage;           // Actor-based file storage with Reed-Solomon 
 mod file_storage;                 // Traditional file storage implementation
 mod file_manager;                 // High-level file management operations
 mod concurrent_chunks;            // Parallel chunk processing for large files
+mod storage_economy;              // Storage economy system with contribution tiers and verification
 
 // Network and P2P Communication
 mod network;                      // Core libp2p networking setup and configuration

@@ -47,7 +47,7 @@ COMMAND GROUPS:
   Service Operations: bootstrap, interactive, service
   File Management:    sync, backup, restore, duplicate, rename, search, recent, popular
   Batch Operations:   batch-put, batch-get, batch-tag
-  Administration:     config, metrics, networks, cleanup, repair, quota
+  Administration:     config, metrics, networks, cleanup, repair, quota, economy
   Import/Export:      export, import
   Sharing:            pin, unpin, share
   Performance:        optimize, benchmark
@@ -497,6 +497,76 @@ pub enum Commands {
         /// Warning threshold percentage
         #[arg(long, help = "Warning threshold percentage")]
         warn: Option<u8>,
+        /// Show storage economy status
+        #[arg(long, help = "Show storage economy status")]
+        economy: bool,
+        /// Show user tier information
+        #[arg(long, help = "Show user tier information")]
+        tier: bool,
+    },
+
+    /// Storage economy management
+    Economy {
+        /// Contribute storage to earn network access
+        #[arg(long, help = "Contribute storage to earn network access")]
+        contribute: bool,
+        /// Storage path to contribute
+        #[arg(long, help = "Storage path to contribute")]
+        path: Option<PathBuf>,
+        /// Amount of storage to contribute (e.g., 100GB)
+        #[arg(long, help = "Amount of storage to contribute")]
+        amount: Option<String>,
+        /// Upgrade to premium tier
+        #[arg(long, help = "Upgrade to premium tier")]
+        upgrade: bool,
+        /// Premium storage amount (e.g., 100GB)
+        #[arg(long, help = "Premium storage amount")]
+        premium_size: Option<String>,
+        /// Payment method for premium
+        #[arg(long, help = "Payment method for premium")]
+        payment_method: Option<String>,
+        /// Duration in months for premium
+        #[arg(long, help = "Duration in months for premium")]
+        duration: Option<u32>,
+        /// Show storage verification status
+        #[arg(long, help = "Show storage verification status")]
+        verify: bool,
+        /// Respond to storage verification challenge
+        #[arg(long, help = "Respond to storage verification challenge")]
+        challenge_response: Option<String>,
+        /// Challenge ID for verification
+        #[arg(long, help = "Challenge ID for verification")]
+        challenge_id: Option<String>,
+        /// Show reputation score
+        #[arg(long, help = "Show reputation score")]
+        reputation: bool,
+        /// Show detailed tier information
+        #[arg(long, help = "Show detailed tier information")]
+        tier_info: bool,
+        /// Show network contribution statistics
+        #[arg(long, help = "Show network contribution statistics")]
+        contribution_stats: bool,
+        /// Show bonus credits and rewards
+        #[arg(long, help = "Show bonus credits and rewards")]
+        rewards: bool,
+        /// Show available upgrade paths
+        #[arg(long, help = "Show available upgrade paths")]
+        upgrade_options: bool,
+        /// Show verification history
+        #[arg(long, help = "Show verification history")]
+        verification_history: bool,
+        /// Enable continuous verification monitoring
+        #[arg(long, help = "Enable continuous verification monitoring")]
+        enable_monitoring: bool,
+        /// Disable continuous verification monitoring
+        #[arg(long, help = "Disable continuous verification monitoring")]
+        disable_monitoring: bool,
+        /// Test storage verification challenge
+        #[arg(long, help = "Test storage verification challenge")]
+        test_challenge: bool,
+        /// Show storage space proof details
+        #[arg(long, help = "Show storage space proof details")]
+        proof_details: bool,
     },
 
     // === Import/Export ===

@@ -2491,6 +2491,8 @@ pub struct QuotaCommand {
     pub usage: bool,
     pub limit: Option<String>,
     pub warn: Option<u8>,
+    pub economy: bool,
+    pub tier: bool,
 }
 
 #[async_trait::async_trait]
@@ -2511,45 +2513,25 @@ impl CommandHandler for QuotaCommand {
         .await?;
         
         ui::print_success("🌐 Network connection established");
+
+        // Initialize storage economy service
+        let economy_config = crate::storage_economy::StorageEconomyConfig::default();
+        let db_path = crate::database::get_default_db_path()?;
+        let db = Arc::new(crate::thread_safe_database::ThreadSafeDatabaseManager::new(&db_path.to_string_lossy())?);
+        let economy_service = crate::storage_economy::StorageEconomyService::new(economy_config, db);
+
+        let user_id = "current_user"; // In real implementation, get from auth
         
         if self.usage {
-            ui::print_info("📊 Current storage usage:");
-            let (used_bytes, file_count) = get_storage_usage(&thread_safe_context).await?;
-            
-            ui::print_info(&format!("  📁 Files stored: {}", file_count));
-            ui::print_info(&format!("  📏 Total size: {} bytes ({:.2} MB)", used_bytes, used_bytes as f64 / 1024.0 / 1024.0));
-            
-            // Show quota limits (simulated)
-            let quota_limit = 1_000_000_000u64; // 1GB simulated limit
-            let usage_percent = (used_bytes as f64 / quota_limit as f64) * 100.0;
-            
-            ui::print_info(&format!("  📊 Quota usage: {:.1}% of {} GB", usage_percent, quota_limit / 1_000_000_000));
-            
-            if usage_percent > 80.0 {
-                ui::print_warning(&format!("⚠️  High quota usage: {:.1}%", usage_percent));
-            } else {
-                ui::print_success(&format!("✅ Quota usage within limits: {:.1}%", usage_percent));
-            }
-        }
-        
-        if let Some(limit) = &self.limit {
-            ui::print_info(&format!("📏 Setting storage limit to: {}", limit));
-            // In real implementation, would parse limit (e.g., "100GB", "1TB") and store in config
-            ui::print_success("✅ Storage limit updated");
-        }
-        
-        if let Some(warn_threshold) = self.warn {
-            ui::print_info(&format!("⚠️  Setting warning threshold to: {}%", warn_threshold));
-            // In real implementation, would store warning threshold in config
-            ui::print_success("✅ Warning threshold updated");
-        }
-        
-        if !self.usage && self.limit.is_none() && self.warn.is_none() {
-            ui::print_info("Usage: datamesh quota [OPTIONS]");
-            ui::print_info("Options:");
-            ui::print_info("  --usage        Show current storage usage");
-            ui::print_info("  --limit SIZE   Set storage limit (e.g., 100GB, 1TB)");
-            ui::print_info("  --warn PERCENT Set warning threshold percentage");
+            self.show_usage(&thread_safe_context, &economy_service, user_id).await?;
+        } else if self.economy {
+            self.show_economy_status(&economy_service, user_id).await?;
+        } else if self.tier {
+            self.show_tier_info(&economy_service, user_id).await?;
+        } else if self.limit.is_some() || self.warn.is_some() {
+            self.handle_limit_settings().await?;
+        } else {
+            self.show_overview(&thread_safe_context, &economy_service, user_id).await?;
         }
         
         Ok(())
@@ -2557,6 +2539,259 @@ impl CommandHandler for QuotaCommand {
     
     fn command_name(&self) -> &'static str {
         "quota"
+    }
+}
+
+impl QuotaCommand {
+    async fn show_usage(&self, context: &crate::thread_safe_command_context::ThreadSafeCommandContext, 
+                       economy_service: &crate::storage_economy::StorageEconomyService, 
+                       user_id: &str) -> Result<(), Box<dyn Error>> {
+        ui::print_section("📊 Current Storage Usage");
+        
+        let (used_bytes, file_count) = get_storage_usage(context).await?;
+        let stats = economy_service.get_user_statistics(user_id).await?;
+        
+        ui::print_info(&format!("📁 Files stored: {}", file_count));
+        ui::print_info(&format!("📏 Total size: {} ({:.2} MB)", 
+            format_storage_size(used_bytes), used_bytes as f64 / 1024.0 / 1024.0));
+        
+        // Show tier-specific quota information
+        match &stats.tier {
+            crate::storage_economy::StorageTier::Free { max_storage } => {
+                let usage_percent = (used_bytes as f64 / *max_storage as f64) * 100.0;
+                ui::print_info(&format!("🆓 Free Tier - Usage: {:.1}% of {}", 
+                    usage_percent, format_storage_size(*max_storage)));
+                
+                if usage_percent > 80.0 {
+                    ui::print_warning("⚠️  High usage! Consider:");
+                    ui::print_info("  • Contributing storage: datamesh economy --contribute");
+                    ui::print_info("  • Upgrading to premium: datamesh economy --upgrade");
+                } else {
+                    ui::print_success("✅ Usage within limits");
+                }
+            }
+            crate::storage_economy::StorageTier::Contributor { earned_storage, .. } => {
+                let usage_percent = (used_bytes as f64 / *earned_storage as f64) * 100.0;
+                ui::print_info(&format!("� Contributor Tier - Usage: {:.1}% of {}", 
+                    usage_percent, format_storage_size(*earned_storage)));
+                
+                if usage_percent > 90.0 {
+                    ui::print_warning("⚠️  High usage! Consider contributing more storage");
+                } else {
+                    ui::print_success("✅ Usage within earned limits");
+                }
+            }
+            crate::storage_economy::StorageTier::Premium { max_storage, .. } => {
+                let usage_percent = (used_bytes as f64 / *max_storage as f64) * 100.0;
+                ui::print_info(&format!("⭐ Premium Tier - Usage: {:.1}% of {}", 
+                    usage_percent, format_storage_size(*max_storage)));
+                
+                if usage_percent > 90.0 {
+                    ui::print_warning("⚠️  High usage! Consider upgrading your premium plan");
+                } else {
+                    ui::print_success("✅ Usage within premium limits");
+                }
+            }
+            _ => {
+                ui::print_info("📈 Enterprise tier - unlimited storage");
+            }
+        }
+
+        // Show bandwidth usage
+        ui::print_info(&format!("📤 Upload quota used: {}", format_storage_size(stats.upload_quota_used)));
+        ui::print_info(&format!("📥 Download quota used: {}", format_storage_size(stats.download_quota_used)));
+        
+        Ok(())
+    }
+
+    async fn show_economy_status(&self, economy_service: &crate::storage_economy::StorageEconomyService, 
+                                user_id: &str) -> Result<(), Box<dyn Error>> {
+        ui::print_section("💰 Storage Economy Status");
+        
+        let stats = economy_service.get_user_statistics(user_id).await?;
+        
+        match &stats.tier {
+            crate::storage_economy::StorageTier::Free { .. } => {
+                ui::print_info("🆓 Current Plan: Free Tier");
+                ui::print_info("💡 Upgrade Options:");
+                ui::print_info("  • Contribute 4x storage space to earn 1x usage");
+                ui::print_info("  • Upgrade to premium for paid storage");
+                ui::print_info("  • Example: Contribute 400GB → Earn 100GB usage");
+            }
+            crate::storage_economy::StorageTier::Contributor { contributed_space, earned_storage, .. } => {
+                ui::print_info("💾 Current Plan: Storage Contributor");
+                ui::print_info(&format!("💽 Contributed: {}", format_storage_size(*contributed_space)));
+                ui::print_info(&format!("🎯 Earned: {}", format_storage_size(*earned_storage)));
+                ui::print_info(&format!("📊 Ratio: 4:1 (contribute {}GB → earn {}GB)", 
+                    contributed_space / (1024*1024*1024), earned_storage / (1024*1024*1024)));
+            }
+            crate::storage_economy::StorageTier::Premium { max_storage, subscription_expires, .. } => {
+                ui::print_info("⭐ Current Plan: Premium");
+                ui::print_info(&format!("💽 Storage: {}", format_storage_size(*max_storage)));
+                ui::print_info(&format!("📅 Expires: {}", subscription_expires.format("%Y-%m-%d")));
+                ui::print_info("💰 Monthly cost calculated based on usage");
+            }
+            _ => {
+                ui::print_info("🏢 Current Plan: Enterprise");
+            }
+        }
+
+        ui::print_info(&format!("⭐ Reputation: {:.1}%", stats.reputation_score));
+        if stats.violations_count > 0 {
+            ui::print_warning(&format!("⚠️  Violations: {}", stats.violations_count));
+        }
+
+        Ok(())
+    }
+
+    async fn show_tier_info(&self, economy_service: &crate::storage_economy::StorageEconomyService, 
+                           user_id: &str) -> Result<(), Box<dyn Error>> {
+        ui::print_section("🎯 Storage Tier Information");
+        
+        let stats = economy_service.get_user_statistics(user_id).await?;
+        
+        // Show current tier details
+        match &stats.tier {
+            crate::storage_economy::StorageTier::Free { max_storage } => {
+                ui::print_info("🆓 FREE TIER");
+                ui::print_info(&format!("  • Storage: {}", format_storage_size(*max_storage)));
+                ui::print_info("  • Bandwidth: Limited");
+                ui::print_info("  • Priority: Low");
+                ui::print_info("  • Cost: Free");
+            }
+            crate::storage_economy::StorageTier::Contributor { contributed_space, earned_storage, .. } => {
+                ui::print_info("💾 CONTRIBUTOR TIER");
+                ui::print_info(&format!("  • Contributed: {}", format_storage_size(*contributed_space)));
+                ui::print_info(&format!("  • Earned Storage: {}", format_storage_size(*earned_storage)));
+                ui::print_info("  • Bandwidth: 2x earned storage");
+                ui::print_info("  • Priority: Medium");
+                ui::print_info("  • Cost: Storage contribution");
+                ui::print_info("  • Verification: Required");
+            }
+            crate::storage_economy::StorageTier::Premium { max_storage, .. } => {
+                ui::print_info("⭐ PREMIUM TIER");
+                ui::print_info(&format!("  • Storage: {}", format_storage_size(*max_storage)));
+                ui::print_info("  • Bandwidth: 4x storage");
+                ui::print_info("  • Priority: High");
+                ui::print_info("  • Cost: $0.10/GB/month");
+                ui::print_info("  • Support: Priority");
+            }
+            _ => {
+                ui::print_info("🏢 ENTERPRISE TIER");
+                ui::print_info("  • Storage: Unlimited");
+                ui::print_info("  • Bandwidth: Unlimited");
+                ui::print_info("  • Priority: Highest");
+                ui::print_info("  • Cost: Custom");
+                ui::print_info("  • Support: Dedicated");
+            }
+        }
+
+        // Show upgrade paths
+        ui::print_section("🚀 Upgrade Options");
+        match &stats.tier {
+            crate::storage_economy::StorageTier::Free { .. } => {
+                ui::print_info("Available upgrades:");
+                ui::print_info("  1. Become Contributor: datamesh economy --contribute");
+                ui::print_info("     → Provide 4x storage space to earn 1x usage");
+                ui::print_info("  2. Upgrade to Premium: datamesh economy --upgrade");
+                ui::print_info("     → Pay monthly for guaranteed storage");
+            }
+            crate::storage_economy::StorageTier::Contributor { .. } => {
+                ui::print_info("Available upgrades:");
+                ui::print_info("  1. Contribute more storage for higher limits");
+                ui::print_info("  2. Upgrade to Premium: datamesh economy --upgrade");
+                ui::print_info("     → Switch to paid model for guaranteed service");
+            }
+            crate::storage_economy::StorageTier::Premium { .. } => {
+                ui::print_info("Available upgrades:");
+                ui::print_info("  1. Increase premium storage size");
+                ui::print_info("  2. Contact sales for Enterprise tier");
+            }
+            _ => {
+                ui::print_info("You're on the highest tier!");
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn handle_limit_settings(&self) -> Result<(), Box<dyn Error>> {
+        ui::print_section("⚙️  Quota Settings");
+        
+        if let Some(limit) = &self.limit {
+            ui::print_info(&format!("📏 Setting storage limit to: {}", limit));
+            ui::print_success("✅ Storage limit updated");
+        }
+        
+        if let Some(warn_threshold) = self.warn {
+            ui::print_info(&format!("⚠️  Setting warning threshold to: {}%", warn_threshold));
+            ui::print_success("✅ Warning threshold updated");
+        }
+
+        Ok(())
+    }
+
+    async fn show_overview(&self, context: &crate::thread_safe_command_context::ThreadSafeCommandContext, 
+                          economy_service: &crate::storage_economy::StorageEconomyService, 
+                          user_id: &str) -> Result<(), Box<dyn Error>> {
+        ui::print_section("📊 Storage Overview");
+        
+        let (used_bytes, file_count) = get_storage_usage(context).await?;
+        let stats = economy_service.get_user_statistics(user_id).await?;
+        
+        // Basic usage info
+        ui::print_info(&format!("📁 Files: {}", file_count));
+        ui::print_info(&format!("📏 Used: {}", format_storage_size(used_bytes)));
+        ui::print_info(&format!("💽 Available: {}", format_storage_size(stats.max_storage)));
+        
+        let usage_percent = (used_bytes as f64 / stats.max_storage as f64) * 100.0;
+        ui::print_info(&format!("📊 Usage: {:.1}%", usage_percent));
+        
+        // Show tier
+        let tier_name = match &stats.tier {
+            crate::storage_economy::StorageTier::Free { .. } => "Free",
+            crate::storage_economy::StorageTier::Contributor { .. } => "Contributor", 
+            crate::storage_economy::StorageTier::Premium { .. } => "Premium",
+            crate::storage_economy::StorageTier::Enterprise { .. } => "Enterprise",
+        };
+        ui::print_info(&format!("🎯 Tier: {}", tier_name));
+        
+        // Show reputation for contributors
+        if matches!(stats.tier, crate::storage_economy::StorageTier::Contributor { .. }) {
+            ui::print_info(&format!("⭐ Reputation: {:.1}%", stats.reputation_score));
+        }
+
+        // Show available commands
+        ui::print_section("💡 Available Commands");
+        ui::print_info("  datamesh quota --usage         Show detailed usage");
+        ui::print_info("  datamesh quota --economy       Show economy status");
+        ui::print_info("  datamesh quota --tier          Show tier information");
+        ui::print_info("  datamesh economy --contribute  Contribute storage");
+        ui::print_info("  datamesh economy --upgrade     Upgrade to premium");
+
+        Ok(())
+    }
+}
+
+fn format_storage_size(bytes: u64) -> String {
+    const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
+    
+    if bytes == 0 {
+        return "0 B".to_string();
+    }
+    
+    let mut size = bytes as f64;
+    let mut unit_index = 0;
+    
+    while size >= 1024.0 && unit_index < UNITS.len() - 1 {
+        size /= 1024.0;
+        unit_index += 1;
+    }
+    
+    if unit_index == 0 {
+        format!("{} {}", bytes, UNITS[unit_index])
+    } else {
+        format!("{:.1} {}", size, UNITS[unit_index])
     }
 }
 

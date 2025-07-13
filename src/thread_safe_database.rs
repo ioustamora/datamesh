@@ -168,6 +168,92 @@ impl ThreadSafeDatabaseManager {
         db.search_files(query)
             .map_err(|e| crate::error::DfsError::Database(e.to_string()))
     }
+
+    /// Store user storage profile
+    pub async fn store_user_profile(&self, user_id: &str, profile: &crate::storage_economy::UserStorageProfile) -> DfsResult<()> {
+        let db = self.get_db().map_err(|e| {
+            crate::error::DfsError::Database(format!("Failed to open database: {}", e))
+        })?;
+
+        // In a real implementation, this would store the profile in the database
+        // For now, we'll just log it
+        tracing::info!("Storing user profile for {}: {:?}", user_id, profile);
+        
+        Ok(())
+    }
+
+    /// Load user storage profile
+    pub async fn load_user_profile(&self, user_id: &str) -> DfsResult<Option<crate::storage_economy::UserStorageProfile>> {
+        let db = self.get_db().map_err(|e| {
+            crate::error::DfsError::Database(format!("Failed to open database: {}", e))
+        })?;
+
+        // In a real implementation, this would load the profile from the database
+        // For now, we'll return None
+        tracing::info!("Loading user profile for {}", user_id);
+        
+        Ok(None)
+    }
+
+    /// Store storage proof
+    pub async fn store_storage_proof(&self, proof: &crate::storage_economy::StorageProof) -> DfsResult<()> {
+        let db = self.get_db().map_err(|e| {
+            crate::error::DfsError::Database(format!("Failed to open database: {}", e))
+        })?;
+
+        // In a real implementation, this would store the proof in the database
+        tracing::info!("Storing storage proof: {:?}", proof);
+        
+        Ok(())
+    }
+
+    /// Load storage proofs for a user
+    pub async fn load_storage_proofs(&self, user_id: &str) -> DfsResult<Vec<crate::storage_economy::StorageProof>> {
+        let db = self.get_db().map_err(|e| {
+            crate::error::DfsError::Database(format!("Failed to open database: {}", e))
+        })?;
+
+        // In a real implementation, this would load proofs from the database
+        tracing::info!("Loading storage proofs for {}", user_id);
+        
+        Ok(Vec::new())
+    }
+
+    /// Store storage challenge
+    pub async fn store_storage_challenge(&self, challenge: &crate::storage_economy::StorageChallenge) -> DfsResult<()> {
+        let db = self.get_db().map_err(|e| {
+            crate::error::DfsError::Database(format!("Failed to open database: {}", e))
+        })?;
+
+        // In a real implementation, this would store the challenge in the database
+        tracing::info!("Storing storage challenge: {:?}", challenge);
+        
+        Ok(())
+    }
+
+    /// Load active storage challenges for a user
+    pub async fn load_active_challenges(&self, user_id: &str) -> DfsResult<Vec<crate::storage_economy::StorageChallenge>> {
+        let db = self.get_db().map_err(|e| {
+            crate::error::DfsError::Database(format!("Failed to open database: {}", e))
+        })?;
+
+        // In a real implementation, this would load challenges from the database
+        tracing::info!("Loading active challenges for {}", user_id);
+        
+        Ok(Vec::new())
+    }
+
+    /// Record storage economy transaction
+    pub async fn record_economy_transaction(&self, transaction: &crate::storage_economy::EconomyTransaction) -> DfsResult<()> {
+        let db = self.get_db().map_err(|e| {
+            crate::error::DfsError::Database(format!("Failed to open database: {}", e))
+        })?;
+
+        // In a real implementation, this would store the transaction in the database
+        tracing::info!("Recording economy transaction: {:?}", transaction);
+        
+        Ok(())
+    }
 }
 
 // Implement Send and Sync for ThreadSafeDatabaseManager

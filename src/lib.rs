@@ -47,6 +47,7 @@ pub mod file_storage;             // Traditional file storage implementation wit
 pub mod file_manager;             // High-level file management operations and metadata handling
 pub mod concurrent_chunks;        // Parallel chunk processing for optimal large file performance
 pub mod backup_system;            // Comprehensive data backup and recovery system
+pub mod storage_economy;          // Storage economy system with contribution tiers and verification
 
 // ===== NETWORK AND P2P COMMUNICATION =====
 pub mod network;                  // Core libp2p networking setup and Kademlia DHT configuration
@@ -108,6 +109,7 @@ pub mod smart_cache;                  // Intelligent caching system with LRU and
 pub mod audit_logger;                 // Security audit logging and compliance tracking
 pub mod batch_operations;             // Batch processing capabilities for bulk operations
 pub mod datamesh_core;                // Core system functionality and shared utilities
+pub mod websocket;                    // WebSocket functionality for real-time updates
 
 // ===== CONVENIENCE RE-EXPORTS =====
 // These re-exports provide easy access to the most commonly used types

@@ -87,6 +87,7 @@ pub mod actor_commands;      // Actor-based command implementations
 pub mod actor_file_commands; // Actor-based file operations
 pub mod admin_commands;      // Administrative and configuration commands
 pub mod advanced_commands;   // Advanced features and experimental functionality
+pub mod economy_command;     // Storage economy management commands
 pub mod file_commands;       // Core file storage and retrieval operations
 pub mod missing_commands;    // Implementation of missing critical commands
 pub mod network_commands;    // Network monitoring and management operations
@@ -508,10 +509,56 @@ pub fn create_command_handler(command: &Commands) -> Box<dyn CommandHandler> {
             dry_run: *dry_run,
         }),
 
-        Commands::Quota { usage, limit, warn } => Box::new(missing_commands::QuotaCommand {
+        Commands::Quota { usage, limit, warn, economy, tier } => Box::new(missing_commands::QuotaCommand {
             usage: *usage,
             limit: limit.clone(),
             warn: *warn,
+            economy: *economy,
+            tier: *tier,
+        }),
+
+        Commands::Economy { 
+            contribute, 
+            path, 
+            amount, 
+            upgrade, 
+            premium_size, 
+            payment_method, 
+            duration, 
+            verify, 
+            challenge_response, 
+            challenge_id, 
+            reputation,
+            tier_info,
+            contribution_stats,
+            rewards,
+            upgrade_options,
+            verification_history,
+            enable_monitoring,
+            disable_monitoring,
+            test_challenge,
+            proof_details,
+        } => Box::new(economy_command::EconomyCommand {
+            contribute: *contribute,
+            path: path.clone(),
+            amount: amount.clone(),
+            upgrade: *upgrade,
+            premium_size: premium_size.clone(),
+            payment_method: payment_method.clone(),
+            duration: *duration,
+            verify: *verify,
+            challenge_response: challenge_response.clone(),
+            challenge_id: challenge_id.clone(),
+            reputation: *reputation,
+            tier_info: *tier_info,
+            contribution_stats: *contribution_stats,
+            rewards: *rewards,
+            upgrade_options: *upgrade_options,
+            verification_history: *verification_history,
+            enable_monitoring: *enable_monitoring,
+            disable_monitoring: *disable_monitoring,
+            test_challenge: *test_challenge,
+            proof_details: *proof_details,
         }),
 
         Commands::Export {
