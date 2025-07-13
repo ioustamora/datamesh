@@ -2,12 +2,15 @@ use anyhow::Result;
 /// Administrative command handlers
 ///
 /// This module contains handlers for administrative operations:
-/// config, metrics, networks
+/// config, metrics, networks, shell completion
 use std::error::Error;
 use std::path::PathBuf;
 
 use crate::commands::{CommandContext, CommandHandler};
 use crate::{config, performance, presets};
+use clap_complete::{generate, Shell};
+use clap::CommandFactory;
+use colored::Colorize;
 
 /// Config command handler
 #[derive(Debug, Clone)]
@@ -157,5 +160,69 @@ impl CommandHandler for NetworksCommand {
 
     fn command_name(&self) -> &'static str {
         "admin_networks"
+    }
+}
+
+/// Shell completion command handler
+#[derive(Debug, Clone)]
+pub struct CompletionCommand {
+    pub shell: Shell,
+}
+
+#[async_trait::async_trait]
+impl CommandHandler for CompletionCommand {
+    async fn execute(&self, _context: &CommandContext) -> Result<(), Box<dyn Error>> {
+        let mut cmd = crate::cli::Cli::command();
+        let bin_name = cmd.get_name().to_string();
+        
+        generate(self.shell, &mut cmd, bin_name, &mut std::io::stdout());
+        Ok(())
+    }
+
+    fn command_name(&self) -> &'static str {
+        "admin_completion"
+    }
+}
+
+/// Help command handler
+#[derive(Debug, Clone)]
+pub struct HelpCommand;
+
+#[async_trait::async_trait]
+impl CommandHandler for HelpCommand {
+    async fn execute(&self, _context: &CommandContext) -> Result<(), Box<dyn Error>> {
+        use crate::ui;
+        
+        println!("{}", "DataMesh Quick Help".bold().cyan());
+        println!("{}", "===================".cyan());
+        println!();
+        
+        ui::print_shortcuts();
+        println!();
+        
+        println!("{}", "Common Workflows:".bold().green());
+        ui::print_command_hint("datamesh put myfile.txt", "Store a file");
+        ui::print_command_hint("datamesh get myfile.txt ./", "Download a file");
+        ui::print_command_hint("datamesh ls", "List your files");
+        ui::print_command_hint("datamesh find 'keyword'", "Search for files");
+        ui::print_command_hint("datamesh stats", "Show storage statistics");
+        ui::print_command_hint("datamesh peers", "Show connected peers");
+        println!();
+        
+        println!("{}", "Getting Started:".bold().yellow());
+        println!("  1. First run: {} to start a bootstrap node", "datamesh bootstrap".cyan());
+        println!("  2. In another terminal: {} to connect", "datamesh interactive".cyan());
+        println!("  3. Use {} to see all commands", "datamesh --help".cyan());
+        println!();
+        
+        println!("{}", "Shell Completion:".bold().blue());
+        println!("  Add to ~/.bashrc: {}", "eval \"$(datamesh generate-completion bash)\"".cyan());
+        println!("  Add to ~/.zshrc:  {}", "eval \"$(datamesh generate-completion zsh)\"".cyan());
+        
+        Ok(())
+    }
+
+    fn command_name(&self) -> &'static str {
+        "admin_help"
     }
 }

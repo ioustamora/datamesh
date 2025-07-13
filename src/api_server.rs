@@ -44,8 +44,7 @@ use crate::governance::{AuthService, UserRegistry};
 use crate::governance_service::GovernanceService;
 use crate::key_manager::KeyManager;
 use crate::smart_cache::SmartCacheManager;
-// Note: WebSocket functionality to be implemented later
-// use crate::websocket::{websocket_handler, WebSocketManager};
+use crate::websocket::{websocket_handler, WebSocketManager};
 
 /// API error types for HTTP responses
 #[derive(Debug)]
@@ -166,7 +165,7 @@ pub struct ApiState {
     pub user_registry: Arc<UserRegistry>,
     pub cli: Cli,
     pub api_config: ApiConfig,
-    // pub websocket_manager: Arc<WebSocketManager>, // Temporarily commented out
+    pub websocket_manager: Arc<WebSocketManager>,
     pub file_storage: Arc<ActorFileStorage>,
 }
 
@@ -636,8 +635,8 @@ impl ApiServer {
         let auth_service = Arc::new(AuthService::new(&api_config.jwt)?);
         let user_registry = Arc::new(UserRegistry::new());
         
-        // Initialize WebSocket manager (temporarily disabled)
-        // let websocket_manager = Arc::new(WebSocketManager::new());
+        // Initialize WebSocket manager
+        let websocket_manager = Arc::new(WebSocketManager::new());
         
         // Initialize distributed file storage
         let file_storage = Arc::new(
@@ -656,7 +655,7 @@ impl ApiServer {
             user_registry,
             cli,
             api_config: api_config.clone(),
-            // websocket_manager, // Temporarily commented out
+            websocket_manager,
             file_storage,
         };
 
@@ -729,8 +728,8 @@ impl ApiServer {
             .route("/admin/users", get(get_users))
             // System health endpoint
             .route("/admin/health", get(get_system_health))
-            // WebSocket endpoint (temporarily disabled)
-            // .route("/ws", get(websocket_handler))
+            // WebSocket endpoint
+            .route("/ws", get(websocket_handler))
             .with_state(state.clone());
 
         let mut app = Router::new().nest(api_prefix, api_routes);
@@ -1635,23 +1634,23 @@ async fn download_file(
     // Verify authentication
     let _user = authenticate_user(&headers, &state).await?;
 
-    // Send progress update via WebSocket
-    state.websocket_manager.send_file_download_progress(
-        file_key.clone(),
-        25.0,
-        "Retrieving file from distributed storage".to_string(),
-    ).await;
+    // TODO: Send progress update via WebSocket
+    // state.websocket_manager.send_file_download_progress(
+    //     file_key.clone(),
+    //     25.0,
+    //     "Retrieving file from distributed storage".to_string(),
+    // ).await;
 
     // Create temporary output file
     let temp_dir = std::env::temp_dir();
     let output_path = temp_dir.join(format!("download_{}", Uuid::new_v4()));
 
-    // Send progress update
-    state.websocket_manager.send_file_download_progress(
-        file_key.clone(),
-        50.0,
-        "Reconstructing file from chunks".to_string(),
-    ).await;
+    // TODO: Send progress update
+    // state.websocket_manager.send_file_download_progress(
+    //     file_key.clone(),
+    //     50.0,
+    //     "Reconstructing file from chunks".to_string(),
+    // ).await;
 
     // Retrieve file using distributed storage
     let file_data = match state.file_storage.retrieve_file(
@@ -1684,12 +1683,12 @@ async fn download_file(
         }
     };
 
-    // Send completion update via WebSocket
-    state.websocket_manager.send_file_download_progress(
-        file_key.clone(),
-        100.0,
-        "Download complete".to_string(),
-    ).await;
+    // TODO: Send completion update via WebSocket
+    // state.websocket_manager.send_file_download_progress(
+    //     file_key.clone(),
+    //     100.0,
+    //     "Download complete".to_string(),
+    // ).await;
 
     // Return file with appropriate headers
     let content_disposition = format!("attachment; filename=\"{}\"", file_name);
@@ -2104,9 +2103,9 @@ pub struct AdminUserResponse {
     pub files_count: u32,
 }
 
-/// System health response
+/// System health response detailed
 #[derive(Debug, Serialize, ToSchema)]
-pub struct SystemHealthResponse {
+pub struct SystemHealthResponseDetailed {
     /// Overall health status
     pub overall_status: String,
     /// Uptime seconds

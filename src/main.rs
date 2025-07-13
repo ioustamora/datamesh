@@ -105,6 +105,7 @@ mod audit_logger;                 // Security audit logging
 mod backup_system;                // Data backup and recovery
 mod batch_operations;             // Batch processing capabilities
 mod datamesh_core;                // Core system functionality
+mod websocket;                    // WebSocket functionality for real-time updates
 
 use std::error::Error;
 use std::sync::Arc;

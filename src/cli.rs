@@ -15,6 +15,7 @@
 ///
 /// Each command has its own set of arguments and options appropriate for its function.
 use clap::{Parser, ValueEnum};
+use clap_complete::Shell;
 use libp2p::{Multiaddr, PeerId};
 use std::path::PathBuf;
 
@@ -29,7 +30,31 @@ pub enum OutputFormat {
 
 /// Main CLI structure for the DataMesh application
 #[derive(Parser, Debug, Clone)]
-#[command(name = "datamesh")]
+#[command(
+    name = "datamesh",
+    about = "Distributed data storage system with P2P networking",
+    after_help = "Use 'datamesh <command> --help' for more information about a command.",
+    help_template = r#"{name} {version}
+{about}
+
+{usage-heading} {usage}
+
+{all-args}
+
+COMMAND GROUPS:
+  Core Operations:    put, get, list, info, stats
+  Network Management: peers, health, network, discover, distribution, bandwidth
+  Service Operations: bootstrap, interactive, service
+  File Management:    sync, backup, restore, duplicate, rename, search, recent, popular
+  Batch Operations:   batch-put, batch-get, batch-tag
+  Administration:     config, metrics, networks, cleanup, repair, quota
+  Import/Export:      export, import
+  Sharing:            pin, unpin, share
+  Performance:        optimize, benchmark
+
+{after-help}
+"#
+)]
 pub struct Cli {
     /// Optional peer ID of a bootstrap node to connect to
     #[arg(long)]
@@ -70,6 +95,7 @@ pub struct Cli {
 #[derive(Parser, Debug, Clone)]
 pub enum Commands {
     /// Store a file in the distributed network
+    #[command(alias = "upload")]
     Put {
         /// Path to the file to store
         #[arg(value_name = "FILE")]
@@ -91,6 +117,7 @@ pub enum Commands {
         tags: Option<String>,
     },
     /// Retrieve a file from the network
+    #[command(alias = "download")]
     Get {
         /// File name or unique key identifying the file
         #[arg(value_name = "NAME_OR_KEY")]
@@ -103,6 +130,7 @@ pub enum Commands {
         private_key: Option<String>,
     },
     /// List files accessible with the current key
+    #[command(alias = "ls")]
     List {
         /// Public key to list files for (optional)
         #[arg(
@@ -166,6 +194,7 @@ pub enum Commands {
         export: bool,
     },
     /// Show detailed information about a file
+    #[command(alias = "show")]
     Info {
         /// File name or key to show information for
         #[arg(value_name = "NAME_OR_KEY")]
@@ -316,6 +345,7 @@ pub enum Commands {
 
     // === Search & Discovery ===
     /// Advanced file search with multiple criteria
+    #[command(alias = "find")]
     Search {
         /// Search query
         #[arg(value_name = "QUERY")]
@@ -600,6 +630,18 @@ pub enum Commands {
         #[arg(long, help = "Disable Swagger UI")]
         no_swagger: bool,
     },
+
+    /// Generate shell completion scripts
+    #[command(hide = true)]
+    GenerateCompletion {
+        /// Shell to generate completion for
+        #[arg(value_enum)]
+        shell: Shell,
+    },
+
+    /// Show quick help and command shortcuts
+    #[command(alias = "shortcuts")]
+    Help,
 
     /// Test advanced DataMesh systems
     Advanced {

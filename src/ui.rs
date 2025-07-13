@@ -19,9 +19,40 @@ use crate::network_diagnostics::{
     BandwidthTest, DiscoveryResult, FileDistribution, NetworkHealth, NetworkTopology, PeerInfo,
 };
 
+/// Unified progress trait for all operations
+pub trait Progress {
+    fn set_message(&self, message: &str);
+    fn inc(&self, delta: u64);
+    fn set_position(&self, position: u64);
+    fn finish_with_message(&self, message: &str);
+    fn abandon_with_message(&self, message: &str);
+}
+
 /// Progress bar manager for file operations
 pub struct ProgressManager {
     bar: ProgressBar,
+}
+
+impl Progress for ProgressManager {
+    fn set_message(&self, message: &str) {
+        self.bar.set_message(message.to_string());
+    }
+
+    fn inc(&self, delta: u64) {
+        self.bar.inc(delta);
+    }
+
+    fn set_position(&self, position: u64) {
+        self.bar.set_position(position);
+    }
+
+    fn finish_with_message(&self, message: &str) {
+        self.bar.finish_with_message(message.to_string());
+    }
+
+    fn abandon_with_message(&self, message: &str) {
+        self.bar.abandon_with_message(message.to_string());
+    }
 }
 
 impl ProgressManager {
@@ -376,7 +407,7 @@ pub fn print_success(message: &str) {
 
 /// Print an error message
 pub fn print_error(message: &str) {
-    println!("{} {}", "❌".red(), message.red());
+    eprintln!("{} {}", "❌".red(), message.red());
 }
 
 /// Print a warning message
@@ -501,6 +532,35 @@ pub fn print_error_with_suggestions(error: &str, suggestions: &[&str]) {
             println!("   • {}", suggestion);
         }
     }
+}
+
+/// Print a command help hint
+pub fn print_command_hint(command: &str, description: &str) {
+    println!("{} {} - {}", "📌".blue(), command.cyan().bold(), description);
+}
+
+/// Print available shortcuts/aliases
+pub fn print_shortcuts() {
+    println!("{}", "Quick Commands:".bold().green());
+    println!("  {} or {} - Store a file", "put".cyan(), "upload".yellow());
+    println!("  {} or {} - Retrieve a file", "get".cyan(), "download".yellow());
+    println!("  {} or {} - List files", "list".cyan(), "ls".yellow());
+    println!("  {} or {} - Show file details", "info".cyan(), "show".yellow());
+    println!("  {} or {} - Search files", "search".cyan(), "find".yellow());
+}
+
+/// Display spinner for long operations without progress
+pub fn show_spinner(message: &str) -> ProgressBar {
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap()
+            .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ "),
+    );
+    spinner.set_message(message.to_string());
+    spinner.enable_steady_tick(Duration::from_millis(120));
+    spinner
 }
 
 /// Print detailed network status with peer information

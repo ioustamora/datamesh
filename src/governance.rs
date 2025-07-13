@@ -1,4 +1,34 @@
 use crate::error::{DfsError, DfsResult};
+
+/// Governance-specific error type
+#[derive(Debug, Clone)]
+pub enum GovernanceError {
+    UserNotFound,
+    InvalidCredentials,
+    InsufficientPermissions,
+    TokenExpired,
+    InvalidToken,
+    QuotaExceeded,
+    NetworkError(String),
+    DatabaseError(String),
+}
+
+impl std::fmt::Display for GovernanceError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GovernanceError::UserNotFound => write!(f, "User not found"),
+            GovernanceError::InvalidCredentials => write!(f, "Invalid credentials"),
+            GovernanceError::InsufficientPermissions => write!(f, "Insufficient permissions"),
+            GovernanceError::TokenExpired => write!(f, "Token expired"),
+            GovernanceError::InvalidToken => write!(f, "Invalid token"),
+            GovernanceError::QuotaExceeded => write!(f, "Quota exceeded"),
+            GovernanceError::NetworkError(e) => write!(f, "Network error: {}", e),
+            GovernanceError::DatabaseError(e) => write!(f, "Database error: {}", e),
+        }
+    }
+}
+
+impl std::error::Error for GovernanceError {}
 use argon2::{
     password_hash::{rand_core::OsRng, SaltString},
     Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
@@ -543,14 +573,14 @@ impl AuthService {
     pub fn get_user_id_from_token(&self, token: &str) -> Result<UserId, GovernanceError> {
         // In a real implementation, you'd decode and validate the JWT
         // For now, just return a mock user ID
-        Ok(UserId::from_string("user_123".to_string()))
+        Ok(Uuid::new_v4())
     }
 
     /// Validate refresh token
     pub fn validate_refresh_token(&self, refresh_token: &str) -> Result<UserId, GovernanceError> {
         // In a real implementation, you'd validate the refresh token
         // For now, just return a mock user ID
-        Ok(UserId::from_string("user_123".to_string()))
+        Ok(Uuid::new_v4())
     }
 
     /// Generate access token

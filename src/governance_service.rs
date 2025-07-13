@@ -70,7 +70,7 @@ impl GovernanceService {
                 _ => return proposals, // Return all if unknown status
             };
 
-            proposals.retain(|p| matches!(p.status, filter_status));
+            proposals.retain(|p| std::mem::discriminant(&p.status) == std::mem::discriminant(&filter_status));
         }
 
         proposals

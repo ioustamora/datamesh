@@ -25,6 +25,7 @@ rand = "0.8"
 ecies = { version = "0.2.9", default-features = false, features = ["pure"] }
 reed-solomon-erasure = "6.0.0"
 clap = { version = "4.5.40", features = ["derive"] }
+clap_complete = "4.5"
 blake3 = "1.8.2"
 hex = "0.4.3"
 chrono = { version = "0.4.41", features = ["serde"] }

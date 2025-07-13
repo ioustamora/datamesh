@@ -378,6 +378,7 @@ impl fmt::Display for DfsError {
             DfsError::Encoding(e) => write!(f, "Encoding error: {}", e),
             DfsError::Deserialization(e) => write!(f, "Deserialization error: {}", e),
             DfsError::NotFound(e) => write!(f, "Not found: {}", e),
+            DfsError::BadRequest(e) => write!(f, "Bad request: {}", e),
         }
     }
 }

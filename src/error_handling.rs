@@ -5,6 +5,7 @@
 use crate::error::{DfsError, EnhancedError};
 use crate::ui;
 use std::collections::HashMap;
+use colored::Colorize;
 
 /// Error severity levels for better error categorization
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -106,6 +107,7 @@ pub fn get_error_severity(error: &DfsError) -> ErrorSeverity {
         DfsError::NotFound(_) => ErrorSeverity::Warning,
         DfsError::Economics(_) => ErrorSeverity::Warning,
         DfsError::Configuration(_) => ErrorSeverity::Critical,
+        DfsError::BadRequest(_) => ErrorSeverity::Warning,
     }
 }
 
@@ -181,6 +183,7 @@ pub fn handle_error(error: &(dyn std::error::Error + 'static)) -> EnhancedError 
             DfsError::NotFound(msg) => DfsError::NotFound(msg.clone()),
             DfsError::Economics(msg) => DfsError::Economics(msg.clone()),
             DfsError::Configuration(msg) => DfsError::Configuration(msg.clone()),
+            DfsError::BadRequest(msg) => DfsError::BadRequest(msg.clone()),
         }
     } else {
         // Fall back to string analysis for unknown error types

@@ -4,6 +4,7 @@ use anyhow::Result;
 /// This module provides command handling using the network actor pattern
 /// for thread-safe network operations.
 use std::error::Error;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::cli::{Cli, Commands};
@@ -388,22 +389,17 @@ impl ActorCommandHandler for ActorDuplicateCommand {
         let new_tags = self.new_tags.clone().unwrap_or_else(|| source_file.tags.clone());
         
         // Store duplicate reference with same key but new metadata
-        let duplicate_metadata = crate::database::StoredFileMetadata {
-            file_key: source_file.file_key.clone(),
-            name: new_name.clone(),
-            original_name: source_file.original_name.clone(),
-            size: source_file.size,
-            file_type: source_file.file_type.clone(),
-            hash: source_file.hash.clone(),
-            tags: new_tags,
-            public_key_hex: source_file.public_key_hex.clone(),
-            encrypted: source_file.encrypted,
-            total_chunks: source_file.total_chunks,
-            recovery_threshold: source_file.recovery_threshold,
-            timestamp: chrono::Utc::now(),
-        };
-        
-        db.store_file_metadata(&duplicate_metadata)?;
+        let db_path = context.config.storage.keys_dir.clone().unwrap_or_else(|| PathBuf::from("keys")).join("metadata.db");
+        let db = crate::database::DatabaseManager::new(&db_path)?;
+        let _id = db.store_file(
+            &new_name,
+            &source_file.file_key,
+            &source_file.original_filename,
+            source_file.file_size,
+            chrono::Local::now(),
+            &new_tags,
+            &source_file.public_key_hex
+        )?;
         
         ui::print_success(&format!("File duplicated successfully as: {}", new_name));
         ui::print_info(&format!("Duplicate shares the same storage key: {}", source_file.file_key));

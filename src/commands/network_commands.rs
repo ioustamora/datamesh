@@ -366,7 +366,7 @@ impl CommandHandler for DistributionCommand {
 #[derive(Debug, Clone)]
 pub struct BandwidthCommand {
     pub test_peer: Option<String>,
-    pub duration: u64,
+    pub duration: Option<u64>,
 }
 
 #[async_trait::async_trait]
@@ -377,7 +377,7 @@ impl CommandHandler for BandwidthCommand {
 
         ui::print_header("Network Bandwidth Test");
 
-        let test_duration = Duration::from_secs(self.duration);
+        let test_duration = Duration::from_secs(self.duration.unwrap_or(30));
         
         if let Some(ref peer) = self.test_peer {
             ui::print_info(&format!("Testing bandwidth with peer: {}", peer));
