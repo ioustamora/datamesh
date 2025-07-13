@@ -116,6 +116,8 @@ pub mod dynamic_pricing;          // Dynamic pricing models for storage and retr
 pub mod flexible_storage;         // Flexible storage solutions and configurations
 pub mod gamification;             // Gamification elements to encourage network participation
 pub mod intelligent_cli;          // Intelligent command-line interface enhancements
+pub mod pricing_assistant;        // Pricing assistant module for cost estimation and optimization
+pub mod enhanced_api;            // Enhanced API module for extended functionality
 
 // ===== CONVENIENCE RE-EXPORTS =====
 // These re-exports provide easy access to the most commonly used types
