@@ -252,9 +252,96 @@ export const bundleOptimization = {
         return Promise.resolve(null)
       }
     },
-    markdown: () => import(/* webpackChunkName: "markdown-lib" */ 'marked'),
-    excel: () => import(/* webpackChunkName: "excel-lib" */ 'xlsx'),
-    zip: () => import(/* webpackChunkName: "zip-lib" */ 'jszip')
+    markdown: () => {
+      if (import.meta.env.PROD) {
+        // In production, load from CDN
+        return new Promise((resolve, reject) => {
+          if (window.marked) {
+            resolve({ default: window.marked })
+            return
+          }
+          
+          const script = document.createElement('script')
+          script.src = 'https://cdn.jsdelivr.net/npm/marked@5.1.1/marked.min.js'
+          script.onload = () => {
+            resolve({ default: window.marked })
+          }
+          script.onerror = reject
+          document.head.appendChild(script)
+        })
+      } else {
+        // In development, use a mock
+        return Promise.resolve({
+          default: {
+            parse: (text) => `<p>${text}</p>`
+          }
+        })
+      }
+    },
+    excel: () => {
+      if (import.meta.env.PROD) {
+        // In production, load from CDN
+        return new Promise((resolve, reject) => {
+          if (window.XLSX) {
+            resolve({ default: window.XLSX })
+            return
+          }
+          
+          const script = document.createElement('script')
+          script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
+          script.onload = () => {
+            resolve({ default: window.XLSX })
+          }
+          script.onerror = reject
+          document.head.appendChild(script)
+        })
+      } else {
+        // In development, use a mock
+        return Promise.resolve({
+          default: {
+            read: () => ({ SheetNames: [], Sheets: {} }),
+            write: () => new ArrayBuffer(0)
+          }
+        })
+      }
+    },
+    zip: () => {
+      if (import.meta.env.PROD) {
+        // In production, load from CDN
+        return new Promise((resolve, reject) => {
+          if (window.JSZip) {
+            resolve({ default: window.JSZip })
+            return
+          }
+          
+          const script = document.createElement('script')
+          script.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'
+          script.onload = () => {
+            resolve({ default: window.JSZip })
+          }
+          script.onerror = reject
+          document.head.appendChild(script)
+        })
+      } else {
+        // In development, use a mock
+        return Promise.resolve({
+          default: class MockJSZip {
+            constructor() {
+              this.files = {}
+            }
+            file(name, content) {
+              if (content !== undefined) {
+                this.files[name] = content
+              }
+              return this.files[name]
+            }
+            generateAsync() {
+              return Promise.resolve(new ArrayBuffer(0))
+            }
+          }
+        })
+      }
+    }
   },
   
   // Critical resource hints
