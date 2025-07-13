@@ -237,7 +237,21 @@ export const bundleOptimization = {
   // Dynamic imports for libraries
   loadLibrary: {
     chart: () => import(/* webpackChunkName: "chart-lib" */ 'chart.js'),
-    pdf: () => import(/* webpackChunkName: "pdf-lib" */ 'pdfjs-dist'),
+    // PDF.js requires special handling - load from CDN in production
+    pdf: () => {
+      if (import.meta.env.PROD) {
+        return new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+          script.onload = () => resolve(window.pdfjsLib)
+          script.onerror = reject
+          document.head.appendChild(script)
+        })
+      } else {
+        // In development, use a mock or return null
+        return Promise.resolve(null)
+      }
+    },
     markdown: () => import(/* webpackChunkName: "markdown-lib" */ 'marked'),
     excel: () => import(/* webpackChunkName: "excel-lib" */ 'xlsx'),
     zip: () => import(/* webpackChunkName: "zip-lib" */ 'jszip')
