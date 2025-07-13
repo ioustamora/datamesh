@@ -47,7 +47,7 @@ lru = "0.12"
 bs58 = "0.5"
 
 # REST API dependencies
-axum = { version = "0.7", features = ["multipart"] }
+axum = { version = "0.7", features = ["multipart", "ws"] }
 axum-server = { version = "0.5", features = ["tls-rustls"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["fs", "cors", "trace"] }

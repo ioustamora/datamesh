@@ -640,6 +640,12 @@ impl StorageEconomyManager {
             reputation_score: profile.reputation_score,
             violations_count: profile.violations.len(),
             last_activity: profile.last_activity,
+            
+            // Additional fields
+            upload_quota_limit: upload_quota,
+            download_quota_limit: download_quota,
+            storage_tier: format!("{:?}", profile.tier),
+            can_contribute: profile.reputation_score >= self.config.min_reputation_for_contributor,
         })
     }
 
@@ -901,44 +907,6 @@ impl StorageEconomyManager {
         Ok(challenge)
     }
 
-    /// Verify storage challenge response
-    pub async fn verify_challenge_response(
-        &self,
-        challenge_id: &str,
-        response_hash: &str,
-    ) -> DfsResult<bool> {
-        let challenge = {
-            let challenges = self.active_challenges.read().await;
-            challenges.get(challenge_id).cloned()
-        };
-
-        let challenge = challenge
-            .ok_or_else(|| DfsError::Storage("Challenge not found".to_string()))?;
-
-        // Check if challenge has expired
-        if Utc::now() > challenge.expires_at {
-            self.handle_failed_verification(&challenge.user_id, "Challenge expired").await?;
-            return Ok(false);
-        }
-
-        // Verify response
-        let is_valid = response_hash == challenge.expected_response;
-
-        if is_valid {
-            self.handle_successful_verification(&challenge.user_id).await?;
-        } else {
-            self.handle_failed_verification(&challenge.user_id, "Invalid challenge response").await?;
-        }
-
-        // Remove challenge from active challenges
-        {
-            let mut challenges = self.active_challenges.write().await;
-            challenges.remove(challenge_id);
-        }
-
-        Ok(is_valid)
-    }
-
     /// Get storage statistics for user
     pub async fn get_user_storage_stats(&self, user_id: &str) -> DfsResult<UserStorageStatistics> {
         let profile = self.get_user_profile(user_id).await?
@@ -1073,6 +1041,8 @@ impl StorageEconomyManager {
         }
     }
 
+}
+
 /// User storage statistics response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserStorageStatistics {
@@ -1087,9 +1057,14 @@ pub struct UserStorageStatistics {
     pub reputation_score: f64,
     pub violations_count: usize,
     pub last_activity: DateTime<Utc>,
+    
+    // Additional fields used in the code
+    pub upload_quota_limit: u64,
+    pub download_quota_limit: u64,
+    pub storage_tier: String,
+    pub can_contribute: bool,
 }
 
-}
 
 /// Storage economy service integration
 pub struct StorageEconomyService {

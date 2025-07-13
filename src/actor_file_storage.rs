@@ -689,7 +689,7 @@ impl ActorFileStorage {
         }
         
         // Remove from database
-        self.db.delete_file_by_key(file_key)?;
+        self.db.delete_file(file_key)?;
         
         tracing::info!("File {} deleted from database", file_key);
         Ok(())
