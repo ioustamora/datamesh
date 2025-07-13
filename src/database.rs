@@ -175,11 +175,19 @@ impl DatabaseManager {
         Ok(())
     }
 
-    /// Delete a file entry
+    /// Delete a file entry by name
     pub fn delete_file(&self, name: &str) -> Result<bool> {
         let rows_affected = self
             .connection
             .execute("DELETE FROM files WHERE name = ?1", params![name])?;
+        Ok(rows_affected > 0)
+    }
+
+    /// Delete a file entry by file key
+    pub fn delete_file_by_key(&self, file_key: &str) -> Result<bool> {
+        let rows_affected = self
+            .connection
+            .execute("DELETE FROM files WHERE file_key = ?1", params![file_key])?;
         Ok(rows_affected > 0)
     }
 

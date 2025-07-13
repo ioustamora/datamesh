@@ -149,6 +149,16 @@ pub enum DfsError {
     /// to maintain compatibility with different parts of the codebase.
     Configuration(String),
 
+    /// Bad request or invalid input parameters.
+    ///
+    /// Covers invalid user input, malformed requests, invalid parameters,
+    /// and other client-side errors. Common causes include:
+    /// - Invalid proposal types or vote values
+    /// - Malformed file names or paths
+    /// - Out-of-range parameters
+    /// - Invalid user input format
+    BadRequest(String),
+
     // ===== CRYPTOGRAPHIC ERRORS =====
 
     /// General cryptographic operation failures.

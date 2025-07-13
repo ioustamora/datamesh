@@ -99,6 +99,7 @@ use crate::performance;
 use crate::thread_safe_database::ThreadSafeDatabaseManager;
 use crate::ui;
 use ecies::{decrypt, encrypt};
+use serde::{Serialize, Deserialize};
 
 /// Actor-based file storage operations providing secure, fault-tolerant distributed storage.
 ///
@@ -586,6 +587,126 @@ impl ActorFileStorage {
         self.network.get_connected_peers().await
     }
 
+    /// Store file - API-compatible wrapper for put_file
+    pub async fn store_file(
+        &self,
+        path: &PathBuf,
+        public_key: &Option<String>,
+        name: &Option<String>,
+        tags: &Option<String>,
+        key_manager: &KeyManager,
+    ) -> DfsResult<String> {
+        // Convert the file path to a hex-encoded file key for consistent API
+        let _display_name = self.put_file(path, key_manager, public_key, name, tags).await?;
+        
+        // Return the file key for retrieval
+        let file_data = std::fs::read(path)?;
+        let file_key = hex::encode(blake3::hash(&file_data).as_bytes());
+        Ok(file_key)
+    }
+
+    /// Retrieve file - API-compatible wrapper for get_file
+    pub async fn retrieve_file(
+        &self,
+        file_key: &str,
+        output_path: &PathBuf,
+        private_key: &Option<String>,
+        key_manager: &KeyManager,
+    ) -> DfsResult<()> {
+        self.get_file(file_key, output_path, key_manager, private_key).await
+    }
+
+    /// Get file metadata
+    pub async fn get_file_metadata(&self, file_key: &str) -> DfsResult<FileMetadata> {
+        // Try to get from database first
+        if let Some(file_entry) = self.db.get_file_by_key(file_key)? {
+            return Ok(FileMetadata {
+                file_name: file_entry.original_filename,
+                file_size: file_entry.file_size,
+                upload_time: file_entry.upload_time,
+                tags: file_entry.tags,
+                public_key_hex: file_entry.public_key_hex,
+                chunks_total: file_entry.chunks_total,
+                chunks_healthy: file_entry.chunks_healthy,
+            });
+        }
+
+        // Fallback to network retrieval
+        let key_bytes = hex::decode(file_key)?;
+        let record_key = RecordKey::from(key_bytes);
+        
+        if let Some(record) = self.network.get_record(record_key).await? {
+            let stored_file: StoredFile = serde_json::from_slice(&record.value)
+                .map_err(|e| DfsError::Serialization(format!("Failed to parse metadata: {}", e)))?;
+                
+            Ok(FileMetadata {
+                file_name: stored_file.file_name,
+                file_size: stored_file.file_size as u64,
+                upload_time: stored_file.stored_at,
+                tags: vec![], // StoredFile doesn't have tags field
+                public_key_hex: stored_file.public_key_hex,
+                chunks_total: stored_file.chunk_keys.len() as u32,
+                chunks_healthy: stored_file.chunk_keys.len() as u32, // Assume all healthy
+            })
+        } else {
+            Err(DfsError::FileNotFound(format!("File not found: {}", file_key)))
+        }
+    }
+
+    /// List files in the system
+    pub async fn list_files(&self, tag_filter: Option<&str>) -> DfsResult<Vec<FileMetadata>> {
+        let files = self.db.list_files(tag_filter)?;
+        
+        Ok(files.into_iter().map(|file_entry| FileMetadata {
+            file_name: file_entry.original_filename,
+            file_size: file_entry.file_size,
+            upload_time: file_entry.upload_time,
+            tags: file_entry.tags,
+            public_key_hex: file_entry.public_key_hex,
+            chunks_total: file_entry.chunks_total,
+            chunks_healthy: file_entry.chunks_healthy,
+        }).collect())
+    }
+
+    /// Delete a file from the system
+    pub async fn delete_file(&self, file_key: &str) -> DfsResult<()> {
+        // Get file metadata first
+        let metadata = self.get_file_metadata(file_key).await?;
+        
+        // Try to get stored file info for chunk keys
+        let key_bytes = hex::decode(file_key)?;
+        let record_key = RecordKey::from(key_bytes.clone());
+        
+        if let Some(record) = self.network.get_record(record_key.clone()).await? {
+            if let Ok(stored_file) = serde_json::from_slice::<StoredFile>(&record.value) {
+                // Delete all chunks from DHT
+                for chunk_key_bytes in &stored_file.chunk_keys {
+                    let chunk_key = RecordKey::from(chunk_key_bytes.clone());
+                    // Note: DHT doesn't have delete operation, files will expire naturally
+                    // In a production system, we might implement tombstone records
+                }
+            }
+        }
+        
+        // Remove from database
+        self.db.delete_file_by_key(file_key)?;
+        
+        tracing::info!("File {} deleted from database", file_key);
+        Ok(())
+    }
+
+}
+
+/// File metadata structure for API responses
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileMetadata {
+    pub file_name: String,
+    pub file_size: u64,
+    pub upload_time: chrono::DateTime<chrono::Local>,
+    pub tags: Vec<String>,
+    pub public_key_hex: String,
+    pub chunks_total: u32,
+    pub chunks_healthy: u32,
 }
 
 /// Store a file using the actor-based network system

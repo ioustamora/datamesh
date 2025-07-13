@@ -235,3 +235,57 @@ impl Default for GovernanceService {
         Self::new()
     }
 }
+
+/// Network governance proposal
+#[derive(Debug, Clone)]
+pub struct NetworkProposal {
+    pub proposal_id: uuid::Uuid,
+    pub title: String,
+    pub description: String,
+    pub proposal_type: ProposalType,
+    pub author: uuid::Uuid,
+    pub status: ProposalStatus,
+    pub votes_for: u64,
+    pub votes_against: u64,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub voting_ends_at: chrono::DateTime<chrono::Utc>,
+    pub execution_status: String,
+}
+
+/// Types of governance proposals
+#[derive(Debug, Clone, PartialEq)]
+pub enum ProposalType {
+    NetworkUpgrade,
+    FeeAdjustment,
+    QuotaModification,
+    OperatorRegistration,
+    Emergency,
+}
+
+/// Status of a governance proposal
+#[derive(Debug, Clone, PartialEq)]
+pub enum ProposalStatus {
+    Active,
+    Passed,
+    Failed,
+    Executed,
+}
+
+/// A vote on a governance proposal
+#[derive(Debug, Clone)]
+pub struct Vote {
+    pub vote_id: uuid::Uuid,
+    pub proposal_id: uuid::Uuid,
+    pub voter_id: uuid::Uuid,
+    pub vote: VoteType,
+    pub reason: Option<String>,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+}
+
+/// Types of votes
+#[derive(Debug, Clone, PartialEq)]
+pub enum VoteType {
+    For,
+    Against,
+    Abstain,
+}
