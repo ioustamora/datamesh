@@ -796,8 +796,163 @@ test_new_functionality() {
         --non-interactive \
         pricing --size 1024 --duration 30 > "$RESULTS_DIR/pricing_test.log" 2>&1 || true
     
-    record_metric "new_features" "tests_completed" "13" "count" "comprehensive_feature_test"
-    info "New functionality testing completed - 13 feature tests executed"
+    # Test 14: Distribution analysis
+    info "Testing file distribution analysis..."
+    "$DATAMESH_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        distribution > "$RESULTS_DIR/distribution_test.log" 2>&1 || true
+    
+    # Test 15: Peer discovery
+    info "Testing peer discovery..."
+    timeout 30 "$DATAMESH_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        discover --timeout 10 > "$RESULTS_DIR/discover_test.log" 2>&1 || true
+    
+    # Test 16: Bandwidth testing
+    info "Testing bandwidth capabilities..."
+    timeout 30 "$DATAMESH_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        bandwidth --duration 5 > "$RESULTS_DIR/bandwidth_test.log" 2>&1 || true
+    
+    # Test 17: Popular files (stub command)
+    info "Testing popular files command..."
+    timeout 30 "$DATAMESH_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        popular --timeframe week --count 5 > "$RESULTS_DIR/popular_test.log" 2>&1 || true
+    
+    # Test 18: File operations with existing files
+    if [ ${#STORED_KEYS[@]} -gt 0 ]; then
+        local test_key="${STORED_KEYS[0]}"
+        local test_filename="${TEST_FILES[0]}"
+        
+        # Test file info command
+        info "Testing file info command..."
+        "$DATAMESH_BINARY" \
+            --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+            --bootstrap-addr "$BOOTSTRAP_ADDR" \
+            --non-interactive \
+            info "$test_key" > "$RESULTS_DIR/info_test.log" 2>&1 || true
+        
+        # Test file duplication
+        info "Testing file duplication..."
+        "$DATAMESH_BINARY" \
+            --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+            --bootstrap-addr "$BOOTSTRAP_ADDR" \
+            --non-interactive \
+            duplicate "$test_key" --new-name "duplicated_$test_filename" > "$RESULTS_DIR/duplicate_test.log" 2>&1 || true
+        
+        # Test file pinning
+        info "Testing file pinning..."
+        "$DATAMESH_BINARY" \
+            --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+            --bootstrap-addr "$BOOTSTRAP_ADDR" \
+            --non-interactive \
+            pin "$test_key" --duration "1 week" --priority 8 > "$RESULTS_DIR/pin_test.log" 2>&1 || true
+        
+        # Test file sharing
+        info "Testing file sharing..."
+        "$DATAMESH_BINARY" \
+            --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+            --bootstrap-addr "$BOOTSTRAP_ADDR" \
+            --non-interactive \
+            share "$test_key" --expires "1 week" > "$RESULTS_DIR/share_test.log" 2>&1 || true
+        
+        # Test file unpinning
+        info "Testing file unpinning..."
+        "$DATAMESH_BINARY" \
+            --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+            --bootstrap-addr "$BOOTSTRAP_ADDR" \
+            --non-interactive \
+            unpin "$test_key" > "$RESULTS_DIR/unpin_test.log" 2>&1 || true
+    fi
+    
+    # Test 19: Sync operations (dry run to test directory)
+    info "Testing sync operations..."
+    mkdir -p "$RESULTS_DIR/sync_test_dir"
+    echo "sync test content" > "$RESULTS_DIR/sync_test_dir/sync_test.txt"
+    timeout 30 "$DATAMESH_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        sync "$RESULTS_DIR/sync_test_dir" --parallel 2 > "$RESULTS_DIR/sync_test.log" 2>&1 || true
+    
+    # Test 20: Batch put operations
+    info "Testing batch put operations..."
+    timeout 60 "$DATAMESH_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        batch-put "$RESULTS_DIR/sync_test_dir/*" --parallel 2 --tag-pattern "batch,{name}" > "$RESULTS_DIR/batch_put_test.log" 2>&1 || true
+    
+    # Test 21: Batch get operations  
+    info "Testing batch get operations..."
+    mkdir -p "$RESULTS_DIR/batch_get_dir"
+    timeout 60 "$DATAMESH_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        batch-get "*" "$RESULTS_DIR/batch_get_dir" --parallel 2 > "$RESULTS_DIR/batch_get_test.log" 2>&1 || true
+    
+    # Test 22: Export functionality
+    info "Testing export functionality..."
+    "$DATAMESH_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        export "$RESULTS_DIR/export_test.tar" --format tar --include-metadata > "$RESULTS_DIR/export_test.log" 2>&1 || true
+    
+    # Test 23: Import functionality (if export created a file)
+    if [ -f "$RESULTS_DIR/export_test.tar" ]; then
+        info "Testing import functionality..."
+        "$DATAMESH_BINARY" \
+            --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+            --bootstrap-addr "$BOOTSTRAP_ADDR" \
+            --non-interactive \
+            import "$RESULTS_DIR/export_test.tar" --verify --tag-prefix "imported" > "$RESULTS_DIR/import_test.log" 2>&1 || true
+    fi
+    
+    # Test 24: Backup functionality
+    info "Testing backup functionality..."
+    "$DATAMESH_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        backup "$DATA_DIR" --name "cluster_test_backup" --compress > "$RESULTS_DIR/backup_test.log" 2>&1 || true
+    
+    # Test 25: Restore functionality (list versions)
+    info "Testing restore functionality..."
+    "$DATAMESH_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        restore "cluster_test_backup" "$RESULTS_DIR/restore_test_dir" --list-versions > "$RESULTS_DIR/restore_test.log" 2>&1 || true
+    
+    # Test 26: Configuration commands
+    info "Testing configuration commands..."
+    "$DATAMESH_BINARY" config --generate > "$RESULTS_DIR/config_test.log" 2>&1 || true
+    
+    # Test 27: Networks command
+    info "Testing networks command..."
+    "$DATAMESH_BINARY" networks > "$RESULTS_DIR/networks_test.log" 2>&1 || true
+    
+    # Test 28: Advanced system tests
+    info "Testing advanced system features..."
+    "$DATAMESH_BINARY" \
+        --bootstrap-peer "$BOOTSTRAP_PEER_ID" \
+        --bootstrap-addr "$BOOTSTRAP_ADDR" \
+        --non-interactive \
+        advanced --status > "$RESULTS_DIR/advanced_test.log" 2>&1 || true
+    
+    record_metric "new_features" "tests_completed" "28" "count" "comprehensive_feature_test"
+    info "Comprehensive functionality testing completed - 28+ feature tests executed"
 }
 
 generate_test_report() {
