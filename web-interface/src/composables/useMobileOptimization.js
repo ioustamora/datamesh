@@ -197,8 +197,8 @@ export function useHapticFeedback() {
     notification: [10, 100, 10, 100],
     heartbeat: [50, 50, 50, 50, 150],
     click: [5],
-    double-click: [5, 50, 5],
-    long-press: [200],
+    'double-click': [5, 50, 5],
+    'long-press': [200],
     selection: [10, 20, 10]
   }
   
