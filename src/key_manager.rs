@@ -57,6 +57,17 @@ pub enum KeySelectionMode {
 }
 
 impl KeyManager {
+    /// Encrypt data using this key manager's public key
+    pub fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
+        let public_key = PublicKey::from_secret_key(&self.key);
+        encrypt_data(data, &public_key)
+    }
+
+    /// Decrypt data using this key manager's private key
+    pub fn decrypt(&self, encrypted_data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
+        decrypt_data(encrypted_data, &self.key)
+    }
+
     pub fn new(key: SecretKey, name: String) -> Self {
         // Validate key strength
         if let Err(e) = Self::validate_key_strength(&key) {
@@ -317,6 +328,22 @@ pub fn get_decryption_key(
     } else {
         Ok(key_manager.key.clone())
     }
+}
+
+/// Encrypt data using ECIES encryption
+pub fn encrypt_data(data: &[u8], public_key: &PublicKey) -> Result<Vec<u8>, Box<dyn Error>> {
+    let serialized_public_key = public_key.serialize_compressed();
+    let encrypted = ecies::encrypt(&serialized_public_key, data)
+        .map_err(|e| format!("ECIES encryption failed: {:?}", e))?;
+    Ok(encrypted)
+}
+
+/// Decrypt data using ECIES decryption
+pub fn decrypt_data(encrypted_data: &[u8], secret_key: &SecretKey) -> Result<Vec<u8>, Box<dyn Error>> {
+    let serialized_secret_key = secret_key.serialize();
+    let decrypted = ecies::decrypt(&serialized_secret_key, encrypted_data)
+        .map_err(|e| format!("ECIES decryption failed: {:?}", e))?;
+    Ok(decrypted)
 }
 
 pub async fn setup_key_management_with_mode(

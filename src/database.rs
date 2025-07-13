@@ -206,6 +206,11 @@ impl DatabaseManager {
         Ok(())
     }
 
+    /// Search files by tag (alias for backward compatibility)
+    pub fn search_files_by_tag(&self, tag: &str) -> Result<Vec<FileEntry>> {
+        self.list_files_by_tag(tag)
+    }
+
     /// List files by tag
     pub fn list_files_by_tag(&self, tag: &str) -> Result<Vec<FileEntry>> {
         let mut stmt = self.connection.prepare(

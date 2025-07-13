@@ -737,9 +737,13 @@ impl NetworkActor {
             }
         }
         
+        // Store counts for logging before consuming the vectors
+        let timed_out_gets_count = timed_out_gets.len();
+        let timed_out_puts_count = timed_out_puts.len();
+        
         // Remove timed out GET requests and notify with timeout error
-        for key in timed_out_gets {
-            if let Some((response_tx, _timestamp)) = self.pending_get_requests.remove(&key) {
+        for key in &timed_out_gets {
+            if let Some((response_tx, _timestamp)) = self.pending_get_requests.remove(key) {
                 let _ = response_tx.send(Err(DfsError::Network(
                     "Get record operation timed out".to_string()
                 )));
@@ -748,8 +752,8 @@ impl NetworkActor {
         }
         
         // Remove timed out PUT requests and notify with timeout error
-        for key in timed_out_puts {
-            if let Some((response_tx, _timestamp)) = self.pending_put_requests.remove(&key) {
+        for key in &timed_out_puts {
+            if let Some((response_tx, _timestamp)) = self.pending_put_requests.remove(key) {
                 let _ = response_tx.send(Err(DfsError::Network(
                     "Put record operation timed out".to_string()
                 )));
@@ -757,9 +761,9 @@ impl NetworkActor {
             }
         }
         
-        if !timed_out_gets.is_empty() || !timed_out_puts.is_empty() {
+        if timed_out_gets_count > 0 || timed_out_puts_count > 0 {
             debug!("Cleaned up {} timed out GET requests and {} timed out PUT requests", 
-                   timed_out_gets.len(), timed_out_puts.len());
+                   timed_out_gets_count, timed_out_puts_count);
         }
     }
 

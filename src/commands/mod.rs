@@ -440,6 +440,164 @@ pub fn create_command_handler(command: &Commands) -> Box<dyn CommandHandler> {
             no_swagger: *no_swagger,
         }),
 
+        Commands::Duplicate {
+            source,
+            new_name,
+            new_tags,
+        } => Box::new(missing_commands::DuplicateCommand {
+            source: source.clone(),
+            new_name: new_name.clone(),
+            new_tags: new_tags.clone(),
+        }),
+
+        Commands::Rename { old_name, new_name } => Box::new(missing_commands::RenameCommand {
+            old_name: old_name.clone(),
+            new_name: new_name.clone(),
+        }),
+
+        Commands::Recent {
+            count,
+            days,
+            file_type,
+        } => Box::new(missing_commands::RecentCommand {
+            count: *count,
+            days: *days,
+            file_type: file_type.clone(),
+        }),
+
+        Commands::Popular { timeframe, count } => Box::new(missing_commands::PopularCommand {
+            timeframe: timeframe.clone(),
+            count: *count,
+        }),
+
+        Commands::BatchPut {
+            pattern,
+            recursive,
+            parallel,
+            base_dir,
+            tag_pattern,
+        } => Box::new(missing_commands::BatchPutCommand {
+            pattern: pattern.clone(),
+            recursive: *recursive,
+            parallel: *parallel,
+            base_dir: base_dir.clone(),
+            tag_pattern: tag_pattern.clone(),
+        }),
+
+        Commands::BatchGet {
+            pattern,
+            destination,
+            parallel,
+            preserve_structure,
+        } => Box::new(missing_commands::BatchGetCommand {
+            pattern: pattern.clone(),
+            destination: destination.clone(),
+            parallel: *parallel,
+            preserve_structure: *preserve_structure,
+        }),
+
+        Commands::BatchTag {
+            pattern,
+            add_tags,
+            remove_tags,
+            dry_run,
+        } => Box::new(missing_commands::BatchTagCommand {
+            pattern: pattern.clone(),
+            add_tags: add_tags.clone(),
+            remove_tags: remove_tags.clone(),
+            dry_run: *dry_run,
+        }),
+
+        Commands::Quota { usage, limit, warn } => Box::new(missing_commands::QuotaCommand {
+            usage: *usage,
+            limit: limit.clone(),
+            warn: *warn,
+        }),
+
+        Commands::Export {
+            destination,
+            format,
+            encrypt,
+            include_metadata,
+            pattern,
+        } => Box::new(missing_commands::ExportCommand {
+            destination: destination.clone(),
+            format: format.clone(),
+            encrypt: *encrypt,
+            include_metadata: *include_metadata,
+            pattern: pattern.clone(),
+        }),
+
+        Commands::Import {
+            archive,
+            verify,
+            preserve_structure,
+            tag_prefix,
+        } => Box::new(missing_commands::ImportCommand {
+            archive: archive.clone(),
+            verify: *verify,
+            preserve_structure: *preserve_structure,
+            tag_prefix: tag_prefix.clone(),
+        }),
+
+        Commands::Pin {
+            target,
+            priority,
+            duration,
+        } => Box::new(missing_commands::PinCommand {
+            target: target.clone(),
+            priority: Some(*priority),
+            duration: duration.clone(),
+        }),
+
+        Commands::Unpin {
+            target,
+        } => Box::new(missing_commands::UnpinCommand {
+            target: target.clone(),
+            pin_id: None,
+            all: false,
+        }),
+
+        Commands::Share {
+            target,
+            expires,
+            password,
+            public,
+            qr_code,
+        } => Box::new(missing_commands::ShareCommand {
+            target: target.clone(),
+            expires: expires.clone(),
+            max_downloads: None,
+            password: password.clone(),
+            public: *public,
+        }),
+
+        Commands::Optimize {
+            defrag,
+            rebalance,
+            compress,
+            analyze,
+        } => Box::new(missing_commands::OptimizeCommand {
+            storage: false,
+            network: false,
+            defrag: *defrag,
+            rebalance: *rebalance,
+            dry_run: false,
+        }),
+
+        Commands::Benchmark {
+            full,
+            network,
+            storage,
+            duration,
+        } => Box::new(missing_commands::BenchmarkCommand {
+            test_type: if *full { "full".to_string() } else if *network { "network".to_string() } else if *storage { "storage".to_string() } else { "upload".to_string() },
+            duration: Some(*duration),
+            file_size: None,
+            concurrent: None,
+            iterations: None,
+        }),
+
         // Advanced operations - delegate to existing advanced_commands module
         _ => Box::new(advanced_commands::AdvancedCommandHandler {
             command: command.clone(),

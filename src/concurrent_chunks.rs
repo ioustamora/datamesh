@@ -97,7 +97,7 @@ pub struct ConcurrentChunkManager {
 
 /// Statistics for individual peers
 #[derive(Debug, Clone)]
-struct PeerStats {
+pub struct PeerStats {
     total_requests: u32,
     successful_requests: u32,
     failed_requests: u32,

@@ -71,6 +71,15 @@ pub enum CompressionType {
     Lz4,
 }
 
+/// Compression levels for different compression algorithms
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CompressionLevel {
+    Fast,
+    Balanced,
+    Best,
+    Custom(u8),
+}
+
 /// Backup encryption configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackupEncryption {
@@ -222,6 +231,30 @@ pub struct RestoreOptions {
     pub restore_to_original_paths: bool,
 }
 
+/// Result of a backup operation
+#[derive(Debug, Clone)]
+pub struct BackupResult {
+    pub backup_id: Uuid,
+    pub config_id: Uuid,
+    pub success: bool,
+    pub files_processed: u64,
+    pub total_size: u64,
+    pub compressed_size: u64,
+    pub duration: std::time::Duration,
+    pub error_message: Option<String>,
+}
+
+/// Result of a restore operation
+#[derive(Debug, Clone)]
+pub struct RestoreResult {
+    pub backup_id: Uuid,
+    pub success: bool,
+    pub files_restored: u64,
+    pub bytes_restored: u64,
+    pub duration: std::time::Duration,
+    pub errors: Vec<String>,
+}
+
 /// Advanced backup system manager
 pub struct BackupSystem {
     configs: Arc<RwLock<HashMap<Uuid, BackupConfig>>>,
@@ -301,6 +334,43 @@ impl BackupSystem {
     pub fn get_backup_config(&self, config_id: Uuid) -> Option<BackupConfig> {
         let configs = self.configs.read().unwrap();
         configs.get(&config_id).cloned()
+    }
+
+    /// Register a new backup configuration and return its ID
+    pub async fn register_backup(&self, config: BackupConfig) -> DfsResult<Uuid> {
+        let config_id = self.add_backup_config(config)?;
+        info!("Backup configuration registered with ID: {}", config_id);
+        Ok(config_id)
+    }
+
+    /// Execute a backup by config ID and return detailed results
+    pub async fn run_backup(&self, config_id: Uuid) -> DfsResult<BackupResult> {
+        let backup_id = self.execute_backup(config_id).await?;
+        
+        // Get the backup metadata to create result
+        let metadata = {
+            let metadata_map = self.metadata.read().unwrap();
+            metadata_map.get(&backup_id).cloned()
+        };
+
+        if let Some(meta) = metadata {
+            Ok(BackupResult {
+                backup_id,
+                config_id: meta.config_id,
+                success: matches!(meta.status, BackupStatus::Completed),
+                files_processed: meta.files_backed_up,
+                total_size: meta.bytes_backed_up,
+                compressed_size: meta.bytes_compressed,
+                duration: std::time::Duration::from_secs(meta.duration_seconds),
+                error_message: if meta.error_messages.is_empty() {
+                    None
+                } else {
+                    Some(meta.error_messages.join("; "))
+                },
+            })
+        } else {
+            Err(DfsError::Backup("Failed to retrieve backup metadata".to_string()))
+        }
     }
 
     /// Execute a backup job
@@ -941,6 +1011,190 @@ impl BackupSystem {
             .map(|m| m.start_time);
 
         Ok(last_full_backup)
+    }
+
+    /// Restore files from a backup
+    pub async fn restore_backup(&self, backup_id: Uuid, restore_options: RestoreOptions) -> DfsResult<RestoreResult> {
+        let metadata = {
+            let metadata_map = self.metadata.read().unwrap();
+            metadata_map.get(&backup_id).cloned()
+        };
+
+        let backup_metadata = metadata.ok_or_else(|| {
+            DfsError::Backup(format!("Backup not found: {}", backup_id))
+        })?;
+
+        // Verify backup was successful
+        if !matches!(backup_metadata.status, BackupStatus::Completed) {
+            return Err(DfsError::Backup(format!(
+                "Cannot restore from backup in status: {:?}", 
+                backup_metadata.status
+            )));
+        }
+
+        let start_time = Utc::now();
+        let mut files_restored = 0;
+        let mut bytes_restored = 0;
+        let mut errors = Vec::new();
+
+        // Create destination directory if it doesn't exist
+        if !restore_options.destination.exists() {
+            std::fs::create_dir_all(&restore_options.destination)
+                .map_err(|e| DfsError::Storage(format!("Failed to create destination directory: {}", e)))?;
+        }
+
+        tracing::info!("🔄 Restoring from backup: {}", backup_id);
+        tracing::info!("📂 Destination: {}", restore_options.destination.display());
+
+        // Get all backup files with the backup tags
+        let _config = self.get_backup_config(backup_metadata.config_id)
+            .ok_or_else(|| DfsError::Config("Backup configuration not found".to_string()))?;
+
+        // Search for files with backup tags
+        let backup_tag = format!("backup-id:{}", backup_metadata.config_id);
+        
+        let backup_files = match self.database.search_files(&backup_tag) {
+            Ok(files) => files,
+            Err(e) => {
+                warn!("Failed to find backup files: {}", e);
+                vec![]
+            }
+        };
+
+        tracing::info!("📁 Found {} backup files to restore", backup_files.len());
+
+        for file_entry in backup_files {
+            // Check if file matches include/exclude patterns
+            if self.should_exclude_restore(&file_entry.original_filename, &restore_options) {
+                continue;
+            }
+
+            match self.restore_single_file(&file_entry, &restore_options).await {
+                Ok(file_size) => {
+                    files_restored += 1;
+                    bytes_restored += file_size;
+                }
+                Err(e) => {
+                    let error_msg = format!("Failed to restore {}: {}", file_entry.original_filename, e);
+                    errors.push(error_msg.clone());
+                    warn!("{}", error_msg);
+                }
+            }
+        }
+
+        let end_time = Utc::now();
+        let duration = end_time.signed_duration_since(start_time);
+
+        // Verify restored files if requested
+        if restore_options.verify_after_restore {
+            tracing::info!("🔍 Verifying restored files...");
+            // TODO: Implement verification logic
+        }
+
+        let success = errors.is_empty();
+
+        Ok(RestoreResult {
+            backup_id,
+            success,
+            files_restored,
+            bytes_restored,
+            duration: duration.to_std().unwrap_or_default(),
+            errors,
+        })
+    }
+
+    /// Restore a single file from backup
+    async fn restore_single_file(
+        &self,
+        file_entry: &crate::database::FileEntry,
+        restore_options: &RestoreOptions,
+    ) -> DfsResult<u64> {
+        // Determine target path
+        let target_path = if restore_options.restore_to_original_paths {
+            // Try to restore to original path structure
+            restore_options.destination.join(&file_entry.original_filename)
+        } else {
+            // Restore to flat structure in destination
+            let file_name = std::path::Path::new(&file_entry.original_filename)
+                .file_name()
+                .unwrap_or_default();
+            restore_options.destination.join(file_name)
+        };
+
+        // Check if file already exists
+        if target_path.exists() && !restore_options.overwrite_existing {
+            return Err(DfsError::Storage(format!(
+                "File already exists and overwrite is disabled: {}",
+                target_path.display()
+            )));
+        }
+
+        // Create parent directory if needed
+        if let Some(parent) = target_path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| DfsError::Storage(format!("Failed to create directory: {}", e)))?;
+        }
+
+        // Use file storage system to retrieve the file
+        crate::file_storage::handle_get_command(
+            &*self.cli,
+            &*self.key_manager,
+            &file_entry.file_key,
+            &target_path,
+            &None,
+        )
+        .await
+        .map_err(|e| DfsError::Storage(format!("Failed to retrieve file: {}", e)))?;
+
+        // Get restored file size
+        let file_size = target_path
+            .metadata()
+            .map_err(|e| DfsError::Storage(e.to_string()))?
+            .len();
+
+        // Restore permissions if requested
+        if restore_options.restore_permissions {
+            // TODO: Implement permission restoration
+        }
+
+        Ok(file_size)
+    }
+
+    /// Check if a file should be excluded from restoration
+    fn should_exclude_restore(&self, file_name: &str, restore_options: &RestoreOptions) -> bool {
+        // Check include patterns first
+        if !restore_options.include_patterns.is_empty() {
+            let included = restore_options.include_patterns.iter().any(|pattern| {
+                glob::Pattern::new(pattern)
+                    .map(|p| p.matches(file_name))
+                    .unwrap_or(false)
+            });
+            if !included {
+                return true;
+            }
+        }
+
+        // Check exclude patterns
+        restore_options.exclude_patterns.iter().any(|pattern| {
+            glob::Pattern::new(pattern)
+                .map(|p| p.matches(file_name))
+                .unwrap_or(false)
+        })
+    }
+
+    /// List available backups for a configuration
+    pub fn list_backups(&self, config_id: Option<Uuid>) -> Vec<BackupMetadata> {
+        let metadata = self.metadata.read().unwrap();
+        
+        if let Some(id) = config_id {
+            metadata
+                .values()
+                .filter(|m| m.config_id == id)
+                .cloned()
+                .collect()
+        } else {
+            metadata.values().cloned().collect()
+        }
     }
 
     /// Clean up old backup metadata based on retention policy

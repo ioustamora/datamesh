@@ -150,7 +150,7 @@ enum LogOperation {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct StorageStats {
+pub struct StorageStats {
     pub total_points: u64,
     pub hot_storage_size: u64,
     pub cold_storage_size: u64,

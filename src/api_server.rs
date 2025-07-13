@@ -1819,3 +1819,122 @@ async fn cleanup_inactive_operators(
         "timestamp": chrono::Utc::now()
     })))
 }
+
+/// Start the API server with the specified configuration
+pub async fn start_api_server(
+    host: &str,
+    port: u16,
+    https: bool,
+    cert_path: Option<PathBuf>,
+    key_path: Option<PathBuf>,
+    enable_swagger: bool,
+    context: crate::thread_safe_command_context::ThreadSafeCommandContext,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use std::net::SocketAddr;
+    
+    // Initialize API state
+    let auth_service = Arc::new(AuthService::new());
+    let user_registry = Arc::new(UserRegistry::new());
+    let governance_service = Arc::new(GovernanceService::new(
+        context.key_manager.clone(),
+        context.database.clone(),
+    ));
+    let bootstrap_admin = Arc::new(BootstrapAdministrationService::new(
+        context.network.clone(),
+        context.key_manager.clone(),
+    ));
+    let cache_manager = Arc::new(SmartCacheManager::new().await?);
+    
+    let api_state = ApiState {
+        context,
+        auth_service,
+        user_registry,
+        governance_service,
+        bootstrap_admin,
+        cache_manager,
+    };
+    
+    // Build the router
+    let mut router = Router::new()
+        // File operations
+        .route("/api/v1/files", post(upload_file))
+        .route("/api/v1/files/:id", get(download_file))
+        .route("/api/v1/files", get(list_files))
+        
+        // Network operations
+        .route("/api/v1/network/health", get(get_network_health))
+        
+        // Admin operations
+        .route("/api/v1/admin/operators", get(list_operators))
+        .route("/api/v1/admin/cleanup", post(cleanup_inactive_operators))
+        
+        .with_state(api_state)
+        .layer(
+            ServiceBuilder::new()
+                .layer(TraceLayer::new_for_http())
+                .layer(CorsLayer::permissive())
+                .layer(DefaultBodyLimit::max(1024 * 1024 * 100)) // 100MB limit
+        );
+    
+    // Add Swagger UI if enabled
+    if enable_swagger {
+        #[derive(OpenApi)]
+        #[openapi(
+            paths(
+                upload_file,
+                download_file,
+                list_files,
+                get_network_health,
+                list_operators,
+                cleanup_inactive_operators,
+            ),
+            components(
+                schemas(
+                    UserInfo,
+                    ApiErrorResponse,
+                    ApiNetworkHealthResponse,
+                    ApiOperatorResponse,
+                )
+            ),
+            tags(
+                (name = "files", description = "File management operations"),
+                (name = "network", description = "Network monitoring and management"),
+                (name = "admin", description = "Administrative operations"),
+                (name = "governance", description = "Governance and voting operations"),
+                (name = "auth", description = "Authentication operations"),
+            )
+        )]
+        struct ApiDoc;
+        
+        router = router.merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()));
+    }
+    
+    // Parse the socket address
+    let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
+    
+    // Start the server
+    if https {
+        if let (Some(cert_path), Some(key_path)) = (cert_path, key_path) {
+            tracing::info!("🔒 Starting HTTPS server on {}", addr);
+            
+            // For HTTPS, we would use axum-server with TLS
+            // This is a simplified implementation - in production you'd use proper TLS setup
+            tracing::warn!("⚠️ HTTPS support requires additional TLS configuration");
+            tracing::info!("🔄 Falling back to HTTP for now");
+            
+            let listener = tokio::net::TcpListener::bind(addr).await?;
+            tracing::info!("✅ API Server listening on http://{}", addr);
+            axum::serve(listener, router).await?;
+        } else {
+            return Err("HTTPS enabled but certificate/key paths not provided".into());
+        }
+    } else {
+        tracing::info!("🌐 Starting HTTP server on {}", addr);
+        
+        let listener = tokio::net::TcpListener::bind(addr).await?;
+        tracing::info!("✅ API Server listening on http://{}", addr);
+        axum::serve(listener, router).await?;
+    }
+    
+    Ok(())
+}
