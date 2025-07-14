@@ -111,6 +111,14 @@ pub enum SuggestionType {
     BandwidthReallocation,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StorageOptimization {
+    pub recommended_tier: String,
+    pub burst_capacity: u64,
+    pub cost_savings: f64,
+    pub performance_improvement: f64,
+}
+
 impl FlexibleStorageManager {
     pub fn new() -> Self {
         Self {
@@ -229,6 +237,7 @@ impl FlexibleStorageManager {
                 suggested_tier: optimal_tier.clone(),
                 benefits: self.calculate_upgrade_benefits(&current_tier, &optimal_tier),
                 urgency: self.calculate_urgency(&usage_analysis),
+                potential_savings: 150.0, // Stub value
             }
         } else {
             TierRecommendation::Optimal {
@@ -533,6 +542,40 @@ impl FlexibleStorageManager {
             },
         ])
     }
+
+    /// Optimize user storage based on usage patterns
+    pub async fn optimize_user_storage(&self, user_id: &str, current_usage: u64) -> Result<StorageOptimization> {
+        // Stub implementation for compilation
+        let recommended_tier = if current_usage > 1_000_000_000_000 {
+            "enterprise".to_string()
+        } else if current_usage > 100_000_000_000 {
+            "pro".to_string()
+        } else if current_usage > 5_000_000_000 {
+            "basic".to_string()
+        } else {
+            "free".to_string()
+        };
+
+        Ok(StorageOptimization {
+            recommended_tier,
+            burst_capacity: current_usage / 10,
+            cost_savings: 50.0,
+            performance_improvement: 25.0,
+        })
+    }
+
+    /// Recommend storage tier based on access patterns
+    pub async fn recommend_tier(&self, user_id: &str, access_patterns: &[String]) -> Result<TierRecommendation> {
+        // Stub implementation for compilation
+        let potential_savings = 100.0;
+        Ok(TierRecommendation::Upgrade { 
+            current_tier: self.storage_tiers[0].clone(),
+            suggested_tier: self.storage_tiers[1].clone(),
+            benefits: vec!["Better performance".to_string()],
+            urgency: UrgencyLevel::Medium,
+            potential_savings,
+        })
+    }
 }
 
 impl PriorityQueue {
@@ -598,6 +641,7 @@ pub enum TierRecommendation {
         suggested_tier: FlexibleStorageTier,
         benefits: Vec<String>,
         urgency: UrgencyLevel,
+        potential_savings: f64,
     },
     Downgrade {
         current_tier: FlexibleStorageTier,

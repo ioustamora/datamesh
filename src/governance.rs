@@ -404,7 +404,7 @@ impl UserRegistry {
     }
 
     /// Verify a password against its hash
-    fn verify_password(&self, password: &str, hash: &str) -> DfsResult<bool> {
+    fn verify_password_hash(&self, password: &str, hash: &str) -> DfsResult<bool> {
         let parsed_hash = PasswordHash::new(hash).map_err(|e| {
             crate::error::DfsError::Authentication(format!("Invalid password hash: {}", e))
         })?;
@@ -583,8 +583,8 @@ impl AuthService {
         Ok(Uuid::new_v4())
     }
 
-    /// Generate access token
-    pub fn generate_token(&self, user_id: &UserId) -> Result<String, GovernanceError> {
+    /// Generate simple access token
+    pub fn generate_simple_token(&self, user_id: &UserId) -> Result<String, GovernanceError> {
         // In a real implementation, you'd generate a proper JWT
         // For now, just return a mock token
         Ok(format!("token_{}", user_id.to_string()))

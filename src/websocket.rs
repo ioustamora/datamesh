@@ -184,16 +184,19 @@ async fn handle_websocket(socket: WebSocket, state: ApiState) {
     let (mut sender, mut receiver) = socket.split();
     let mut broadcast_receiver = ws_manager.subscribe();
 
+    // Create a channel for sending messages to the WebSocket
+    let (outbound_tx, mut outbound_rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
+
     // Send welcome message
     let welcome_message = WebSocketMessage::SystemStatus {
         status: "connected".to_string(),
         message: "WebSocket connection established".to_string(),
     };
     
-    if let Err(e) = sender.send(Message::Text(
+    if let Err(e) = outbound_tx.send(Message::Text(
         serde_json::to_string(&welcome_message).unwrap_or_default()
-    )).await {
-        error!("Failed to send welcome message: {}", e);
+    )) {
+        error!("Failed to queue welcome message: {}", e);
         return;
     }
 
@@ -218,6 +221,7 @@ async fn handle_websocket(socket: WebSocket, state: ApiState) {
     });
 
     // Handle messages from client
+    let outbound_tx_client = outbound_tx.clone();
     let client_handler = tokio::spawn(async move {
         while let Some(msg) = receiver.next().await {
             match msg {
@@ -235,8 +239,8 @@ async fn handle_websocket(socket: WebSocket, state: ApiState) {
                                         "timestamp": chrono::Utc::now()
                                     });
                                     
-                                    if let Err(e) = sender.send(Message::Text(pong_message.to_string())).await {
-                                        error!("Failed to send pong: {}", e);
+                                    if let Err(e) = outbound_tx_client.send(Message::Text(pong_message.to_string())) {
+                                        error!("Failed to queue pong: {}", e);
                                         break;
                                     }
                                 }
@@ -276,8 +280,8 @@ async fn handle_websocket(socket: WebSocket, state: ApiState) {
                     break;
                 }
                 Ok(Message::Ping(data)) => {
-                    if let Err(e) = sender.send(Message::Pong(data)).await {
-                        error!("Failed to send pong: {}", e);
+                    if let Err(e) = outbound_tx_client.send(Message::Pong(data)) {
+                        error!("Failed to queue pong: {}", e);
                         break;
                     }
                 }
@@ -295,6 +299,7 @@ async fn handle_websocket(socket: WebSocket, state: ApiState) {
     });
 
     // Handle broadcast messages
+    let outbound_tx_broadcast = outbound_tx.clone();
     let broadcast_handler = tokio::spawn(async move {
         while let Ok(message) = broadcast_receiver.recv().await {
             let message_text = match serde_json::to_string(&message) {
@@ -305,8 +310,18 @@ async fn handle_websocket(socket: WebSocket, state: ApiState) {
                 }
             };
 
-            if let Err(e) = sender.send(Message::Text(message_text)).await {
-                error!("Failed to send broadcast message: {}", e);
+            if let Err(e) = outbound_tx_broadcast.send(Message::Text(message_text)) {
+                error!("Failed to queue broadcast message: {}", e);
+                break;
+            }
+        }
+    });
+
+    // Handle outbound messages
+    let outbound_handler = tokio::spawn(async move {
+        while let Some(message) = outbound_rx.recv().await {
+            if let Err(e) = sender.send(message).await {
+                error!("Failed to send WebSocket message: {}", e);
                 break;
             }
         }
@@ -317,6 +332,7 @@ async fn handle_websocket(socket: WebSocket, state: ApiState) {
         _ = client_handler => debug!("Client handler completed"),
         _ = broadcast_handler => debug!("Broadcast handler completed"),
         _ = heartbeat_task => debug!("Heartbeat task completed"),
+        _ = outbound_handler => debug!("Outbound handler completed"),
         _ = cleanup_task => debug!("Cleanup task completed"),
     }
 

@@ -1004,14 +1004,6 @@ impl StorageEconomyManager {
         Ok(())
     }
 
-    async fn update_user_reputation(&self, user_id: &str, delta: f64) -> DfsResult<()> {
-        let mut profiles = self.user_profiles.write().await;
-        if let Some(profile) = profiles.get_mut(user_id) {
-            profile.reputation_score = (profile.reputation_score + delta).clamp(0.0, 100.0);
-            self.save_user_profile_to_db(profile).await?;
-        }
-        Ok(())
-    }
 
     async fn save_user_profile_to_db(&self, profile: &UserStorageProfile) -> DfsResult<()> {
         // Save to database - implement based on your database schema

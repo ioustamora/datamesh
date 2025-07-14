@@ -124,7 +124,10 @@ impl ActorCommandDispatcher {
             Commands::Peers { detailed, format } => {
                 let handler = crate::commands::network_commands::PeersCommand {
                     detailed: *detailed,
-                    format: Some(format.to_string()),
+                    format: Some(match format {
+                        crate::cli::OutputFormat::Table => "table".to_string(),
+                        crate::cli::OutputFormat::Json => "json".to_string(),
+                    }),
                 };
                 handler.execute_with_monitoring(&self.context).await
             }
@@ -389,7 +392,7 @@ impl ActorCommandHandler for ActorDuplicateCommand {
         let new_tags = self.new_tags.clone().unwrap_or_else(|| source_file.tags.clone());
         
         // Store duplicate reference with same key but new metadata
-        let db_path = context.config.storage.keys_dir.clone().unwrap_or_else(|| PathBuf::from("keys")).join("metadata.db");
+        let db_path = context.context.config.storage.keys_dir.clone().unwrap_or_else(|| PathBuf::from("keys")).join("metadata.db");
         let db = crate::database::DatabaseManager::new(&db_path)?;
         let _id = db.store_file(
             &new_name,
@@ -434,10 +437,11 @@ impl ActorCommandHandler for ActorRenameCommand {
         let mut file = db.get_file_by_name(&self.old_name)?
             .ok_or_else(|| crate::error::DfsError::FileNotFound(self.old_name.clone()))?;
         
+        let old_name = file.name.clone();
         file.name = self.new_name.clone();
-        file.timestamp = chrono::Utc::now();
+        file.upload_time = chrono::Local::now();
         
-        db.update_file_metadata(&file)?;
+        db.rename_file(&old_name, &self.new_name)?;
         
         ui::print_success(&format!("File renamed successfully: {}", self.new_name));
         
@@ -483,10 +487,10 @@ impl ActorCommandHandler for ActorSearchCommand {
                     .is_match(&file.name) || 
                 regex::Regex::new(&self.query)
                     .map_err(|e| format!("Invalid regex: {}", e))?
-                    .is_match(&file.tags)
+                    .is_match(&file.tags.join(" "))
             } else {
                 file.name.to_lowercase().contains(&self.query.to_lowercase()) ||
-                file.tags.to_lowercase().contains(&self.query.to_lowercase())
+                file.tags.iter().any(|tag| tag.to_lowercase().contains(&self.query.to_lowercase()))
             };
             
             if !matches_text {
@@ -495,7 +499,8 @@ impl ActorCommandHandler for ActorSearchCommand {
             
             // Apply file type filter
             if let Some(ref file_type) = self.file_type {
-                if !file.file_type.to_lowercase().contains(&file_type.to_lowercase()) {
+                let derived_file_type = file.original_filename.rsplit('.').next().unwrap_or("").to_lowercase();
+                if !derived_file_type.contains(&file_type.to_lowercase()) {
                     continue;
                 }
             }
@@ -505,12 +510,12 @@ impl ActorCommandHandler for ActorSearchCommand {
                 // Basic size filtering - can be enhanced
                 if size_filter.starts_with('>') {
                     let size_limit = size_filter[1..].parse::<u64>().unwrap_or(0);
-                    if file.size <= size_limit {
+                    if file.file_size <= size_limit {
                         continue;
                     }
                 } else if size_filter.starts_with('<') {
                     let size_limit = size_filter[1..].parse::<u64>().unwrap_or(u64::MAX);
-                    if file.size >= size_limit {
+                    if file.file_size >= size_limit {
                         continue;
                     }
                 }
@@ -559,10 +564,13 @@ impl ActorCommandHandler for ActorRecentCommand {
         
         let mut recent_files: Vec<_> = all_files
             .into_iter()
-            .filter(|file| file.timestamp > cutoff_date)
+            .filter(|file| file.upload_time.naive_utc() > cutoff_date.naive_utc())
             .filter(|file| {
                 if let Some(ref file_type) = self.file_type {
-                    file.file_type.to_lowercase().contains(&file_type.to_lowercase())
+                    {
+                        let derived_file_type = file.original_filename.rsplit('.').next().unwrap_or("").to_lowercase();
+                        derived_file_type.contains(&file_type.to_lowercase())
+                    }
                 } else {
                     true
                 }
@@ -570,7 +578,7 @@ impl ActorCommandHandler for ActorRecentCommand {
             .collect();
         
         // Sort by timestamp (newest first)
-        recent_files.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        recent_files.sort_by(|a, b| b.upload_time.cmp(&a.upload_time));
         recent_files.truncate(self.count);
         
         ui::print_success(&format!("Found {} recent files:", recent_files.len()));
@@ -607,7 +615,7 @@ impl ActorCommandHandler for ActorPopularCommand {
         
         // For now, sort by size as a proxy for popularity
         let mut popular_files: Vec<_> = all_files.into_iter().collect();
-        popular_files.sort_by(|a, b| b.size.cmp(&a.size));
+        popular_files.sort_by(|a, b| b.file_size.cmp(&a.file_size));
         popular_files.truncate(self.count);
         
         ui::print_success(&format!("Popular files (by size):", ));
@@ -826,7 +834,7 @@ impl ActorCommandHandler for ActorBatchTagCommand {
         if self.dry_run {
             ui::print_info("Files that would be modified:");
             for file in &matching_files {
-                println!("  - {} (current tags: {})", file.name, file.tags);
+                println!("  - {} (current tags: {})", file.name, file.tags.join(", "));
             }
             return Ok(());
         }
@@ -840,11 +848,8 @@ impl ActorCommandHandler for ActorBatchTagCommand {
             if let Some(ref add_tags) = self.add_tags {
                 for tag in add_tags.split(',') {
                     let tag = tag.trim();
-                    if !file.tags.contains(tag) {
-                        if !file.tags.is_empty() {
-                            file.tags.push_str(", ");
-                        }
-                        file.tags.push_str(tag);
+                    if !file.tags.contains(&tag.to_string()) {
+                        file.tags.push(tag.to_string());
                         changed = true;
                     }
                 }
@@ -854,14 +859,14 @@ impl ActorCommandHandler for ActorBatchTagCommand {
             if let Some(ref remove_tags) = self.remove_tags {
                 for tag in remove_tags.split(',') {
                     let tag = tag.trim();
-                    file.tags = file.tags.replace(tag, "").replace(",,", ",").trim_matches(',').to_string();
+                    file.tags.retain(|t| t != tag);
                     changed = true;
                 }
             }
             
             if changed {
-                file.timestamp = chrono::Utc::now();
-                db.update_file_metadata(&file)?;
+                file.upload_time = chrono::Local::now();
+                db.update_file_tags(&file.name, file.tags.clone())?;
                 modified += 1;
             }
         }
@@ -1245,7 +1250,7 @@ impl<T: crate::commands::CommandHandler> ActorCommandHandler for ActorCommandWra
         let command_context = crate::commands::CommandContext {
             cli: context.context.cli.clone(),
             key_manager: context.context.key_manager.clone(),
-            config: context.context.config.clone(),
+            context: context.context.clone(),
             network_diagnostics: None, // Network diagnostics would be accessed through actor system
         };
         

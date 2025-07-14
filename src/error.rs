@@ -313,6 +313,12 @@ pub enum DfsError {
     /// - Economic policy violations
     Economics(String),
 
+    /// Internal system errors.
+    ///
+    /// Used for internal errors that occur within the system but don't
+    /// fit into other specific categories.
+    Internal(String),
+
     /// Generic catch-all error type.
     ///
     /// Used for errors that don't fit into other specific categories
@@ -379,6 +385,7 @@ impl fmt::Display for DfsError {
             DfsError::Deserialization(e) => write!(f, "Deserialization error: {}", e),
             DfsError::NotFound(e) => write!(f, "Not found: {}", e),
             DfsError::BadRequest(e) => write!(f, "Bad request: {}", e),
+            DfsError::Internal(e) => write!(f, "Internal error: {}", e),
         }
     }
 }
@@ -446,6 +453,12 @@ impl From<Box<dyn std::error::Error>> for DfsError {
 impl From<libp2p::kad::store::Error> for DfsError {
     fn from(error: libp2p::kad::store::Error) -> Self {
         DfsError::Network(format!("Kademlia store error: {:?}", error))
+    }
+}
+
+impl From<String> for DfsError {
+    fn from(error: String) -> Self {
+        DfsError::Internal(error)
     }
 }
 

@@ -569,11 +569,14 @@ impl IntelligentCLIAssistant {
         let solutions = self.error_analyzer.find_solutions(&error_pattern, context).await?;
         
         let common_causes = error_pattern.common_causes.clone();
+        let pattern_id = error_pattern.pattern_id.clone();
+        let prevention_tips = self.error_analyzer.generate_prevention_tips(&error_pattern, context).await?;
+        
         Ok(ErrorResolution {
-            error_description: error_pattern.pattern_id,
+            error_description: pattern_id,
             likely_causes: common_causes,
             solutions,
-            prevention_tips: self.error_analyzer.generate_prevention_tips(&error_pattern, context).await?,
+            prevention_tips,
         })
     }
 
@@ -846,17 +849,17 @@ impl ContextAnalyzer {
             user_expertise_level: self.determine_expertise_level(error_frequency, command_diversity),
             recent_commands,
             current_workflow: self.current_workflow.clone(),
-            session_duration: session.duration(),
+            session_duration: chrono::Duration::from_std(std::time::Duration::from_secs(0)).unwrap_or_else(|_| chrono::Duration::seconds(0)), // Placeholder duration
             error_frequency,
             command_diversity,
         })
     }
 
     fn extract_recent_commands(&self, session: &InteractiveSession) -> Vec<String> {
-        session.command_history.iter()
+        session.get_history().iter()
             .rev()
             .take(10)
-            .map(|cmd| cmd.command.clone())
+            .map(|cmd| cmd.clone())
             .collect()
     }
 

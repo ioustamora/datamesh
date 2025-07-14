@@ -149,8 +149,8 @@ impl GovernanceService {
         Ok(vote_record)
     }
 
-    /// Get governance proposals
-    pub async fn get_proposals(&self) -> Result<Vec<crate::api_server::ProposalResponse>, crate::error::DfsError> {
+    /// Get governance proposals as API responses
+    pub async fn get_proposals_api(&self) -> Result<Vec<crate::api_server::ProposalResponse>, crate::error::DfsError> {
         // Mock proposals for now
         let proposals = vec![
             crate::api_server::ProposalResponse {
@@ -181,7 +181,7 @@ impl GovernanceService {
     }
 
     /// Submit a governance proposal
-    pub async fn submit_proposal(
+    pub async fn submit_proposal_api(
         &self,
         submitter: &crate::governance::UserId,
         title: String,
@@ -209,7 +209,7 @@ impl GovernanceService {
     }
 
     /// Vote on a proposal
-    pub async fn vote_on_proposal(
+    pub async fn vote_on_proposal_api(
         &self,
         proposal_id: &str,
         voter: &crate::governance::UserId,

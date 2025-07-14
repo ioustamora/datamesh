@@ -1013,8 +1013,8 @@ impl BackupSystem {
         Ok(last_full_backup)
     }
 
-    /// Restore files from a backup
-    pub async fn restore_backup(&self, backup_id: Uuid, restore_options: RestoreOptions) -> DfsResult<RestoreResult> {
+    /// Restore files from a backup with detailed result
+    pub async fn restore_backup_detailed(&self, backup_id: Uuid, restore_options: RestoreOptions) -> DfsResult<RestoreResult> {
         let metadata = {
             let metadata_map = self.metadata.read().unwrap();
             metadata_map.get(&backup_id).cloned()

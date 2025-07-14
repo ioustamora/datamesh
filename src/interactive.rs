@@ -499,7 +499,7 @@ impl CommandCompleter {
 }
 
 impl InteractiveSession {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let mut session = Self {
             history: Vec::new(),
             shortcuts: HashMap::new(),
@@ -590,6 +590,11 @@ impl InteractiveSession {
                 println!("  {}. {}", i + 1, cmd);
             }
         }
+    }
+
+    /// Get the command history
+    pub fn get_history(&self) -> &Vec<String> {
+        &self.history
     }
 }
 
