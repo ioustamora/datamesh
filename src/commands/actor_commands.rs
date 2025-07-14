@@ -124,7 +124,7 @@ impl ActorCommandDispatcher {
             Commands::Peers { detailed, format } => {
                 let handler = crate::commands::network_commands::PeersCommand {
                     detailed: *detailed,
-                    format: format.as_ref().map(|f| f.to_string()),
+                    format: Some(format.to_string()),
                 };
                 handler.execute_with_monitoring(&self.context).await
             }
@@ -164,7 +164,7 @@ impl ActorCommandDispatcher {
             Commands::Bandwidth { test_peer, duration } => {
                 let handler = crate::commands::network_commands::BandwidthCommand {
                     test_peer: test_peer.clone(),
-                    duration: *duration,
+                    duration: Some(*duration),
                 };
                 handler.execute_with_monitoring(&self.context).await
             }

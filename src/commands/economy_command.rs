@@ -192,8 +192,8 @@ impl EconomyCommand {
                         .. 
                     } => {
                         ui::print_info(&format!("📊 Contributor Status: Active"));
-                        ui::print_info(&format!("💽 Contributed: {}", format_storage_size(contributed_space)));
-                        ui::print_info(&format!("🎯 Earned: {}", format_storage_size(earned_storage)));
+                        ui::print_info(&format!("💽 Contributed: {}", format_storage_size(*contributed_space)));
+                        ui::print_info(&format!("🎯 Earned: {}", format_storage_size(*earned_storage)));
                         ui::print_info(&format!("📍 Path: {}", verification_path.display()));
                         ui::print_info(&format!("🕐 Last verified: {}", last_verified.format("%Y-%m-%d %H:%M:%S")));
                         ui::print_info(&format!("⭐ Reputation: {:.1}%", profile.reputation_score));
@@ -230,7 +230,7 @@ impl EconomyCommand {
         ui::print_info("📤 Submitting response...");
 
         // Verify challenge response
-        match service.manager.verify_challenge_response(challenge_id, response).await {
+        match service.verify_challenge_response(challenge_id, response).await {
             Ok(true) => {
                 ui::print_success("✅ Challenge verification successful!");
                 ui::print_info("⭐ Your reputation has been increased");
@@ -280,16 +280,16 @@ impl EconomyCommand {
         match &stats.tier {
             StorageTier::Free { max_storage } => {
                 ui::print_info("🆓 Current Tier: Free");
-                ui::print_info(&format!("💽 Storage Limit: {}", format_storage_size(max_storage)));
+                ui::print_info(&format!("💽 Storage Limit: {}", format_storage_size(*max_storage)));
             }
             StorageTier::Contributor { contributed_space, earned_storage, .. } => {
                 ui::print_info("💾 Current Tier: Contributor");
-                ui::print_info(&format!("💽 Contributed: {}", format_storage_size(contributed_space)));
-                ui::print_info(&format!("🎯 Earned: {}", format_storage_size(earned_storage)));
+                ui::print_info(&format!("💽 Contributed: {}", format_storage_size(*contributed_space)));
+                ui::print_info(&format!("🎯 Earned: {}", format_storage_size(*earned_storage)));
             }
             StorageTier::Premium { max_storage, subscription_expires, .. } => {
                 ui::print_info("⭐ Current Tier: Premium");
-                ui::print_info(&format!("💽 Storage Limit: {}", format_storage_size(max_storage)));
+                ui::print_info(&format!("💽 Storage Limit: {}", format_storage_size(*max_storage)));
                 ui::print_info(&format!("📅 Expires: {}", subscription_expires.format("%Y-%m-%d")));
             }
             StorageTier::Enterprise { max_storage, .. } => {

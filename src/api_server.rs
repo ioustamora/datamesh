@@ -803,10 +803,12 @@ impl ApiServer {
         );
 
         // Initialize storage economy service
+        let db_path = crate::database::get_default_db_path()
+            .map_err(|e| DfsError::Storage(format!("Failed to get database path: {}", e)))?;
+        let database = Arc::new(crate::thread_safe_database::ThreadSafeDatabaseManager::new(&db_path.to_string_lossy())
+            .map_err(|e| DfsError::Storage(format!("Failed to initialize database: {}", e)))?);
         let storage_economy = Arc::new(
-            StorageEconomyService::new(&config)
-                .await
-                .map_err(|e| DfsError::Storage(format!("Failed to initialize storage economy: {}", e)))?
+            StorageEconomyService::new(config.storage_economy.clone(), database.clone())
         );
 
         let state = ApiState {
