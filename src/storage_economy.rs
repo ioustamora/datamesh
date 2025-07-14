@@ -918,7 +918,7 @@ impl StorageEconomyManager {
 
         Ok(UserStorageStatistics {
             user_id: user_id.to_string(),
-            tier: profile.tier,
+            tier: profile.tier.clone(),
             current_usage: profile.current_usage,
             max_storage,
             upload_quota: upload_quota,

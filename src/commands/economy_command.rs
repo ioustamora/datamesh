@@ -184,14 +184,23 @@ impl EconomyCommand {
                         contributed_space, 
                         earned_storage, 
                         verification_path, 
-                        last_verified 
+                        last_verified,
+                        verification_challenges_passed,
+                        verification_challenges_failed,
+                        next_verification_due,
+                        proof_of_space_enabled,
+                        .. 
                     } => {
                         ui::print_info(&format!("📊 Contributor Status: Active"));
-                        ui::print_info(&format!("💽 Contributed: {}", format_storage_size(*contributed_space)));
-                        ui::print_info(&format!("🎯 Earned: {}", format_storage_size(*earned_storage)));
+                        ui::print_info(&format!("💽 Contributed: {}", format_storage_size(contributed_space)));
+                        ui::print_info(&format!("🎯 Earned: {}", format_storage_size(earned_storage)));
                         ui::print_info(&format!("📍 Path: {}", verification_path.display()));
                         ui::print_info(&format!("🕐 Last verified: {}", last_verified.format("%Y-%m-%d %H:%M:%S")));
                         ui::print_info(&format!("⭐ Reputation: {:.1}%", profile.reputation_score));
+                        ui::print_info(&format!("✅ Challenges passed: {}", verification_challenges_passed));
+                        ui::print_info(&format!("❌ Challenges failed: {}", verification_challenges_failed));
+                        ui::print_info(&format!("📅 Next verification: {}", next_verification_due.format("%Y-%m-%d %H:%M:%S")));
+                        ui::print_info(&format!("🏠 Proof of space: {}", if *proof_of_space_enabled { "enabled" } else { "disabled" }));
                         
                         if profile.violations.len() > 0 {
                             ui::print_warning(&format!("⚠️  Violations: {}", profile.violations.len()));
@@ -271,16 +280,16 @@ impl EconomyCommand {
         match &stats.tier {
             StorageTier::Free { max_storage } => {
                 ui::print_info("🆓 Current Tier: Free");
-                ui::print_info(&format!("💽 Storage Limit: {}", format_storage_size(*max_storage)));
+                ui::print_info(&format!("💽 Storage Limit: {}", format_storage_size(max_storage)));
             }
             StorageTier::Contributor { contributed_space, earned_storage, .. } => {
                 ui::print_info("💾 Current Tier: Contributor");
-                ui::print_info(&format!("💽 Contributed: {}", format_storage_size(*contributed_space)));
-                ui::print_info(&format!("🎯 Earned: {}", format_storage_size(*earned_storage)));
+                ui::print_info(&format!("💽 Contributed: {}", format_storage_size(contributed_space)));
+                ui::print_info(&format!("🎯 Earned: {}", format_storage_size(earned_storage)));
             }
             StorageTier::Premium { max_storage, subscription_expires, .. } => {
                 ui::print_info("⭐ Current Tier: Premium");
-                ui::print_info(&format!("💽 Storage Limit: {}", format_storage_size(*max_storage)));
+                ui::print_info(&format!("💽 Storage Limit: {}", format_storage_size(max_storage)));
                 ui::print_info(&format!("📅 Expires: {}", subscription_expires.format("%Y-%m-%d")));
             }
             StorageTier::Enterprise { max_storage, .. } => {

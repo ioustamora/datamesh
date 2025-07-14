@@ -1854,7 +1854,8 @@ async fn download_file(
     // Get file metadata for proper headers
     let (file_name, content_type) = match state.file_storage.get_file_metadata(&file_key).await {
         Ok(metadata) => {
-            (metadata.file_name, detect_content_type(&metadata.file_name))
+            let file_name = metadata.file_name.clone();
+            (metadata.file_name, detect_content_type(&file_name))
         }
         Err(_) => {
             (format!("file_{}", &file_key[..8]), "application/octet-stream".to_string())

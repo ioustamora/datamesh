@@ -142,7 +142,7 @@ pub async fn create_backup(
             &Some(tags),
         )
         .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
     } else if source.is_dir() {
         // Directory backup
         let files = scan_directory(source, &config.exclude_patterns)?;
@@ -378,7 +378,7 @@ pub async fn duplicate_file(
     ui::print_operation_status("Source File", "Downloading", Some(source));
     file_storage::handle_get_command(cli, key_manager, source, &temp_file, &None)
         .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
 
     // Upload as new file
     let final_name = new_name.unwrap_or_else(|| format!("{}-copy", source));
@@ -393,7 +393,7 @@ pub async fn duplicate_file(
         &new_tags,
     )
     .await
-    .map_err(|e| anyhow::anyhow!(e))?;
+    .map_err(|e| anyhow::anyhow!("{}", e))?;
 
     // Cleanup
     let _ = fs::remove_file(&temp_file);

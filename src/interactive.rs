@@ -442,7 +442,7 @@ const VALID_COMMANDS: &[&str] = &[
 ];
 
 /// Interactive session state
-struct InteractiveSession {
+pub struct InteractiveSession {
     history: Vec<String>,
     shortcuts: HashMap<String, String>,
     last_command: Option<String>,

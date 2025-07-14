@@ -11,7 +11,7 @@ use crate::error::Result;
 use crate::database::DatabaseManager;
 use crate::economics::EconomicService;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct EnhancedApiServer {
     pub pricing_engine: Arc<RwLock<DynamicPricingEngine>>,
     pub storage_manager: Arc<RwLock<FlexibleStorageManager>>,
@@ -744,43 +744,43 @@ struct ApiError {
 }
 
 impl ApiError {
-    const fn PricingError() -> Self {
+    fn pricing_error() -> Self {
         Self {
             message: "Pricing calculation failed".to_string(),
         }
     }
 
-    const fn PredictionError() -> Self {
+    fn prediction_error() -> Self {
         Self {
             message: "Price prediction failed".to_string(),
         }
     }
 
-    const fn AnalysisError() -> Self {
+    fn analysis_error() -> Self {
         Self {
             message: "Analysis failed".to_string(),
         }
     }
 
-    const fn OptimizationError() -> Self {
+    fn optimization_error() -> Self {
         Self {
             message: "Storage optimization failed".to_string(),
         }
     }
 
-    const fn RecommendationError() -> Self {
+    fn recommendation_error() -> Self {
         Self {
             message: "Recommendation generation failed".to_string(),
         }
     }
 
-    const fn GamificationError() -> Self {
+    fn gamification_error() -> Self {
         Self {
             message: "Gamification operation failed".to_string(),
         }
     }
 
-    const fn AssistanceError() -> Self {
+    fn assistance_error() -> Self {
         Self {
             message: "Assistance request failed".to_string(),
         }

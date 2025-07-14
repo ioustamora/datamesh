@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use chrono::{DateTime, Utc, Duration};
 use crate::error::Result;
-use crate::database::Database;
+use crate::database::DatabaseManager;
 use crate::interactive::InteractiveSession;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -519,11 +519,12 @@ impl IntelligentCLIAssistant {
             HelpStyle::Detailed => self.help_generator.get_detailed_examples(topic).await?,
         };
 
+        let expertise_level = learning_profile.expertise_level.clone();
         Ok(ContextualHelp {
             help_content: help_template.content,
             examples,
             related_commands: help_template.related_commands,
-            difficulty_level: learning_profile.expertise_level.into(),
+            difficulty_level: expertise_level.into(),
             estimated_time: self.estimate_learning_time(topic, &learning_profile).await?,
         })
     }
@@ -567,9 +568,10 @@ impl IntelligentCLIAssistant {
         let error_pattern = self.error_analyzer.identify_error_pattern(error_input).await?;
         let solutions = self.error_analyzer.find_solutions(&error_pattern, context).await?;
         
+        let common_causes = error_pattern.common_causes.clone();
         Ok(ErrorResolution {
             error_description: error_pattern.pattern_id,
-            likely_causes: error_pattern.common_causes,
+            likely_causes: common_causes,
             solutions,
             prevention_tips: self.error_analyzer.generate_prevention_tips(&error_pattern, context).await?,
         })

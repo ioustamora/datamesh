@@ -449,5 +449,8 @@ impl From<libp2p::kad::store::Error> for DfsError {
     }
 }
 
+/// Alternative Result type alias for compatibility
+pub type Result<T> = std::result::Result<T, DfsError>;
+
 /// Result type alias for DFS operations
-pub type DfsResult<T> = Result<T, DfsError>;
+pub type DfsResult<T> = std::result::Result<T, DfsError>;

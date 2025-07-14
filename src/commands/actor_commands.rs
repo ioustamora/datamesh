@@ -292,7 +292,7 @@ impl ActorCommandDispatcher {
                 handler.execute_with_monitoring(&self.context).await
             }
 
-            Commands::Quota { usage, limit, warn } => {
+            Commands::Quota { usage, limit, warn, economy: _, tier: _ } => {
                 let handler = ActorQuotaCommand {
                     usage: *usage,
                     limit: limit.clone(),
@@ -1265,6 +1265,8 @@ macro_rules! actor_wrapper {
 }
 
 // Update the ActorCommandHandler implementations to use the wrapper
+#[async_trait::async_trait]
+#[async_trait::async_trait]
 impl ActorCommandHandler for crate::commands::network_commands::PeersCommand {
     async fn execute(&self, context: &ActorCommandContext) -> Result<(), Box<dyn Error>> {
         actor_wrapper!(self.clone()).execute(context).await
@@ -1275,6 +1277,8 @@ impl ActorCommandHandler for crate::commands::network_commands::PeersCommand {
     }
 }
 
+#[async_trait::async_trait]
+#[async_trait::async_trait]
 impl ActorCommandHandler for crate::commands::network_commands::HealthCommand {
     async fn execute(&self, context: &ActorCommandContext) -> Result<(), Box<dyn Error>> {
         actor_wrapper!(self.clone()).execute(context).await
@@ -1285,6 +1289,7 @@ impl ActorCommandHandler for crate::commands::network_commands::HealthCommand {
     }
 }
 
+#[async_trait::async_trait]
 impl ActorCommandHandler for crate::commands::network_commands::NetworkCommand {
     async fn execute(&self, context: &ActorCommandContext) -> Result<(), Box<dyn Error>> {
         actor_wrapper!(self.clone()).execute(context).await
@@ -1295,6 +1300,7 @@ impl ActorCommandHandler for crate::commands::network_commands::NetworkCommand {
     }
 }
 
+#[async_trait::async_trait]
 impl ActorCommandHandler for crate::commands::network_commands::DiscoverCommand {
     async fn execute(&self, context: &ActorCommandContext) -> Result<(), Box<dyn Error>> {
         actor_wrapper!(self.clone()).execute(context).await
@@ -1305,6 +1311,7 @@ impl ActorCommandHandler for crate::commands::network_commands::DiscoverCommand 
     }
 }
 
+#[async_trait::async_trait]
 impl ActorCommandHandler for crate::commands::network_commands::DistributionCommand {
     async fn execute(&self, context: &ActorCommandContext) -> Result<(), Box<dyn Error>> {
         actor_wrapper!(self.clone()).execute(context).await
@@ -1315,6 +1322,7 @@ impl ActorCommandHandler for crate::commands::network_commands::DistributionComm
     }
 }
 
+#[async_trait::async_trait]
 impl ActorCommandHandler for crate::commands::network_commands::BandwidthCommand {
     async fn execute(&self, context: &ActorCommandContext) -> Result<(), Box<dyn Error>> {
         actor_wrapper!(self.clone()).execute(context).await
@@ -1325,6 +1333,7 @@ impl ActorCommandHandler for crate::commands::network_commands::BandwidthCommand
     }
 }
 
+#[async_trait::async_trait]
 impl ActorCommandHandler for crate::commands::admin_commands::ConfigCommand {
     async fn execute(&self, context: &ActorCommandContext) -> Result<(), Box<dyn Error>> {
         actor_wrapper!(self.clone()).execute(context).await
@@ -1335,6 +1344,7 @@ impl ActorCommandHandler for crate::commands::admin_commands::ConfigCommand {
     }
 }
 
+#[async_trait::async_trait]
 impl ActorCommandHandler for crate::commands::admin_commands::MetricsCommand {
     async fn execute(&self, context: &ActorCommandContext) -> Result<(), Box<dyn Error>> {
         actor_wrapper!(self.clone()).execute(context).await
@@ -1345,6 +1355,7 @@ impl ActorCommandHandler for crate::commands::admin_commands::MetricsCommand {
     }
 }
 
+#[async_trait::async_trait]
 impl ActorCommandHandler for crate::commands::admin_commands::NetworksCommand {
     async fn execute(&self, context: &ActorCommandContext) -> Result<(), Box<dyn Error>> {
         actor_wrapper!(self.clone()).execute(context).await
