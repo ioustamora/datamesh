@@ -1,0 +1,96 @@
+[package]
+name = "datamesh-test-framework"
+version = "0.1.0"
+edition = "2021"
+description = "Universal multinode testing framework for DataMesh distributed storage system"
+authors = ["DataMesh Team"]
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+# Core dependencies
+tokio = { version = "1.0", features = ["full"] }
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# Async and concurrency
+futures = "0.3"
+tokio-util = "0.7"
+
+# HTTP and networking
+reqwest = { version = "0.11", features = ["json", "stream"] }
+hyper = "0.14"
+axum = "0.7"
+tokio-tungstenite = "0.20"
+
+# Testing utilities
+tempfile = "3.0"
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.0"
+mockall = "0.11"
+
+# UI testing
+fantoccini = "0.19"
+webdriver = "0.46"
+
+# System utilities
+sysinfo = "0.29"
+nix = "0.27"
+
+# Database and storage
+rusqlite = { version = "0.29", features = ["bundled"] }
+
+# Time and utilities
+chrono = { version = "0.4", features = ["serde"] }
+rand = "0.8"
+
+# DataMesh dependencies (assuming they're available)
+datamesh = { path = ".." }
+
+[dev-dependencies]
+wiremock = "0.5"
+test-log = "0.2"
+
+[[bin]]
+name = "test-orchestrator"
+path = "src/bin/test-orchestrator.rs"
+
+[[bin]]
+name = "test-runner"
+path = "src/bin/test-runner.rs"
+
+[[bin]]
+name = "test-monitor"
+path = "src/bin/test-monitor.rs"
+
+[lib]
+name = "datamesh_test_framework"
+path = "src/lib.rs"
+
+[[bench]]
+name = "multinode_performance"
+harness = false
+
+[[test]]
+name = "integration_tests"
+path = "tests/integration_tests.rs"
+
+[features]
+default = ["ui-testing", "network-simulation", "monitoring"]
+ui-testing = ["fantoccini", "webdriver"]
+network-simulation = []
+monitoring = ["sysinfo"]
+performance-testing = ["criterion"]
+
+[profile.test]
+opt-level = 1
+debug = true
+
+[profile.bench]
+opt-level = 3
+debug = false
+lto = true
