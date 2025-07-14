@@ -2424,7 +2424,7 @@ async fn get_user_economy_profile(
 async fn update_economy_profile(
     State(state): State<ApiState>,
     headers: HeaderMap,
-    Json(request): Json<UserEconomyProfileResponse>,
+    Json(request): Json<UpdateProfileRequest>,
 ) -> Result<Json<UserEconomyProfileResponse>, ApiError> {
     let user_id = extract_user_id(&headers, &state).await?;
     

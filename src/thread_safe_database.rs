@@ -26,7 +26,7 @@ impl ThreadSafeDatabaseManager {
     }
 
     /// Get or create a database connection
-    fn get_db(&self) -> Result<DatabaseManager> {
+    pub fn get_db(&self) -> Result<DatabaseManager> {
         // For thread safety, we create a new connection each time
         // This is safe with SQLite when using proper locking
         let path = std::path::PathBuf::from(&self.db_path);

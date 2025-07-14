@@ -389,18 +389,19 @@ impl ActorCommandHandler for ActorDuplicateCommand {
         
         // Create duplicate metadata
         let new_name = self.new_name.clone().unwrap_or_else(|| format!("{}_copy", source_file.name));
-        let new_tags = self.new_tags.clone().unwrap_or_else(|| source_file.tags.clone());
+        let new_tags = self.new_tags.clone().unwrap_or_else(|| source_file.tags.join(","));
         
         // Store duplicate reference with same key but new metadata
         let db_path = context.context.config.storage.keys_dir.clone().unwrap_or_else(|| PathBuf::from("keys")).join("metadata.db");
         let db = crate::database::DatabaseManager::new(&db_path)?;
+        let tags_vec: Vec<String> = new_tags.split(',').map(|s| s.trim().to_string()).collect();
         let _id = db.store_file(
             &new_name,
             &source_file.file_key,
             &source_file.original_filename,
             source_file.file_size,
             chrono::Local::now(),
-            &new_tags,
+            &tags_vec,
             &source_file.public_key_hex
         )?;
         
@@ -866,7 +867,7 @@ impl ActorCommandHandler for ActorBatchTagCommand {
             
             if changed {
                 file.upload_time = chrono::Local::now();
-                db.update_file_tags(&file.name, file.tags.clone())?;
+                db.update_file_tags(&file.name, &file.tags)?;
                 modified += 1;
             }
         }
@@ -1250,7 +1251,6 @@ impl<T: crate::commands::CommandHandler> ActorCommandHandler for ActorCommandWra
         let command_context = crate::commands::CommandContext {
             cli: context.context.cli.clone(),
             key_manager: context.context.key_manager.clone(),
-            context: context.context.clone(),
             network_diagnostics: None, // Network diagnostics would be accessed through actor system
         };
         

@@ -697,7 +697,7 @@ impl ContributionGameification {
     /// Generate leaderboard for a specific category
     pub async fn generate_leaderboard(&mut self, category: &str) -> Result<Leaderboard> {
         let should_reset = {
-            let leaderboard = self.leaderboards.get_mut(category)
+            let mut leaderboard = self.leaderboards.get_mut(category)
                 .ok_or_else(|| format!("Leaderboard not found: {}", category))?;
 
             // Sort entries by score
@@ -710,16 +710,40 @@ impl ContributionGameification {
                 entry.rank = new_rank;
             }
 
-            // Check if reset is needed
-            self.should_reset_leaderboard(leaderboard)
+            // Check if reset is needed - inline the logic to avoid borrowing issues
+            let now = chrono::Utc::now();
+            match leaderboard.reset_frequency {
+                crate::gamification::ResetFrequency::Daily => {
+                    now.signed_duration_since(leaderboard.last_reset).num_days() >= 1
+                }
+                crate::gamification::ResetFrequency::Weekly => {
+                    now.signed_duration_since(leaderboard.last_reset).num_weeks() >= 1
+                }
+                crate::gamification::ResetFrequency::Monthly => {
+                    now.signed_duration_since(leaderboard.last_reset).num_days() >= 30
+                }
+                crate::gamification::ResetFrequency::Quarterly => {
+                    now.signed_duration_since(leaderboard.last_reset).num_days() >= 90
+                }
+                crate::gamification::ResetFrequency::Never => false,
+            }
         };
 
         // Handle reset outside of the borrow
         if should_reset {
-            let leaderboard = self.leaderboards.get_mut(category)
-                .ok_or_else(|| format!("Leaderboard not found: {}", category))?;
-            self.distribute_leaderboard_rewards(leaderboard).await?;
-            self.reset_leaderboard(leaderboard).await?;
+            // First distribute rewards
+            {
+                let leaderboard = self.leaderboards.get(category)
+                    .ok_or_else(|| format!("Leaderboard not found: {}", category))?;
+                self.distribute_leaderboard_rewards(leaderboard).await?;
+            }
+            // Then reset - do it manually to avoid borrow issues
+            {
+                let leaderboard = self.leaderboards.get_mut(category)
+                    .ok_or_else(|| format!("Leaderboard not found: {}", category))?;
+                leaderboard.entries.clear();
+                leaderboard.last_reset = chrono::Utc::now();
+            }
         }
 
         let leaderboard = self.leaderboards.get(category)
@@ -874,7 +898,7 @@ impl ContributionGameification {
         Ok(())
     }
 
-    async fn reset_leaderboard(&self, leaderboard: &mut Leaderboard) -> Result<()> {
+    async fn reset_leaderboard(&mut self, leaderboard: &mut Leaderboard) -> Result<()> {
         leaderboard.entries.clear();
         leaderboard.last_reset = Utc::now();
         Ok(())

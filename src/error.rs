@@ -462,6 +462,21 @@ impl From<String> for DfsError {
     }
 }
 
+impl From<crate::governance::GovernanceError> for DfsError {
+    fn from(error: crate::governance::GovernanceError) -> Self {
+        match error {
+            crate::governance::GovernanceError::UserNotFound => DfsError::Authentication("User not found".to_string()),
+            crate::governance::GovernanceError::InvalidCredentials => DfsError::Authentication("Invalid credentials".to_string()),
+            crate::governance::GovernanceError::InsufficientPermissions => DfsError::Authentication("Insufficient permissions".to_string()),
+            crate::governance::GovernanceError::TokenExpired => DfsError::Authentication("Token expired".to_string()),
+            crate::governance::GovernanceError::InvalidToken => DfsError::Authentication("Invalid token".to_string()),
+            crate::governance::GovernanceError::QuotaExceeded => DfsError::Internal("Quota exceeded".to_string()),
+            crate::governance::GovernanceError::NetworkError(msg) => DfsError::Network(msg),
+            crate::governance::GovernanceError::DatabaseError(msg) => DfsError::Database(msg),
+        }
+    }
+}
+
 /// Alternative Result type alias for compatibility
 pub type Result<T> = std::result::Result<T, DfsError>;
 

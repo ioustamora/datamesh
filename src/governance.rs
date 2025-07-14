@@ -377,7 +377,7 @@ impl UserRegistry {
                 crate::error::DfsError::Authentication("Invalid credentials".to_string())
             })?;
 
-        if self.verify_password(password, &user.password_hash)? {
+        if self.verify_password(&user.user_id, password)? {
             // Update last activity
             let mut updated_user = user.clone();
             updated_user.last_activity = Utc::now();
