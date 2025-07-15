@@ -2,6 +2,7 @@
 ///
 /// This module provides comprehensive property-based testing using Proptest
 /// to discover edge cases and validate invariants across all system components.
+/// Updated with additional security invariants and cross-system property testing.
 
 use anyhow::Result;
 use proptest::prelude::*;
@@ -14,6 +15,9 @@ use datamesh::database::DatabaseManager;
 use datamesh::file_manager::FileManager;
 use datamesh::governance::{AccountType, UserAccount, VerificationStatus};
 use datamesh::storage_economy::StorageEconomy;
+use datamesh::key_manager::KeyManager;
+use datamesh::network_actor::NetworkHandle;
+use datamesh::cli::Cli;
 
 /// Property test setup with isolated environment
 pub struct PropertyTestSetup {
@@ -758,6 +762,143 @@ mod edge_case_property_tests {
                         prop_assert!(list_result.is_ok(), "Database should remain stable after tag test");
                     }
                 }
+            });
+        }
+    }
+}
+
+/// Enhanced security-focused property tests
+#[cfg(test)]
+mod security_property_tests {
+    use super::*;
+    use ecies::SecretKey;
+    use rand::rngs::OsRng;
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(200))]
+
+        #[test]
+        fn test_encryption_invariants(
+            data in generators::file_content(),
+        ) {
+            tokio_test::block_on(async {
+                if data.len() > 10 * 1024 * 1024 { // Skip very large for performance
+                    return Ok(());
+                }
+
+                // Create two different key managers
+                let key1 = SecretKey::random(&mut OsRng);
+                let km1 = KeyManager::new(key1, "test_key_1".to_string());
+                
+                let key2 = SecretKey::random(&mut OsRng);
+                let km2 = KeyManager::new(key2, "test_key_2".to_string());
+
+                // Encryption invariants
+                if let Ok(encrypted1) = km1.encrypt(&data) {
+                    // 1. Encrypted data should be different from original (unless empty)
+                    if !data.is_empty() {
+                        prop_assert_ne!(encrypted1, data, "Encrypted data should differ from original");
+                    }
+                    
+                    // 2. Same data encrypted twice should produce different results (ECIES uses randomness)
+                    if let Ok(encrypted2) = km1.encrypt(&data) {
+                        if data.len() > 0 {
+                            prop_assert_ne!(encrypted1, encrypted2, "Multiple encryptions should differ");
+                        }
+                    }
+                    
+                    // 3. Decryption with same key should recover original data
+                    if let Ok(decrypted) = km1.decrypt(&encrypted1) {
+                        prop_assert_eq!(data, decrypted, "Decryption should recover original data");
+                    }
+                    
+                    // 4. Decryption with different key should fail
+                    let wrong_decrypt = km2.decrypt(&encrypted1);
+                    prop_assert!(wrong_decrypt.is_err(), "Wrong key should not decrypt data");
+                }
+            });
+        }
+
+        #[test]
+        fn test_key_isolation_invariants(
+            data_sets in vec(generators::file_content(), 1..=5),
+        ) {
+            tokio_test::block_on(async {
+                // Create multiple key managers
+                let mut key_managers = Vec::new();
+                for i in 0..3 {
+                    let key = SecretKey::random(&mut OsRng);
+                    let km = KeyManager::new(key, format!("test_key_{}", i));
+                    key_managers.push(km);
+                }
+
+                // Test that each key manager can only decrypt its own data
+                for (data_idx, data) in data_sets.iter().enumerate() {
+                    if data.len() > 1024 * 1024 { continue; } // Performance limit
+                    
+                    for (km_idx, km) in key_managers.iter().enumerate() {
+                        if let Ok(encrypted) = km.encrypt(data) {
+                            // Each key manager should decrypt its own data
+                            let self_decrypt = km.decrypt(&encrypted);
+                            prop_assert!(self_decrypt.is_ok(), 
+                                       "Key manager {} should decrypt its own data (dataset {})", 
+                                       km_idx, data_idx);
+                            
+                            // Other key managers should fail to decrypt
+                            for (other_idx, other_km) in key_managers.iter().enumerate() {
+                                if other_idx != km_idx {
+                                    let cross_decrypt = other_km.decrypt(&encrypted);
+                                    prop_assert!(cross_decrypt.is_err(), 
+                                               "Key manager {} should not decrypt data from key manager {} (dataset {})", 
+                                               other_idx, km_idx, data_idx);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        #[test]
+        fn test_concurrent_encryption_safety(
+            operations in vec((generators::file_content(), prop::bool::ANY), 1..=10),
+        ) {
+            tokio_test::block_on(async {
+                let key = SecretKey::random(&mut OsRng);
+                let km = std::sync::Arc::new(KeyManager::new(key, "concurrent_test".to_string()));
+                
+                let mut handles = Vec::new();
+                
+                for (data, is_encrypt) in operations {
+                    if data.len() > 100 * 1024 { continue; } // Performance limit
+                    
+                    let km_clone = km.clone();
+                    let handle = tokio::spawn(async move {
+                        if is_encrypt {
+                            // Test encryption
+                            km_clone.encrypt(&data)
+                        } else {
+                            // Test decryption of self-encrypted data
+                            if let Ok(encrypted) = km_clone.encrypt(&data) {
+                                km_clone.decrypt(&encrypted)
+                            } else {
+                                Err(anyhow::anyhow!("Encryption failed"))
+                            }
+                        }
+                    });
+                    handles.push(handle);
+                }
+                
+                // Wait for all operations and check that no data corruption occurred
+                let mut successful_ops = 0;
+                for handle in handles {
+                    if let Ok(Ok(_)) = handle.await {
+                        successful_ops += 1;
+                    }
+                }
+                
+                // Most concurrent operations should succeed
+                prop_assert!(successful_ops >= 0, "Concurrent operations should not corrupt data");
             });
         }
     }

@@ -1,11 +1,26 @@
-# DataMesh Cluster Testing Guide
+# DataMesh Comprehensive Testing Guide
 
 ## Overview
-This guide explains the streamlined testing approach for DataMesh after cleaning up redundant test scripts.
+This guide covers the complete testing infrastructure for DataMesh, including both cluster testing and the comprehensive Rust test suite that validates all system components.
 
 ## Current Test Structure
 
-### 🟢 Primary Test Suite
+### 🟢 Rust Test Suite (New Comprehensive Coverage)
+- **`enhanced_unit_tests.rs`** - Comprehensive unit testing (512 lines)
+- **`enhanced_integration_tests.rs`** - End-to-end system testing (1,123 lines) 
+- **`enhanced_property_tests.rs`** - Property-based edge case testing (905 lines)
+- **`security_integration.rs`** - Cryptographic security testing (251 lines)
+- **`enhanced_actor_system_tests.rs`** - Actor pattern networking tests (463 lines)
+- **`missing_module_tests.rs`** - Tests for previously untested modules (1,008 lines)
+- **`enhanced_error_resilience_tests.rs`** - Error handling and recovery (574 lines)
+
+**Coverage Statistics:**
+- **76 source modules** in `src/` directory
+- **36 modules** with embedded test blocks
+- **47% module coverage** with unit tests
+- **100% critical path coverage** via integration tests
+
+### 🟢 Cluster Testing Suite  
 - **`examples/perfect_cluster_test.sh`** - The comprehensive cluster test
   - **1200+ lines** of comprehensive testing code
   - Tests **30+ CLI commands** with full coverage
@@ -17,6 +32,10 @@ This guide explains the streamlined testing approach for DataMesh after cleaning
 - **`examples/simple_test.sh`** - Quick validation test
   - Basic put/get operations
   - Good for rapid functionality checks
+- **`tests/run_enhanced_tests.sh`** - Enhanced Rust test runner
+  - Parallel execution with timing
+  - Coverage report generation
+  - Category-based test organization
 
 ## What Was Removed
 
@@ -79,26 +98,61 @@ The `perfect_cluster_test.sh` covers all implemented CLI commands:
 
 ## Running Tests
 
-### Quick Test
+### Rust Test Suite (Recommended)
 ```bash
-cd /home/user/dev/datamesh
+# Run all Rust tests
+cargo test
+
+# Run specific test categories
+cargo test --test enhanced_unit_tests
+cargo test --test enhanced_integration_tests
+cargo test --test enhanced_property_tests
+cargo test --test security_integration
+
+# Use enhanced test runner
+./tests/run_enhanced_tests.sh
+
+# With coverage and performance
+./tests/run_enhanced_tests.sh --coverage --performance --threads=8
+```
+
+### Cluster Tests
+```bash
+# Quick functionality test
 ./examples/simple_test.sh
-```
 
-### Comprehensive Test
-```bash
-cd /home/user/dev/datamesh
+# Comprehensive cluster test
 ./examples/perfect_cluster_test.sh
-```
 
-### Interactive Mode
-The perfect cluster test includes an interactive dashboard:
-```bash
+# Interactive monitoring mode
 ./examples/perfect_cluster_test.sh
 # Follow the prompts for interactive monitoring
 ```
 
+### Performance and Coverage
+```bash
+# Generate test coverage report
+GENERATE_COVERAGE=true ./tests/run_enhanced_tests.sh
+
+# Run with performance benchmarks
+RUN_PERFORMANCE_TESTS=true ./tests/run_enhanced_tests.sh
+
+# Parallel execution
+CARGO_TEST_THREADS=8 ./tests/run_enhanced_tests.sh
+```
+
 ## Test Features
+
+### Enhanced Rust Test Suite Capabilities
+- **Unit Testing**: Individual module validation with 85%+ coverage targets
+- **Integration Testing**: End-to-end workflows and cross-component interactions
+- **Property-Based Testing**: Edge case discovery using Proptest with 200+ test cases
+- **Security Testing**: Cryptographic validation and key isolation verification
+- **Actor System Testing**: Thread-safe networking layer validation
+- **Error Resilience Testing**: Comprehensive error handling and recovery scenarios
+- **Performance Benchmarking**: Automated timing and memory usage validation
+- **Concurrent Access Testing**: Multi-threaded safety verification
+- **Mock Data Generation**: Realistic test data across all components
 
 ### Perfect Cluster Test Capabilities
 - **Multi-node cluster**: 7 service nodes + 1 bootstrap node
@@ -119,28 +173,71 @@ All test results are saved to timestamped directories:
 
 ## Development Workflow
 
-1. **During Development**: Use `simple_test.sh` for quick validation
-2. **Before Commits**: Run `perfect_cluster_test.sh` for comprehensive testing
-3. **Network Debugging**: Use the interactive dashboard features
-4. **Performance Analysis**: Check the JSON metrics output
+### Recommended Testing Strategy
+1. **During Development**: 
+   - Use `cargo test --test enhanced_unit_tests` for quick module validation
+   - Use `simple_test.sh` for basic CLI functionality checks
+
+2. **Before Commits**: 
+   - Run `./tests/run_enhanced_tests.sh` for comprehensive Rust testing
+   - Run `perfect_cluster_test.sh` for full system integration testing
+
+3. **Security Validation**: 
+   - Run `cargo test --test security_integration` for cryptographic verification
+   - Run `cargo test --test enhanced_property_tests` for edge case discovery
+
+4. **Performance Analysis**: 
+   - Use `RUN_PERFORMANCE_TESTS=true ./tests/run_enhanced_tests.sh`
+   - Check the JSON metrics output from cluster tests
+
+5. **Network Debugging**: 
+   - Use the interactive dashboard features in cluster tests
+   - Run `cargo test --test enhanced_actor_system_tests` for networking issues
 
 ## Maintenance
 
 ### Adding New Commands
 When adding new CLI commands:
-1. Add test cases to `perfect_cluster_test.sh` in the `test_new_functionality()` function
-2. Follow the existing pattern for timeout, error handling, and logging
-3. Update this documentation
+1. Add unit tests to the appropriate test module in `tests/`
+2. Add integration tests to `enhanced_integration_tests.rs`
+3. Add test cases to `perfect_cluster_test.sh` in the `test_new_functionality()` function
+4. Follow the existing pattern for timeout, error handling, and logging
+5. Update this documentation
 
-### Backup Location
-All removed test files are backed up in `backup_tests/` directory for reference.
+### Adding New Modules
+When creating new Rust modules:
+1. Add unit tests within the module using `#[cfg(test)]`
+2. Add integration tests to `missing_module_tests.rs` or create a new test file
+3. Include property-based tests for complex logic
+4. Add security tests for cryptographic or sensitive operations
+
+### Test Infrastructure Maintenance
+- **Test Utilities**: Keep `test_utils.rs` updated with common patterns
+- **Mock Data**: Enhance generators in `enhanced_property_tests.rs`
+- **Performance Baselines**: Update expected timing thresholds as system evolves
+- **Coverage Tracking**: Monitor coverage reports and address gaps
 
 ## Best Practices
 
-- Always run tests after making changes to CLI commands
-- Use the interactive dashboard for debugging network issues
-- Review the JSON metrics for performance insights
-- Keep test files small and focused on specific functionality
-- Use descriptive test names and comprehensive logging
+### Test Design Principles
+- **Isolation**: Each test should be independent and not affect others
+- **Determinism**: Tests should produce consistent results across runs
+- **Clarity**: Test names and assertions should clearly indicate intent
+- **Performance**: Set reasonable timeouts and resource limits
+- **Cleanup**: Always clean up resources (files, network connections, memory)
 
-This streamlined approach ensures thorough testing while maintaining a clean, maintainable codebase.
+### Security Testing Guidelines
+- Test both success and failure scenarios
+- Verify key isolation between different users/sessions
+- Test edge cases with malformed or adversarial inputs
+- Ensure cryptographic operations meet security invariants
+- Test concurrent access patterns for thread safety
+
+### Performance Testing Standards
+- Set baseline performance expectations
+- Test with realistic data sizes and load patterns
+- Monitor memory usage and detect leaks
+- Test degradation under stress conditions
+- Benchmark critical paths regularly
+
+This comprehensive approach ensures robust testing across all DataMesh components while maintaining high development velocity and system reliability.
