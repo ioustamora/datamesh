@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::io::{self, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::BufReader;
 
 use crate::cli::Cli;
 use crate::config::Config;
@@ -184,7 +184,7 @@ impl SetupWizard {
             
             match port_str.parse::<u16>() {
                 Ok(port) => {
-                    if port > 0 && port < 65536 {
+                    if port > 0 && port <= 65535 {
                         self.config.port = port;
                         break;
                     } else {
@@ -403,9 +403,10 @@ impl SetupWizard {
         
         let keys_dir = self.config.keys_dir.as_ref().unwrap();
         match KeyManager::generate_key(keys_dir, &key_name) {
-            Ok(_) => {
+            Ok(key_manager) => {
                 self.config.key_name = Some(key_name.clone());
                 println!("✅ New key '{}' generated successfully", key_name);
+                println!("Public key: {}", key_manager.key_info.public_key_hex);
             }
             Err(e) => {
                 println!("❌ Failed to generate key: {}", e);
@@ -476,8 +477,7 @@ impl SetupWizard {
             Ok(km) => km,
             Err(_) => {
                 // Generate a new key if loading fails
-                let (key, _) = KeyManager::generate_key(keys_dir, key_name)?;
-                key
+                KeyManager::generate_key(keys_dir, key_name)?
             }
         };
         

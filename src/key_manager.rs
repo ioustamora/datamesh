@@ -18,7 +18,6 @@ use chrono::{DateTime, Local};
 use ecies::{PublicKey, SecretKey};
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
-use std::error::Error;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -58,14 +57,22 @@ pub enum KeySelectionMode {
 
 impl KeyManager {
     /// Encrypt data using this key manager's public key
-    pub fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
+    pub fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>> {
         let public_key = PublicKey::from_secret_key(&self.key);
         encrypt_data(data, &public_key)
     }
 
     /// Decrypt data using this key manager's private key
-    pub fn decrypt(&self, encrypted_data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
+    pub fn decrypt(&self, encrypted_data: &[u8]) -> Result<Vec<u8>> {
         decrypt_data(encrypted_data, &self.key)
+    }
+
+    /// Generate a new key and save it to file
+    pub fn generate_key(keys_dir: &Path, name: &str) -> Result<Self> {
+        let secret_key = SecretKey::random(&mut OsRng);
+        let key_manager = Self::new(secret_key, name.to_string());
+        key_manager.save_to_file(keys_dir)?;
+        Ok(key_manager)
     }
 
     pub fn new(key: SecretKey, name: String) -> Self {
@@ -126,7 +133,7 @@ impl KeyManager {
         Ok(())
     }
 
-    pub fn save_to_file(&self, keys_dir: &Path) -> Result<(), Box<dyn Error>> {
+    pub fn save_to_file(&self, keys_dir: &Path) -> Result<()> {
         fs::create_dir_all(keys_dir)?;
 
         let key_file = keys_dir.join(format!("{}.key", self.key_info.name));
@@ -161,7 +168,7 @@ impl KeyManager {
         Ok(())
     }
 
-    pub fn load_from_file(keys_dir: &Path, name: &str) -> Result<Self, Box<dyn Error>> {
+    pub fn load_from_file(keys_dir: &Path, name: &str) -> Result<Self> {
         let key_file = keys_dir.join(format!("{}.key", name));
         let info_file = keys_dir.join(format!("{}.info", name));
 
@@ -191,7 +198,7 @@ impl KeyManager {
         Ok(Self { key, key_info })
     }
 
-    pub fn list_keys(keys_dir: &Path) -> Result<Vec<String>, Box<dyn Error>> {
+    pub fn list_keys(keys_dir: &Path) -> Result<Vec<String>> {
         if !keys_dir.exists() {
             return Ok(Vec::new());
         }
@@ -216,7 +223,7 @@ impl KeyManager {
         Ok(key_names)
     }
 
-    pub fn get_key_info(keys_dir: &Path, name: &str) -> Result<EciesKeyInfo, Box<dyn Error>> {
+    pub fn get_key_info(keys_dir: &Path, name: &str) -> Result<EciesKeyInfo> {
         let info_file = keys_dir.join(format!("{}.info", name));
         let info_json = fs::read_to_string(&info_file)?;
         let key_info: EciesKeyInfo = serde_json::from_str(&info_json)?;
@@ -224,7 +231,7 @@ impl KeyManager {
     }
 
     /// Securely delete a key file (legacy format)
-    pub fn secure_delete_key(&self, keys_dir: &Path) -> Result<(), Box<dyn Error>> {
+    pub fn secure_delete_key(&self, keys_dir: &Path) -> Result<()> {
         let key_file = keys_dir.join(format!("{}.key", self.key_info.name));
         let info_file = keys_dir.join(format!("{}.info", self.key_info.name));
 
@@ -271,7 +278,7 @@ impl KeyManager {
     }
 }
 
-pub fn get_default_keys_dir() -> Result<PathBuf, Box<dyn Error>> {
+pub fn get_default_keys_dir() -> Result<PathBuf> {
     if let Some(home_dir) = dirs::home_dir() {
         Ok(home_dir.join(".datamesh").join("keys"))
     } else {
@@ -279,7 +286,7 @@ pub fn get_default_keys_dir() -> Result<PathBuf, Box<dyn Error>> {
     }
 }
 
-fn prompt_user_input(prompt: &str) -> Result<String, Box<dyn Error>> {
+fn prompt_user_input(prompt: &str) -> Result<String> {
     print!("{}", prompt);
     io::stdout().flush()?;
 
@@ -293,21 +300,21 @@ fn generate_default_key_name() -> String {
     format!("dfs_key_{}", now.format("%Y%m%d_%H%M%S"))
 }
 
-pub fn parse_public_key(public_key_hex: &str) -> Result<PublicKey, Box<dyn Error>> {
+pub fn parse_public_key(public_key_hex: &str) -> Result<PublicKey> {
     let key_bytes = hex::decode(public_key_hex)?;
     if key_bytes.len() != 65 {
-        return Err(anyhow::anyhow!("Public key must be 65 bytes, got {}", key_bytes.len()).into());
+        return Err(anyhow::anyhow!("Public key must be 65 bytes, got {}", key_bytes.len()));
     }
     let mut key_array = [0u8; 65];
     key_array.copy_from_slice(&key_bytes);
     PublicKey::parse(&key_array)
-        .map_err(|e| anyhow::anyhow!("Failed to parse public key: {:?}", e).into())
+        .map_err(|e| anyhow::anyhow!("Failed to parse public key: {:?}", e))
 }
 
 pub fn get_encryption_key(
     public_key_opt: &Option<String>,
     key_manager: &KeyManager,
-) -> Result<(PublicKey, String), Box<dyn Error>> {
+) -> Result<(PublicKey, String)> {
     if let Some(public_key_hex) = public_key_opt {
         let public_key = parse_public_key(public_key_hex)?;
         Ok((public_key, public_key_hex.clone()))
@@ -321,7 +328,7 @@ pub fn get_decryption_key(
     private_key_opt: &Option<String>,
     key_manager: &KeyManager,
     keys_dir: &PathBuf,
-) -> Result<SecretKey, Box<dyn Error>> {
+) -> Result<SecretKey> {
     if let Some(private_key_name) = private_key_opt {
         let loaded_manager = KeyManager::load_from_file(keys_dir, private_key_name)?;
         Ok(loaded_manager.key)
@@ -331,25 +338,25 @@ pub fn get_decryption_key(
 }
 
 /// Encrypt data using ECIES encryption
-pub fn encrypt_data(data: &[u8], public_key: &PublicKey) -> Result<Vec<u8>, Box<dyn Error>> {
+pub fn encrypt_data(data: &[u8], public_key: &PublicKey) -> Result<Vec<u8>> {
     let serialized_public_key = public_key.serialize_compressed();
     let encrypted = ecies::encrypt(&serialized_public_key, data)
-        .map_err(|e| format!("ECIES encryption failed: {:?}", e))?;
+        .map_err(|e| anyhow::anyhow!("ECIES encryption failed: {:?}", e))?;
     Ok(encrypted)
 }
 
 /// Decrypt data using ECIES decryption
-pub fn decrypt_data(encrypted_data: &[u8], secret_key: &SecretKey) -> Result<Vec<u8>, Box<dyn Error>> {
+pub fn decrypt_data(encrypted_data: &[u8], secret_key: &SecretKey) -> Result<Vec<u8>> {
     let serialized_secret_key = secret_key.serialize();
     let decrypted = ecies::decrypt(&serialized_secret_key, encrypted_data)
-        .map_err(|e| format!("ECIES decryption failed: {:?}", e))?;
+        .map_err(|e| anyhow::anyhow!("ECIES decryption failed: {:?}", e))?;
     Ok(decrypted)
 }
 
 pub async fn setup_key_management_with_mode(
     cli: &Cli,
     mode: KeySelectionMode,
-) -> Result<KeyManager, Box<dyn Error>> {
+) -> Result<KeyManager> {
     let keys_dir = cli
         .keys_dir
         .clone()
