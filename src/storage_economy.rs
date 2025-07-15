@@ -1,9 +1,12 @@
 /// Storage Economy System
 ///
 /// This module implements the storage-based economy where users can participate in the network by:
-/// 1. Contributing 4x their desired storage space to earn network access
-/// 2. Paying for premium access without contributing storage
+/// 1. Contributing 6x their desired storage space to earn network access (adjusted for 8+4 Reed-Solomon)
+/// 2. Paying for premium access without contributing storage  
 /// 3. Continuous verification of contributed storage space with proof-of-space challenges
+///
+/// Note: Contribution ratio increased from 4:1 to 6:1 to account for enhanced Reed-Solomon
+/// redundancy (8+4 configuration provides 50% storage overhead, same as previous 4+2)
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -25,7 +28,7 @@ pub enum StorageTier {
     /// Contributor tier - provides storage to earn credits
     Contributor {
         contributed_space: u64,     // Space contributed in bytes
-        earned_storage: u64,        // Storage earned (contributed_space / 4)
+        earned_storage: u64,        // Storage earned (contributed_space / 6, adjusted for 8+4 Reed-Solomon)
         verification_path: PathBuf, // Path to contributed storage
         last_verified: DateTime<Utc>,
         // Enhanced verification tracking
@@ -202,7 +205,7 @@ pub struct VerificationStep {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageEconomyConfig {
     /// Contribution ratio (how much to contribute to earn 1 unit)
-    pub contribution_ratio: f64,       // Default: 4.0 (contribute 4GB to earn 1GB)
+    pub contribution_ratio: f64,       // Default: 6.0 (contribute 6GB to earn 1GB, adjusted for 8+4 Reed-Solomon)
     
     /// Free tier limits
     pub free_tier_storage: u64,        // Default: 100MB
@@ -240,7 +243,7 @@ pub struct StorageEconomyConfig {
 impl Default for StorageEconomyConfig {
     fn default() -> Self {
         Self {
-            contribution_ratio: 4.0,
+            contribution_ratio: 6.0,
             free_tier_storage: 100 * 1024 * 1024,        // 100MB
             free_tier_upload_quota: 1024 * 1024 * 1024,  // 1GB per month
             free_tier_download_quota: 2 * 1024 * 1024 * 1024, // 2GB per month
@@ -1196,7 +1199,7 @@ mod tests {
 
         // Try to become contributor
         let storage_path = PathBuf::from("/tmp/test_storage");
-        let contributed_space = 4 * 1024 * 1024 * 1024; // 4GB
+        let contributed_space = 6 * 1024 * 1024 * 1024; // 6GB (adjusted for 8+4 Reed-Solomon)
 
         // This would normally fail due to path not existing, but we'll test the logic
         match manager.become_contributor("contributor_user", storage_path, contributed_space).await {

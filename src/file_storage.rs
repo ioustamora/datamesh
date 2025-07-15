@@ -39,9 +39,11 @@ use crate::smart_cache::{AccessType, SmartCacheManager};
 use crate::ui;
 
 /// Number of data shards for Reed-Solomon erasure coding
-pub const DATA_SHARDS: usize = 4;
-/// Number of parity shards for Reed-Solomon erasure coding
-pub const PARITY_SHARDS: usize = 2;
+/// Enhanced configuration for distributed consumer storage reliability
+pub const DATA_SHARDS: usize = 8;
+/// Number of parity shards for Reed-Solomon erasure coding  
+/// Enhanced configuration providing 4-shard fault tolerance
+pub const PARITY_SHARDS: usize = 4;
 
 /// Public constant for data shards available to other modules
 pub const PUB_DATA_SHARDS: usize = DATA_SHARDS;

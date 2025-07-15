@@ -106,9 +106,9 @@ pub struct DHTStorageConfig {
 pub struct StorageConfig {
     /// Default keys directory
     pub keys_dir: Option<PathBuf>,
-    /// Number of data shards for Reed-Solomon encoding
+    /// Number of data shards for Reed-Solomon encoding (Enhanced: 8 for consumer storage)
     pub data_shards: usize,
-    /// Number of parity shards for Reed-Solomon encoding
+    /// Number of parity shards for Reed-Solomon encoding (Enhanced: 4 for consumer storage)
     pub parity_shards: usize,
     /// Maximum file size in bytes
     pub max_file_size: usize,
@@ -276,8 +276,8 @@ impl Default for Config {
             },
             storage: StorageConfig {
                 keys_dir: None,
-                data_shards: 4,
-                parity_shards: 2,
+                data_shards: 8,
+                parity_shards: 4,
                 max_file_size: 100 * 1024 * 1024, // 100MB
                 chunk_size: 1024 * 1024,          // 1MB
             },
