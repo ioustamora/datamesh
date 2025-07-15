@@ -786,3 +786,337 @@ async fn test_end_to_end_user_scenarios() -> Result<()> {
     
     Ok(())
 }
+
+/// Test realistic multi-user collaboration workflow
+#[tokio::test]
+async fn test_collaborative_workflow() -> Result<()> {
+    let env = TestEnvironment::new()?;
+    let km = KeyManager::new()?;
+    let storage = StorageManager::new(&env.storage_path)?;
+    
+    // Create team members
+    let team_lead = mock_data::create_test_user("team_lead");
+    let developer1 = mock_data::create_test_user("developer1");
+    let developer2 = mock_data::create_test_user("developer2");
+    
+    // Team lead uploads project files
+    let project_files = vec![
+        ("README.md", b"# Project Documentation\nThis is a collaborative project.".to_vec()),
+        ("config.json", br#"{"version": "1.0", "features": ["collaboration"]}"#.to_vec()),
+        ("data.txt", b"Shared project data for team collaboration".to_vec()),
+    ];
+    
+    let mut shared_file_keys = Vec::new();
+    
+    for (filename, content) in &project_files {
+        let encrypted_content = km.encrypt(content)?;
+        let file_key = format!("project_{}", filename);
+        
+        let metadata = FileMetadata {
+            name: filename.to_string(),
+            size: content.len() as u64,
+            content_type: mime_guess::from_path(filename).first_or_octet_stream().to_string(),
+            checksum: sha256::digest(content),
+            encrypted: true,
+        };
+        
+        storage.store_file(&file_key, &encrypted_content, &metadata).await?;
+        
+        let upload_time = chrono::Local::now();
+        let tags = vec!["project".to_string(), "shared".to_string(), "team".to_string()];
+        
+        env.db.store_file(
+            filename,
+            &file_key,
+            filename,
+            content.len() as u64,
+            upload_time,
+            &tags,
+            &team_lead.user_id,
+        )?;
+        
+        shared_file_keys.push(file_key);
+    }
+    
+    // Team members access shared files
+    let shared_files = env.db.search_files("project")?;
+    assert_eq!(shared_files.len(), 3, "All team members should see shared project files");
+    
+    // Developer1 modifies and uploads new version
+    let readme_files = env.db.search_files("README.md")?;
+    assert_eq!(readme_files.len(), 1, "Should find README file");
+    
+    let original_readme = &readme_files[0];
+    let readme_encrypted = storage.retrieve_file(&original_readme.file_key).await?;
+    let readme_content = km.decrypt(&readme_encrypted)?;
+    
+    // Developer1 adds to README
+    let updated_readme = [
+        readme_content.as_slice(),
+        b"\n\n## Developer1 Contributions\n- Added feature X\n- Fixed bug Y"
+    ].concat();
+    
+    let updated_encrypted = km.encrypt(&updated_readme)?;
+    let updated_key = "project_README_v2.md";
+    
+    let updated_metadata = FileMetadata {
+        name: "README_v2.md".to_string(),
+        size: updated_readme.len() as u64,
+        content_type: "text/markdown".to_string(),
+        checksum: sha256::digest(&updated_readme),
+        encrypted: true,
+    };
+    
+    storage.store_file(updated_key, &updated_encrypted, &updated_metadata).await?;
+    
+    let upload_time = chrono::Local::now();
+    let tags = vec!["project".to_string(), "shared".to_string(), "updated".to_string()];
+    
+    env.db.store_file(
+        "README_v2.md",
+        updated_key,
+        "README_v2.md",
+        updated_readme.len() as u64,
+        upload_time,
+        &tags,
+        &developer1.user_id,
+    )?;
+    
+    // Verify collaboration workflow
+    let all_project_files = env.db.search_files("project")?;
+    assert_eq!(all_project_files.len(), 4, "Should have original files plus updated README");
+    
+    // Developer2 can access the updated file
+    let updated_files = env.db.search_files("README_v2")?;
+    assert_eq!(updated_files.len(), 1, "Should find updated README");
+    
+    let updated_file = &updated_files[0];
+    let updated_retrieved = storage.retrieve_file(&updated_file.file_key).await?;
+    let final_content = km.decrypt(&updated_retrieved)?;
+    
+    assert!(final_content.len() > readme_content.len(), "Updated README should be longer");
+    assert!(String::from_utf8_lossy(&final_content).contains("Developer1 Contributions"), 
+            "Should contain developer1's additions");
+    
+    println!("✅ Collaborative workflow test completed successfully");
+    Ok(())
+}
+
+/// Test real-world performance scenarios
+#[tokio::test]
+async fn test_realistic_performance_scenarios() -> Result<()> {
+    let env = TestEnvironment::new()?;
+    let km = KeyManager::new()?;
+    let storage = StorageManager::new(&env.storage_path)?;
+    
+    // Scenario 1: Photo backup workflow (realistic user scenario)
+    let photo_perf = performance::PerformanceTest::new("photo_backup_workflow");
+    
+    let photo_sizes = vec![
+        ("thumbnail.jpg", 50 * 1024),      // 50KB
+        ("medium.jpg", 500 * 1024),        // 500KB  
+        ("high_res.jpg", 2 * 1024 * 1024), // 2MB
+        ("raw_photo.cr2", 25 * 1024 * 1024), // 25MB
+    ];
+    
+    for (photo_name, size) in &photo_sizes {
+        let photo_content = vec![0xFFu8; *size]; // Simulate binary photo data
+        let encrypted_photo = km.encrypt(&photo_content)?;
+        let photo_key = format!("photo_{}", photo_name);
+        
+        let metadata = FileMetadata {
+            name: photo_name.to_string(),
+            size: *size as u64,
+            content_type: "image/jpeg".to_string(),
+            checksum: sha256::digest(&photo_content),
+            encrypted: true,
+        };
+        
+        storage.store_file(&photo_key, &encrypted_photo, &metadata).await?;
+        
+        let upload_time = chrono::Local::now();
+        let tags = vec!["photos".to_string(), "backup".to_string()];
+        
+        env.db.store_file(
+            photo_name,
+            &photo_key,
+            photo_name,
+            *size as u64,
+            upload_time,
+            &tags,
+            "photo_user",
+        )?;
+    }
+    
+    photo_perf.finish(Duration::from_secs(30)); // Allow reasonable time for photo processing
+    
+    // Scenario 2: Document management workflow
+    let doc_perf = performance::PerformanceTest::new("document_management_workflow");
+    
+    // Simulate uploading a batch of business documents
+    for i in 0..20 {
+        let doc_content = format!("Business document {} content with important data and information that would typically be found in a real document.", i).repeat(100);
+        let doc_bytes = doc_content.into_bytes();
+        let encrypted_doc = km.encrypt(&doc_bytes)?;
+        let doc_key = format!("business_doc_{}", i);
+        
+        let metadata = FileMetadata {
+            name: format!("document_{}.txt", i),
+            size: doc_bytes.len() as u64,
+            content_type: "text/plain".to_string(),
+            checksum: sha256::digest(&doc_bytes),
+            encrypted: true,
+        };
+        
+        storage.store_file(&doc_key, &encrypted_doc, &metadata).await?;
+        
+        let upload_time = chrono::Local::now();
+        let tags = vec!["documents".to_string(), "business".to_string()];
+        
+        env.db.store_file(
+            &format!("document_{}.txt", i),
+            &doc_key,
+            &format!("document_{}.txt", i),
+            doc_bytes.len() as u64,
+            upload_time,
+            &tags,
+            "business_user",
+        )?;
+    }
+    
+    doc_perf.finish(Duration::from_secs(15)); // Should be efficient for text documents
+    
+    // Scenario 3: Search and retrieval performance
+    let search_perf = performance::PerformanceTest::new("search_retrieval_performance");
+    
+    // Test various search patterns
+    let search_terms = vec!["photos", "business", "document", "backup"];
+    
+    for search_term in &search_terms {
+        let search_results = env.db.search_files(search_term)?;
+        assert!(!search_results.is_empty(), "Should find files for search term: {}", search_term);
+        
+        // Test retrieval of first result
+        if let Some(first_result) = search_results.first() {
+            let retrieved_encrypted = storage.retrieve_file(&first_result.file_key).await?;
+            let decrypted = km.decrypt(&retrieved_encrypted)?;
+            assert!(!decrypted.is_empty(), "Retrieved content should not be empty");
+        }
+    }
+    
+    search_perf.finish(Duration::from_secs(5)); // Search should be fast
+    
+    // Verify total system state
+    let all_files = env.db.list_files(None)?;
+    assert!(all_files.len() >= 24, "Should have photos + documents stored"); // 4 photos + 20 documents
+    
+    println!("✅ Realistic performance scenarios completed successfully");
+    Ok(())
+}
+
+/// Test system behavior under realistic load patterns
+#[tokio::test]  
+async fn test_realistic_load_patterns() -> Result<()> {
+    let env = TestEnvironment::new()?;
+    
+    // Simulate realistic user behavior patterns
+    let user_scenarios = vec![
+        ("casual_user", 5, 100),      // 5 files, small sizes
+        ("power_user", 25, 1000),     // 25 files, medium sizes  
+        ("business_user", 50, 500),   // 50 files, mixed sizes
+    ];
+    
+    let mut scenario_handles = Vec::new();
+    
+    for (user_type, file_count, size_multiplier) in user_scenarios {
+        let db_path = env.db_path.clone();
+        let storage_path = env.storage_path.clone();
+        
+        let handle = tokio::spawn(async move {
+            let db = DatabaseManager::new(&db_path)?;
+            let storage = StorageManager::new(&storage_path)?;
+            let km = KeyManager::new()?;
+            
+            let mut user_results = Vec::new();
+            
+            for i in 0..file_count {
+                // Simulate realistic file sizes and types
+                let (content, file_type) = match i % 4 {
+                    0 => (format!("Text document {} for {}", i, user_type).repeat(size_multiplier / 10), "text/plain"),
+                    1 => (vec![0x89, 0x50, 0x4E, 0x47].into_iter().chain(vec![0u8; size_multiplier]).collect(), "image/png"), // PNG header + data
+                    2 => (format!(r#"{{"id": {}, "user": "{}", "data": "{}"}}"#, i, user_type, "x".repeat(size_multiplier)).into_bytes(), "application/json"),
+                    _ => (vec![0xFFu8; size_multiplier], "application/octet-stream"),
+                };
+                
+                let content_bytes = if let Ok(text) = std::str::from_utf8(&content) {
+                    text.as_bytes().to_vec()
+                } else {
+                    content
+                };
+                
+                let encrypted_content = km.encrypt(&content_bytes)?;
+                let file_key = format!("{}_{}", user_type, i);
+                
+                let metadata = FileMetadata {
+                    name: format!("{}_file_{}", user_type, i),
+                    size: content_bytes.len() as u64,
+                    content_type: file_type.to_string(),
+                    checksum: sha256::digest(&content_bytes),
+                    encrypted: true,
+                };
+                
+                storage.store_file(&file_key, &encrypted_content, &metadata).await?;
+                
+                let upload_time = chrono::Local::now();
+                let tags = vec![user_type.to_string(), "load_test".to_string()];
+                
+                db.store_file(
+                    &format!("{}_file_{}", user_type, i),
+                    &file_key,
+                    &format!("{}_file_{}", user_type, i),
+                    content_bytes.len() as u64,
+                    upload_time,
+                    &tags,
+                    user_type,
+                )?;
+                
+                // Simulate realistic delay between uploads
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                
+                user_results.push(file_key);
+            }
+            
+            Ok::<_, anyhow::Error>((user_type, user_results))
+        });
+        
+        scenario_handles.push(handle);
+    }
+    
+    // Wait for all user scenarios to complete
+    let mut total_files = 0;
+    for handle in scenario_handles {
+        let (user_type, files) = handle.await??;
+        total_files += files.len();
+        println!("User scenario '{}' completed with {} files", user_type, files.len());
+    }
+    
+    // Verify system state after load test
+    let final_files = env.db.list_files(None)?;
+    assert!(final_files.len() >= total_files, "Database should contain all uploaded files");
+    
+    // Test search performance under load
+    let search_start = std::time::Instant::now();
+    let casual_files = env.db.search_files("casual_user")?;
+    let power_files = env.db.search_files("power_user")?; 
+    let business_files = env.db.search_files("business_user")?;
+    let search_duration = search_start.elapsed();
+    
+    assert_eq!(casual_files.len(), 5, "Should find casual user files");
+    assert_eq!(power_files.len(), 25, "Should find power user files");
+    assert_eq!(business_files.len(), 50, "Should find business user files");
+    assert!(search_duration < Duration::from_secs(2), "Search should remain fast under load");
+    
+    println!("✅ Realistic load pattern test completed with {} total files in {:?}", 
+             total_files, search_duration);
+    Ok(())
+}

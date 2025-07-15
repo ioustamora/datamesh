@@ -83,6 +83,9 @@ wiremock = "0.6"
 tracing-test = "0.2"
 sha256 = "1.5"
 mime_guess = "2.0"
+# Additional dependencies for enhanced testing
+tokio-tungstenite = "0.21"
+reqwest = { version = "0.11", features = ["json", "multipart"], default-features = false }
 
 # Benches
 [[bench]]
