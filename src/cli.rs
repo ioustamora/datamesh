@@ -711,7 +711,7 @@ pub enum Commands {
 
     /// Show quick help and command shortcuts
     #[command(alias = "shortcuts")]
-    Help,
+    QuickHelp,
 
     /// Test advanced DataMesh systems
     Advanced {

@@ -447,6 +447,9 @@ pub struct InteractiveSession {
     shortcuts: HashMap<String, String>,
     last_command: Option<String>,
     session_stats: SessionStats,
+    user_id: String,
+    command_history: Vec<String>,
+    start_time: chrono::DateTime<chrono::Utc>,
 }
 
 /// Session statistics
@@ -505,6 +508,9 @@ impl InteractiveSession {
             shortcuts: HashMap::new(),
             last_command: None,
             session_stats: SessionStats::default(),
+            user_id: "default_user".to_string(),
+            command_history: Vec::new(),
+            start_time: chrono::Utc::now(),
         };
         session.add_shortcuts();
         session

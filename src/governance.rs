@@ -269,6 +269,7 @@ pub struct NetworkProposal {
     pub created_at: DateTime<Utc>,
     pub voting_ends_at: DateTime<Utc>,
     pub execution_status: String,
+    pub implementation_timeline: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -282,6 +283,7 @@ pub enum ProposalType {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ProposalStatus {
+    Draft,
     Active,
     Passed,
     Failed,
@@ -897,15 +899,15 @@ mod tests {
             proposal_id: Uuid::new_v4(),
             title: "Test Proposal".to_string(),
             description: "A test proposal".to_string(),
-            proposer: Uuid::new_v4(),
+            author: Uuid::new_v4(),
             proposal_type: ProposalType::NetworkUpgrade,
-            voting_period: Duration::days(14),
-            required_quorum: 0.2,
             status: ProposalStatus::Draft,
             votes_for: 0,
             votes_against: 0,
-            implementation_timeline: None,
             created_at: Utc::now(),
+            voting_ends_at: Utc::now() + chrono::Duration::days(14),
+            execution_status: "pending".to_string(),
+            implementation_timeline: None,
         };
 
         let result = governance.submit_proposal(proposal.clone());

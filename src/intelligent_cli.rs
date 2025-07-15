@@ -88,7 +88,7 @@ pub struct CommandPattern {
     pub user_satisfaction: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ExpertiseLevel {
     Beginner,
     Intermediate,
@@ -1321,11 +1321,7 @@ mod tests {
         let assistant = IntelligentCLIAssistant::new();
         
         // Test with a simple session
-        let session = InteractiveSession {
-            user_id: "test_user".to_string(),
-            command_history: vec![],
-            start_time: Utc::now(),
-        };
+        let session = InteractiveSession::new();
 
         let response = assistant.provide_assistance("help", &session).await.unwrap();
         
@@ -1341,11 +1337,7 @@ mod tests {
     async fn test_context_analysis() {
         let analyzer = ContextAnalyzer::new();
         
-        let session = InteractiveSession {
-            user_id: "test_user".to_string(),
-            command_history: vec![],
-            start_time: Utc::now(),
-        };
+        let session = InteractiveSession::new();
 
         let analysis = analyzer.analyze_context(&session).await.unwrap();
         

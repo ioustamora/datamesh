@@ -98,7 +98,7 @@ pub struct Leaderboard {
     pub rewards: LeaderboardRewards,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum LeaderboardCategory {
     StorageContribution,
     NetworkUptime,

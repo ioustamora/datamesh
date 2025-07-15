@@ -6,6 +6,54 @@ use crate::commands::{CommandContext, CommandHandler};
 use std::error::Error;
 use crate::config;
 
+/// Start a bootstrap node (standalone function for wizard integration)
+pub async fn start_bootstrap_node(port: u16) -> Result<(), Box<dyn Error>> {
+    use crate::ui;
+    use crate::network::create_swarm_and_connect_multi_bootstrap;
+    use crate::config::Config;
+    use crate::cli::Cli;
+    use futures::stream::StreamExt;
+    use libp2p::swarm::SwarmEvent;
+    
+    ui::print_header("Bootstrap Node");
+    ui::print_info(&format!("Starting bootstrap node on port {}", port));
+    
+    // Create minimal CLI config for bootstrap node
+    let cli = Cli::parse();
+    let config = Config::load_or_default(None)?;
+    
+    // Create and configure the swarm
+    let mut swarm = create_swarm_and_connect_multi_bootstrap(&cli, &config).await?;
+    
+    // Start listening on the specified port
+    let listen_addr = format!("/ip4/0.0.0.0/tcp/{}", port);
+    swarm.listen_on(listen_addr.parse()?)?;
+    
+    ui::print_success("🌐 Bootstrap node initialized");
+    ui::print_info(&format!("📡 Listening on port {}", port));
+    ui::print_info("🔄 Bootstrap node is running...");
+    ui::print_info("Press Ctrl+C to stop");
+    
+    // Event loop
+    loop {
+        match swarm.select_next_some().await {
+            SwarmEvent::NewListenAddr { address, .. } => {
+                ui::print_success(&format!("📡 Bootstrap node listening on {}", address));
+                println!("Peer ID: {}", swarm.local_peer_id());
+                println!("Connect to this node with: --bootstrap-peer {}@{}", 
+                         swarm.local_peer_id(), address);
+            }
+            SwarmEvent::ConnectionEstablished { peer_id, .. } => {
+                ui::print_info(&format!("🔗 Peer connected: {}", peer_id));
+            }
+            SwarmEvent::ConnectionClosed { peer_id, .. } => {
+                ui::print_info(&format!("❌ Peer disconnected: {}", peer_id));
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Bootstrap command handler
 #[derive(Debug, Clone)]
 pub struct BootstrapCommand {

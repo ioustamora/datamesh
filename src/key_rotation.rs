@@ -114,16 +114,16 @@ pub struct KeyRotationManager {
 
 impl KeyRotationManager {
     /// Create a new key rotation manager
-    pub fn new(config: KeyRotationConfig) -> Self {
+    pub fn new(config: KeyRotationConfig) -> Result<Self, crate::error::DfsError> {
         let initial_key = VersionedKey::new(1);
 
-        Self {
+        Ok(Self {
             config,
             current_version: 1,
             keys: Arc::new(RwLock::new(vec![initial_key])),
             last_rotation: Arc::new(RwLock::new(Instant::now())),
             last_manual_rotation: Arc::new(RwLock::new(None)),
-        }
+        })
     }
 
     /// Get the current encryption key
@@ -264,6 +264,27 @@ impl KeyRotationManager {
     }
 
     /// Get rotation statistics
+    pub async fn get_stats(&self) -> DfsResult<RotationStats> {
+        let keys = self.keys.read().unwrap();
+        let last_rotation = *self.last_rotation.read().unwrap();
+
+        Ok(RotationStats {
+            current_version: self.current_version,
+            total_keys: keys.len(),
+            active_keys: keys.iter().filter(|k| !k.is_expired()).count(),
+            last_rotation_ago: last_rotation.elapsed(),
+            next_rotation_in: if self.config.auto_rotation_enabled {
+                let rotation_interval =
+                    Duration::from_secs(self.config.rotation_interval_hours * 3600);
+                Some(rotation_interval.saturating_sub(last_rotation.elapsed()))
+            } else {
+                None
+            },
+            auto_rotation_enabled: self.config.auto_rotation_enabled,
+        })
+    }
+    
+    /// Get rotation statistics (sync version)
     pub fn get_rotation_stats(&self) -> RotationStats {
         let keys = self.keys.read().unwrap();
         let last_rotation = *self.last_rotation.read().unwrap();
@@ -313,13 +334,13 @@ impl RotatingKeyManager {
     pub fn new(
         base_manager: crate::key_manager::KeyManager,
         rotation_config: KeyRotationConfig,
-    ) -> Self {
-        let rotation_manager = KeyRotationManager::new(rotation_config);
+    ) -> Result<Self, crate::error::DfsError> {
+        let rotation_manager = KeyRotationManager::new(rotation_config)?;
 
-        Self {
+        Ok(Self {
             base_key_manager: base_manager,
             rotation_manager: Arc::new(RwLock::new(rotation_manager)),
-        }
+        })
     }
 
     /// Get the current encryption key
@@ -388,7 +409,7 @@ mod tests {
     #[test]
     fn test_key_rotation_manager() {
         let config = KeyRotationConfig::default();
-        let mut manager = KeyRotationManager::new(config);
+        let mut manager = KeyRotationManager::new(config).unwrap();
 
         // Test initial state
         let current_key = manager.get_current_key().unwrap();
@@ -414,7 +435,7 @@ mod tests {
             min_manual_rotation_interval_minutes: 0, // Allow immediate rotation for testing
             ..Default::default()
         };
-        let mut manager = KeyRotationManager::new(config);
+        let mut manager = KeyRotationManager::new(config).unwrap();
 
         // Rotate multiple times
         for _ in 0..5 {
@@ -437,7 +458,7 @@ mod tests {
             auto_rotation_enabled: true,
             ..Default::default()
         };
-        let manager = KeyRotationManager::new(config);
+        let manager = KeyRotationManager::new(config).unwrap();
 
         // Should not need rotation immediately
         assert!(!manager.needs_rotation());
@@ -448,7 +469,7 @@ mod tests {
             auto_rotation_enabled: true,
             ..Default::default()
         };
-        let short_manager = KeyRotationManager::new(short_config);
+        let short_manager = KeyRotationManager::new(short_config).unwrap();
 
         // Sleep briefly to ensure time has passed
         sleep(Duration::from_millis(10));

@@ -651,7 +651,7 @@ pub fn create_command_handler(command: &Commands) -> Box<dyn CommandHandler> {
         }),
 
         // Help/shortcuts command
-        Commands::Help => Box::new(admin_commands::HelpCommand),
+        Commands::QuickHelp => Box::new(admin_commands::HelpCommand),
 
         // Advanced operations - delegate to existing advanced_commands module
         _ => Box::new(advanced_commands::AdvancedCommandHandler {

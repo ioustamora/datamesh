@@ -58,6 +58,7 @@ mod persistent_dht;               // Persistent DHT state management
 mod cli;                          // Command line argument parsing and validation
 mod commands;                     // Command handler implementations
 mod interactive;                  // Interactive mode and user interface
+mod setup_wizard;                 // Interactive setup wizard for new users
 mod ui;                           // User interface utilities and progress indicators
 
 // Security and Cryptography
@@ -142,6 +143,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // This must be done first to capture all subsequent operations
     logging::init_logging_safe();
 
+    // Check if we should launch the setup wizard
+    // This happens when DataMesh is started without any arguments
+    if setup_wizard::should_start_wizard() {
+        match setup_wizard::launch_setup_wizard().await {
+            Ok(_) => return Ok(()),
+            Err(e) => {
+                let enhanced_error = error_handling::handle_error(e.as_ref());
+                error_handling::display_enhanced_error(&enhanced_error);
+                std::process::exit(1);
+            }
+        }
+    }
+
     // Parse command line arguments using clap
     // This includes validation of argument combinations and required fields
     let mut cli = cli::Cli::parse();
@@ -198,13 +212,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Execute the specified command using the clean handler architecture
     // Each command type has its own specialized handler for maintainability
     tracing::error!("🔥 main.rs calling execute_command with command: {:?}", cli.command);
-    if let Err(e) = commands::execute_command(cli, key_manager).await {
-        let enhanced_error = error_handling::handle_error(e.as_ref());
-        error_handling::display_enhanced_error(&enhanced_error);
-        std::process::exit(1);
+    match commands::execute_command(cli, key_manager).await {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            let enhanced_error = error_handling::handle_error(e.as_ref());
+            error_handling::display_enhanced_error(&enhanced_error);
+            std::process::exit(1);
+        }
     }
-
-    Ok(())
 }
 
 /// Apply network presets to CLI configuration.
