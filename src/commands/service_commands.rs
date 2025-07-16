@@ -154,12 +154,10 @@ impl CommandHandler for InteractiveCommand {
         use crate::ui;
         use crate::config::Config;
         use crate::network::create_swarm_and_connect_multi_bootstrap;
-        use crate::bootstrap_manager::{BootstrapManager, BootstrapPeer};
+        use crate::bootstrap_manager::BootstrapManager;
         use futures::stream::StreamExt;
         use libp2p::swarm::SwarmEvent;
         use tokio::io::{AsyncBufReadExt, BufReader};
-        use std::str::FromStr;
-        use libp2p::{PeerId, Multiaddr};
         
         ui::print_header("Interactive Mode");
         
@@ -240,7 +238,12 @@ impl CommandHandler for InteractiveCommand {
                                 continue;
                             }
                             
-                            if let Err(e) = self.handle_interactive_command(input, &swarm).await {
+                            // Handle commands inline to avoid Send issues
+                            if input == "exit" || input == "quit" {
+                                break;
+                            }
+                            
+                            if let Err(e) = self.handle_interactive_command_inline(input, &swarm) {
                                 ui::print_error(&format!("Command error: {}", e));
                             }
                             
@@ -263,7 +266,7 @@ impl CommandHandler for InteractiveCommand {
 
 // Implementation methods for InteractiveCommand (outside the trait)
 impl InteractiveCommand {
-    async fn handle_interactive_command(
+    fn handle_interactive_command_inline(
         &self,
         input: &str,
         swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
@@ -279,35 +282,32 @@ impl InteractiveCommand {
         let args = &parts[1..];
         
         match command {
-            "exit" | "quit" => {
-                std::process::exit(0);
-            }
             "help" => {
                 self.show_help();
             }
             "stats" => {
-                self.handle_stats_command(swarm).await?;
+                self.handle_stats_command_inline(swarm)?;
             }
             "peers" => {
-                self.handle_peers_command(swarm).await?;
+                self.handle_peers_command_inline(swarm)?;
             }
             "health" => {
-                self.handle_health_command(swarm).await?;
+                self.handle_health_command_inline(swarm)?;
             }
             "put" => {
-                self.handle_put_command(args, swarm).await?;
+                self.handle_put_command_inline(args, swarm)?;
             }
             "get" => {
-                self.handle_get_command(args, swarm).await?;
+                self.handle_get_command_inline(args, swarm)?;
             }
             "list" => {
-                self.handle_list_command(swarm).await?;
+                self.handle_list_command_inline(swarm)?;
             }
             "info" => {
-                self.handle_info_command(args, swarm).await?;
+                self.handle_info_command_inline(args, swarm)?;
             }
             "network" => {
-                self.handle_network_command(swarm).await?;
+                self.handle_network_command_inline(swarm)?;
             }
             "clear" => {
                 print!("\x1B[2J\x1B[1;1H"); // Clear screen
@@ -345,7 +345,7 @@ impl InteractiveCommand {
         ui::print_info("  exit/quit          - Exit interactive mode");
     }
     
-    async fn handle_stats_command(
+    fn handle_stats_command_inline(
         &self,
         swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
     ) -> Result<(), Box<dyn Error>> {
@@ -370,7 +370,7 @@ impl InteractiveCommand {
         Ok(())
     }
     
-    async fn handle_peers_command(
+    fn handle_peers_command_inline(
         &self,
         swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
     ) -> Result<(), Box<dyn Error>> {
@@ -393,7 +393,7 @@ impl InteractiveCommand {
         Ok(())
     }
     
-    async fn handle_health_command(
+    fn handle_health_command_inline(
         &self,
         swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
     ) -> Result<(), Box<dyn Error>> {
@@ -426,10 +426,10 @@ impl InteractiveCommand {
         Ok(())
     }
     
-    async fn handle_put_command(
+    fn handle_put_command_inline(
         &self,
         args: &[&str],
-        swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
+        _swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
     ) -> Result<(), Box<dyn Error>> {
         use crate::ui;
         use std::path::Path;
@@ -453,10 +453,10 @@ impl InteractiveCommand {
         Ok(())
     }
     
-    async fn handle_get_command(
+    fn handle_get_command_inline(
         &self,
         args: &[&str],
-        swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
+        _swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
     ) -> Result<(), Box<dyn Error>> {
         use crate::ui;
         use std::path::Path;
@@ -477,9 +477,9 @@ impl InteractiveCommand {
         Ok(())
     }
     
-    async fn handle_list_command(
+    fn handle_list_command_inline(
         &self,
-        swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
+        _swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
     ) -> Result<(), Box<dyn Error>> {
         use crate::ui;
         
@@ -491,10 +491,10 @@ impl InteractiveCommand {
         Ok(())
     }
     
-    async fn handle_info_command(
+    fn handle_info_command_inline(
         &self,
         args: &[&str],
-        swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
+        _swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
     ) -> Result<(), Box<dyn Error>> {
         use crate::ui;
         
@@ -512,7 +512,7 @@ impl InteractiveCommand {
         Ok(())
     }
     
-    async fn handle_network_command(
+    fn handle_network_command_inline(
         &self,
         swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
     ) -> Result<(), Box<dyn Error>> {

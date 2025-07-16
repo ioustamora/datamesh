@@ -143,9 +143,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // This must be done first to capture all subsequent operations
     logging::init_logging_safe();
 
-    // Check if we should launch the setup wizard
-    // Only launch wizard if no network connection arguments are provided
-    if setup_wizard::should_start_wizard() && !has_network_connection_args(&cli) {
+    // Check if we should launch the setup wizard BEFORE parsing CLI
+    // This prevents clap from showing help when no command is provided
+    if setup_wizard::should_start_wizard() {
         match setup_wizard::launch_setup_wizard().await {
             Ok(_) => return Ok(()),
             Err(e) => {
@@ -254,16 +254,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 /// * `Err(Box<dyn Error>)` - Invalid network specification or configuration error
 /// Check if CLI arguments contain network connection information
 /// This prevents the setup wizard from launching when user wants to connect directly
-fn has_network_connection_args(cli: &cli::Cli) -> bool {
-    // Check for explicit network connection arguments
-    cli.bootstrap_peer.is_some() 
-        || cli.bootstrap_addr.is_some()
-        || cli.bootstrap_peers.is_some()
-        || cli.network.is_some()
-        || matches!(cli.command, cli::Commands::Interactive { .. })
-        || matches!(cli.command, cli::Commands::Service { .. })
-        || matches!(cli.command, cli::Commands::Bootstrap { .. })
-}
 
 fn apply_network_preset(cli: &mut cli::Cli) -> Result<(), Box<dyn Error>> {
     // Only process if a network preset was specified via --network flag
