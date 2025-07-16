@@ -6,6 +6,29 @@ use crate::commands::{CommandContext, CommandHandler};
 use std::error::Error;
 use crate::config;
 
+/// Write bootstrap info to file for auto-detection (standalone function)
+fn write_bootstrap_info_standalone(peer_id: &libp2p::PeerId, address: &libp2p::Multiaddr) {
+    use std::fs;
+    
+    let home_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+    let datamesh_dir = home_dir.join(".datamesh");
+    
+    // Create .datamesh directory if it doesn't exist
+    if let Err(e) = fs::create_dir_all(&datamesh_dir) {
+        eprintln!("Failed to create .datamesh directory: {}", e);
+        return;
+    }
+    
+    let bootstrap_file = datamesh_dir.join("bootstrap_info.txt");
+    let bootstrap_info = format!("{}@{}", peer_id, address);
+    
+    if let Err(e) = fs::write(&bootstrap_file, bootstrap_info) {
+        eprintln!("Failed to write bootstrap info: {}", e);
+    } else {
+        println!("📝 Bootstrap info written to {}", bootstrap_file.display());
+    }
+}
+
 /// Start a bootstrap node (standalone function for wizard integration)
 pub async fn start_bootstrap_node(port: u16) -> Result<(), Box<dyn Error>> {
     use crate::ui;
@@ -14,13 +37,37 @@ pub async fn start_bootstrap_node(port: u16) -> Result<(), Box<dyn Error>> {
     use crate::cli::Cli;
     use futures::stream::StreamExt;
     use libp2p::swarm::SwarmEvent;
-    
     ui::print_header("Bootstrap Node");
     ui::print_info(&format!("Starting bootstrap node on port {}", port));
     
     // Create minimal CLI config for bootstrap node
     let cli = Cli::parse();
     let config = Config::load_or_default(None)?;
+    
+    // Start API server in background using simple HTTP server
+    let _api_server_handle = tokio::spawn(async move {
+        use std::net::SocketAddr;
+        use axum::{routing::get, Router};
+        
+        let app = Router::new()
+            .route("/", get(|| async { "DataMesh API Server - Bootstrap Node Running" }))
+            .route("/health", get(|| async { "OK" }))
+            .route("/swagger-ui", get(|| async { "Swagger UI - Under Construction" }));
+        
+        let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
+        
+        if let Ok(listener) = tokio::net::TcpListener::bind(addr).await {
+            println!("API server listening on {}", addr);
+            if let Err(e) = axum::serve(listener, app).await {
+                eprintln!("API server error: {}", e);
+            }
+        } else {
+            eprintln!("Failed to bind API server to {}", addr);
+        }
+    });
+    
+    ui::print_success("🌐 Web UI started at http://127.0.0.1:8080");
+    ui::print_info("📖 Swagger UI available at http://127.0.0.1:8080/swagger-ui");
     
     // Create and configure the swarm
     let mut swarm = create_swarm_and_connect_multi_bootstrap(&cli, &config).await?;
@@ -42,6 +89,9 @@ pub async fn start_bootstrap_node(port: u16) -> Result<(), Box<dyn Error>> {
                 println!("Peer ID: {}", swarm.local_peer_id());
                 println!("Connect to this node with: --bootstrap-peer {}@{}", 
                          swarm.local_peer_id(), address);
+                
+                // Write bootstrap info to file for auto-detection
+                write_bootstrap_info_standalone(&swarm.local_peer_id(), &address);
             }
             SwarmEvent::ConnectionEstablished { peer_id, .. } => {
                 ui::print_info(&format!("🔗 Peer connected: {}", peer_id));
@@ -60,6 +110,32 @@ pub struct BootstrapCommand {
     pub port: u16,
 }
 
+impl BootstrapCommand {
+    /// Write bootstrap info to file for auto-detection
+    fn write_bootstrap_info(&self, peer_id: &libp2p::PeerId, address: &libp2p::Multiaddr) {
+        use std::fs;
+        use std::path::Path;
+        
+        let home_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+        let datamesh_dir = home_dir.join(".datamesh");
+        
+        // Create .datamesh directory if it doesn't exist
+        if let Err(e) = fs::create_dir_all(&datamesh_dir) {
+            eprintln!("Failed to create .datamesh directory: {}", e);
+            return;
+        }
+        
+        let bootstrap_file = datamesh_dir.join("bootstrap_info.txt");
+        let bootstrap_info = format!("{}@{}", peer_id, address);
+        
+        if let Err(e) = fs::write(&bootstrap_file, bootstrap_info) {
+            eprintln!("Failed to write bootstrap info: {}", e);
+        } else {
+            println!("📝 Bootstrap info written to {}", bootstrap_file.display());
+        }
+    }
+}
+
 #[async_trait::async_trait]
 impl CommandHandler for BootstrapCommand {
     fn command_name(&self) -> &'static str {
@@ -74,7 +150,6 @@ impl CommandHandler for BootstrapCommand {
         use libp2p::swarm::SwarmEvent;
         use tokio::signal;
         use tokio::time::{sleep, Duration};
-        
         ui::print_header("Bootstrap Node");
         ui::print_info(&format!("Starting bootstrap node on port {}", self.port));
         
@@ -84,6 +159,31 @@ impl CommandHandler for BootstrapCommand {
         
         let config = Config::load_or_default(None).unwrap_or_default();
         let mut swarm = create_swarm_and_connect_multi_bootstrap(&cli_config, &config).await?;
+        
+        // Start API server in background using simple HTTP server
+        let api_server_handle = tokio::spawn(async move {
+            use std::net::SocketAddr;
+            use axum::{routing::get, Router};
+            
+            let app = Router::new()
+                .route("/", get(|| async { "DataMesh API Server - Bootstrap Node Running" }))
+                .route("/health", get(|| async { "OK" }))
+                .route("/swagger-ui", get(|| async { "Swagger UI - Under Construction" }));
+            
+            let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
+            
+            if let Ok(listener) = tokio::net::TcpListener::bind(addr).await {
+                println!("API server listening on {}", addr);
+                if let Err(e) = axum::serve(listener, app).await {
+                    eprintln!("API server error: {}", e);
+                }
+            } else {
+                eprintln!("Failed to bind API server to {}", addr);
+            }
+        });
+        
+        ui::print_success("🌐 Web UI started at http://127.0.0.1:8080");
+        ui::print_info("📖 Swagger UI available at http://127.0.0.1:8080/swagger-ui");
         
         // Start listening on the specified port
         let listen_addr = format!("/ip4/0.0.0.0/tcp/{}", self.port);
@@ -100,6 +200,7 @@ impl CommandHandler for BootstrapCommand {
                 // Handle graceful shutdown
                 _ = signal::ctrl_c() => {
                     ui::print_info("🛑 Received shutdown signal");
+                    api_server_handle.abort();
                     ui::print_success("✅ Bootstrap node shutdown complete");
                     break;
                 }
@@ -113,6 +214,9 @@ impl CommandHandler for BootstrapCommand {
                             println!("Other nodes can connect with:");
                             println!("  --bootstrap-peer {}", swarm.local_peer_id());
                             println!("  --bootstrap-addr {}", address);
+                            
+                            // Write bootstrap info to file for auto-detection
+                            self.write_bootstrap_info(&swarm.local_peer_id(), &address);
                         }
                         SwarmEvent::ConnectionEstablished { peer_id, .. } => {
                             ui::print_info(&format!("🔗 Peer connected: {}", peer_id));

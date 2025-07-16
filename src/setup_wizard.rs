@@ -319,9 +319,23 @@ impl SetupWizard {
     async fn configure_bootstrap_peers(&mut self) -> Result<()> {
         println!("\n🔗 Bootstrap Peer Configuration");
         
-        if self.config.network_preset.is_some() {
-            println!("Using default bootstrap peers for selected network preset.");
-            return Ok(());
+        if let Some(network_preset) = &self.config.network_preset {
+            if network_preset == "local" {
+                println!("Detecting local bootstrap nodes...");
+                
+                // Try to auto-detect running bootstrap nodes
+                if let Some(bootstrap_peer) = self.auto_detect_local_bootstrap().await {
+                    self.config.bootstrap_peers.push(bootstrap_peer);
+                    println!("✅ Auto-detected local bootstrap node");
+                    return Ok(());
+                }
+                
+                println!("⚠️  No local bootstrap nodes detected.");
+                println!("Please manually enter bootstrap peer details:");
+            } else {
+                println!("Using default bootstrap peers for selected network preset.");
+                return Ok(());
+            }
         }
         
         println!("Enter bootstrap peers (format: peer_id@address)");
@@ -356,6 +370,28 @@ impl SetupWizard {
         }
         
         Ok(())
+    }
+
+    /// Auto-detect local bootstrap nodes
+    async fn auto_detect_local_bootstrap(&self) -> Option<BootstrapPeer> {
+        use std::fs;
+        
+        // Try to read bootstrap info from file
+        let home_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+        let datamesh_dir = home_dir.join(".datamesh");
+        let bootstrap_file = datamesh_dir.join("bootstrap_info.txt");
+        
+        if let Ok(bootstrap_info) = fs::read_to_string(&bootstrap_file) {
+            let bootstrap_info = bootstrap_info.trim();
+            println!("🔍 Found bootstrap info: {}", bootstrap_info);
+            
+            // Parse the peer_id@address format
+            if let Ok(peer) = self.parse_bootstrap_peer(bootstrap_info) {
+                return Some(peer);
+            }
+        }
+        
+        None
     }
 
     /// Parse bootstrap peer string
