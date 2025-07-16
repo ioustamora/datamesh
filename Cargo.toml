@@ -45,6 +45,7 @@ thiserror = "1.0"
 sled = "0.34"
 lru = "0.12"
 bs58 = "0.5"
+atty = "0.2"
 
 # REST API dependencies
 axum = { version = "0.7", features = ["multipart", "ws"] }

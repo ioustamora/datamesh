@@ -114,6 +114,15 @@ impl SetupWizard {
     async fn configure_node_type(&mut self) -> Result<()> {
         ui::print_section("🔧 Node Configuration");
         
+        // Check if we're in a non-interactive environment
+        if !atty::is(atty::Stream::Stdin) {
+            // Default to regular node in non-interactive mode
+            println!("⚠️  Non-interactive environment detected, defaulting to regular node");
+            self.config.node_type = NodeType::Regular { connect_to_bootstrap: true };
+            self.config.port = 0; // Use automatic port selection
+            return Ok(());
+        }
+        
         loop {
             println!("\nWhat type of node would you like to run?");
             println!("  {} - Bootstrap node (helps other nodes connect)", "1".green().bold());
@@ -124,26 +133,45 @@ impl SetupWizard {
             io::stdout().flush()?;
             
             let mut input = String::new();
-            io::stdin().read_line(&mut input)?;
-            
-            match input.trim() {
-                "1" => {
-                    self.config.node_type = NodeType::Bootstrap { port: 40871 };
-                    println!("✅ Bootstrap node selected");
-                    break;
-                }
-                "2" => {
+            match io::stdin().read_line(&mut input) {
+                Ok(0) => {
+                    // EOF reached, default to regular node
+                    println!("\n⚠️  No input received, defaulting to regular node");
                     self.config.node_type = NodeType::Regular { connect_to_bootstrap: true };
-                    println!("✅ Regular node selected");
                     break;
                 }
-                "3" => {
-                    self.config.node_type = NodeType::Service { timeout: None };
-                    println!("✅ Service node selected");
-                    break;
+                Ok(_) => {
+                    match input.trim() {
+                        "1" => {
+                            self.config.node_type = NodeType::Bootstrap { port: 40871 };
+                            println!("✅ Bootstrap node selected");
+                            break;
+                        }
+                        "2" => {
+                            self.config.node_type = NodeType::Regular { connect_to_bootstrap: true };
+                            println!("✅ Regular node selected");
+                            break;
+                        }
+                        "3" => {
+                            self.config.node_type = NodeType::Service { timeout: None };
+                            println!("✅ Service node selected");
+                            break;
+                        }
+                        "" => {
+                            // Empty input, default to regular node
+                            println!("✅ Regular node selected (default)");
+                            self.config.node_type = NodeType::Regular { connect_to_bootstrap: true };
+                            break;
+                        }
+                        _ => {
+                            println!("❌ Invalid choice. Please enter 1, 2, or 3.");
+                        }
+                    }
                 }
-                _ => {
-                    println!("❌ Invalid choice. Please enter 1, 2, or 3.");
+                Err(e) => {
+                    println!("⚠️  Error reading input: {}, defaulting to regular node", e);
+                    self.config.node_type = NodeType::Regular { connect_to_bootstrap: true };
+                    break;
                 }
             }
         }
@@ -163,6 +191,13 @@ impl SetupWizard {
             _ => 0,
         };
         
+        // Check if we're in a non-interactive environment
+        if !atty::is(atty::Stream::Stdin) {
+            self.config.port = default_port;
+            println!("⚠️  Non-interactive environment detected, using default port: {}", default_port);
+            return Ok(());
+        }
+        
         loop {
             if default_port == 0 {
                 println!("Enter port number (0 for automatic selection): ");
@@ -174,25 +209,32 @@ impl SetupWizard {
             io::stdout().flush()?;
             
             let mut input = String::new();
-            io::stdin().read_line(&mut input)?;
-            
-            let port_str = input.trim();
-            if port_str.is_empty() {
-                self.config.port = default_port;
-                break;
-            }
-            
-            match port_str.parse::<u16>() {
-                Ok(port) => {
-                    if port > 0 && port <= 65535 {
-                        self.config.port = port;
-                        break;
-                    } else {
-                        println!("❌ Port must be between 1 and 65535");
-                    }
+            match io::stdin().read_line(&mut input) {
+                Ok(0) | Err(_) => {
+                    // EOF or error, use default
+                    self.config.port = default_port;
+                    break;
                 }
-                Err(_) => {
-                    println!("❌ Invalid port number");
+                Ok(_) => {
+                    let port_str = input.trim();
+                    if port_str.is_empty() {
+                        self.config.port = default_port;
+                        break;
+                    }
+                    
+                    match port_str.parse::<u16>() {
+                        Ok(port) => {
+                            if port == 0 || (port > 0 && port <= 65535) {
+                                self.config.port = port;
+                                break;
+                            } else {
+                                println!("❌ Port must be between 1 and 65535, or 0 for automatic");
+                            }
+                        }
+                        Err(_) => {
+                            println!("❌ Invalid port number");
+                        }
+                    }
                 }
             }
         }
