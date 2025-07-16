@@ -68,60 +68,71 @@ impl CommandHandler for BootstrapCommand {
 
     async fn execute(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
         use crate::ui;
-        use crate::thread_safe_command_context::ThreadSafeCommandContext;
-        use std::sync::Arc;
+        use crate::config::Config;
+        use crate::network::create_swarm_and_connect_multi_bootstrap;
+        use futures::stream::StreamExt;
+        use libp2p::swarm::SwarmEvent;
+        use tokio::signal;
         use tokio::time::{sleep, Duration};
         
         ui::print_header("Bootstrap Node");
         ui::print_info(&format!("Starting bootstrap node on port {}", self.port));
         
-        // Use the actor-based networking system for consistency
-        let config = crate::config::Config::load_or_default(None).unwrap_or_default();
+        // Create simplified bootstrap node using direct swarm
         let mut cli_config = context.cli.clone();
+        cli_config.port = self.port;
         
-        // Set the port for the bootstrap node
-        if let crate::cli::Commands::Bootstrap { port } = &mut cli_config.command {
-            *port = self.port;
-        }
+        let config = Config::load_or_default(None).unwrap_or_default();
+        let mut swarm = create_swarm_and_connect_multi_bootstrap(&cli_config, &config).await?;
         
-        let thread_safe_context = ThreadSafeCommandContext::new(
-            cli_config,
-            context.key_manager.clone(),
-            Arc::new(config),
-        )
-        .await?;
+        // Start listening on the specified port
+        let listen_addr = format!("/ip4/0.0.0.0/tcp/{}", self.port);
+        swarm.listen_on(listen_addr.parse()?)?;
         
-        ui::print_success("🌐 Bootstrap node initialized using actor-based system");
+        ui::print_success("🌐 Bootstrap node initialized");
         ui::print_info(&format!("📡 Listening on port {}", self.port));
         ui::print_info("🔄 Bootstrap node is running...");
         ui::print_info("Press Ctrl+C to stop");
         
-        // Bootstrap operation - connect to network and start serving
-        match thread_safe_context.network.bootstrap().await {
-            Ok(_) => {
-                ui::print_success("✅ Bootstrap DHT initialized successfully");
-            }
-            Err(e) => {
-                ui::print_warning(&format!("⚠️  Bootstrap warning: {}", e));
-                ui::print_info("Continuing as isolated bootstrap node");
+        // Event loop with graceful shutdown
+        loop {
+            tokio::select! {
+                // Handle graceful shutdown
+                _ = signal::ctrl_c() => {
+                    ui::print_info("🛑 Received shutdown signal");
+                    ui::print_success("✅ Bootstrap node shutdown complete");
+                    break;
+                }
+                
+                // Handle network events
+                event = swarm.select_next_some() => {
+                    match event {
+                        SwarmEvent::NewListenAddr { address, .. } => {
+                            ui::print_success(&format!("📡 Bootstrap node listening on {}", address));
+                            println!("Peer ID: {}", swarm.local_peer_id());
+                            println!("Other nodes can connect with:");
+                            println!("  --bootstrap-peer {}", swarm.local_peer_id());
+                            println!("  --bootstrap-addr {}", address);
+                        }
+                        SwarmEvent::ConnectionEstablished { peer_id, .. } => {
+                            ui::print_info(&format!("🔗 Peer connected: {}", peer_id));
+                        }
+                        SwarmEvent::ConnectionClosed { peer_id, .. } => {
+                            ui::print_info(&format!("❌ Peer disconnected: {}", peer_id));
+                        }
+                        _ => {}
+                    }
+                }
+                
+                // Periodic health check
+                _ = sleep(Duration::from_secs(30)) => {
+                    let connected_peers: Vec<_> = swarm.connected_peers().collect();
+                    ui::print_info(&format!("📊 Bootstrap node serving {} connected peers", connected_peers.len()));
+                }
             }
         }
         
-        // Keep the bootstrap node running
-        loop {
-            // Check network health periodically
-            match thread_safe_context.network.get_connected_peers().await {
-                Ok(peers) => {
-                    ui::print_info(&format!("📊 Bootstrap node serving {} connected peers", peers.len()));
-                }
-                Err(e) => {
-                    ui::print_warning(&format!("Network check error: {}", e));
-                }
-            }
-            
-            // Wait before next health check
-            sleep(Duration::from_secs(30)).await;
-        }
+        Ok(())
     }
 }
 
@@ -141,72 +152,105 @@ impl CommandHandler for InteractiveCommand {
 
     async fn execute(&self, context: &CommandContext) -> Result<(), Box<dyn Error>> {
         use crate::ui;
-        use crate::thread_safe_command_context::ThreadSafeCommandContext;
-        use std::sync::Arc;
+        use crate::config::Config;
+        use crate::network::create_swarm_and_connect_multi_bootstrap;
+        use crate::bootstrap_manager::{BootstrapManager, BootstrapPeer};
+        use futures::stream::StreamExt;
+        use libp2p::swarm::SwarmEvent;
         use tokio::io::{AsyncBufReadExt, BufReader};
-        use std::collections::HashMap;
+        use std::str::FromStr;
+        use libp2p::{PeerId, Multiaddr};
         
         ui::print_header("Interactive Mode");
         
-        // Initialize actor-based system
-        let config = crate::config::Config::load_or_default(None).unwrap_or_default();
+        // Create network configuration
         let mut cli_config = context.cli.clone();
+        cli_config.port = self.port;
         
-        // Set up network connection parameters
-        if let crate::cli::Commands::Interactive { port, .. } = &mut cli_config.command {
-            *port = self.port;
+        let config = Config::load_or_default(None).unwrap_or_default();
+        let mut swarm = create_swarm_and_connect_multi_bootstrap(&cli_config, &config).await?;
+        
+        // Set up bootstrap manager for better connection handling
+        let mut bootstrap_manager = BootstrapManager::new()
+            .with_connection_limits(1, 5)
+            .with_retry_strategy(crate::bootstrap_manager::ExponentialBackoff::default());
+        
+        // Add bootstrap peers from CLI
+        if let Ok(peers) = context.cli.get_all_bootstrap_peers() {
+            for peer in peers {
+                bootstrap_manager.add_bootstrap_peer(peer);
+            }
         }
         
-        let thread_safe_context = ThreadSafeCommandContext::new(
-            cli_config,
-            context.key_manager.clone(),
-            Arc::new(config),
-        )
-        .await?;
+        // Start listening if port specified
+        if self.port > 0 {
+            let listen_addr = format!("/ip4/0.0.0.0/tcp/{}", self.port);
+            swarm.listen_on(listen_addr.parse()?)?;
+        }
         
         ui::print_success("🎭 Interactive mode initialized");
         ui::print_info("📡 Connecting to network...");
         
-        // Bootstrap and connect to network
-        match thread_safe_context.network.bootstrap().await {
-            Ok(_) => {
-                ui::print_success("✅ Connected to DataMesh network");
-                let peers = thread_safe_context.network.get_connected_peers().await?;
-                ui::print_info(&format!("🌐 Connected to {} peers", peers.len()));
-            }
-            Err(e) => {
-                ui::print_warning(&format!("⚠️  Network connection warning: {}", e));
-                ui::print_info("Continuing in offline mode");
+        // Try to connect to bootstrap peers
+        if bootstrap_manager.get_peer_count() > 0 {
+            match bootstrap_manager.connect_to_network(&mut swarm).await {
+                Ok(connected_peers) => {
+                    ui::print_success(&format!("✅ Connected to {} bootstrap peers", connected_peers.len()));
+                }
+                Err(e) => {
+                    ui::print_warning(&format!("⚠️  Bootstrap connection warning: {}", e));
+                    ui::print_info("Continuing in offline mode");
+                }
             }
         }
         
         ui::print_info("Type 'help' for available commands, 'exit' to quit");
         
-        // Advanced interactive command loop with full command parsing
+        // Interactive command loop
         let stdin = tokio::io::stdin();
         let mut reader = BufReader::new(stdin);
         let mut line = String::new();
         
         loop {
-            print!("datamesh> ");
-            std::io::Write::flush(&mut std::io::stdout())?;
-            
-            line.clear();
-            match reader.read_line(&mut line).await {
-                Ok(0) => break, // EOF
-                Ok(_) => {
-                    let input = line.trim();
-                    if input.is_empty() {
-                        continue;
-                    }
-                    
-                    if let Err(e) = self.handle_interactive_command(input, &thread_safe_context).await {
-                        ui::print_error(&format!("Command error: {}", e));
+            tokio::select! {
+                // Handle network events
+                event = swarm.select_next_some() => {
+                    match event {
+                        SwarmEvent::NewListenAddr { address, .. } => {
+                            ui::print_info(&format!("📡 Listening on {}", address));
+                        }
+                        SwarmEvent::ConnectionEstablished { peer_id, .. } => {
+                            ui::print_success(&format!("🔗 Connected to peer: {}", peer_id));
+                        }
+                        SwarmEvent::ConnectionClosed { peer_id, .. } => {
+                            ui::print_warning(&format!("❌ Disconnected from peer: {}", peer_id));
+                        }
+                        _ => {}
                     }
                 }
-                Err(e) => {
-                    ui::print_error(&format!("Input error: {}", e));
-                    break;
+                
+                // Handle user input
+                result = reader.read_line(&mut line) => {
+                    match result {
+                        Ok(0) => break, // EOF
+                        Ok(_) => {
+                            let input = line.trim();
+                            if input.is_empty() {
+                                line.clear();
+                                continue;
+                            }
+                            
+                            if let Err(e) = self.handle_interactive_command(input, &swarm).await {
+                                ui::print_error(&format!("Command error: {}", e));
+                            }
+                            
+                            line.clear();
+                        }
+                        Err(e) => {
+                            ui::print_error(&format!("Input error: {}", e));
+                            break;
+                        }
+                    }
                 }
             }
         }
@@ -222,7 +266,7 @@ impl InteractiveCommand {
     async fn handle_interactive_command(
         &self,
         input: &str,
-        context: &crate::thread_safe_command_context::ThreadSafeCommandContext,
+        swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
     ) -> Result<(), Box<dyn Error>> {
         use crate::ui;
         
@@ -242,28 +286,28 @@ impl InteractiveCommand {
                 self.show_help();
             }
             "stats" => {
-                self.handle_stats_command(context).await?;
+                self.handle_stats_command(swarm).await?;
             }
             "peers" => {
-                self.handle_peers_command(context).await?;
+                self.handle_peers_command(swarm).await?;
             }
             "health" => {
-                self.handle_health_command(context).await?;
+                self.handle_health_command(swarm).await?;
             }
             "put" => {
-                self.handle_put_command(args, context).await?;
+                self.handle_put_command(args, swarm).await?;
             }
             "get" => {
-                self.handle_get_command(args, context).await?;
+                self.handle_get_command(args, swarm).await?;
             }
             "list" => {
-                self.handle_list_command(context).await?;
+                self.handle_list_command(swarm).await?;
             }
             "info" => {
-                self.handle_info_command(args, context).await?;
+                self.handle_info_command(args, swarm).await?;
             }
             "network" => {
-                self.handle_network_command(context).await?;
+                self.handle_network_command(swarm).await?;
             }
             "clear" => {
                 print!("\x1B[2J\x1B[1;1H"); // Clear screen
@@ -303,21 +347,23 @@ impl InteractiveCommand {
     
     async fn handle_stats_command(
         &self,
-        context: &crate::thread_safe_command_context::ThreadSafeCommandContext,
+        swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
     ) -> Result<(), Box<dyn Error>> {
         use crate::ui;
         
-        ui::print_info("📊 Gathering network statistics...");
+        ui::print_info("📊 Network Statistics:");
         
-        match context.network.get_network_stats().await {
-            Ok(stats) => {
-                ui::print_success("✅ Network Statistics:");
-                ui::print_info(&format!("  📡 Connected peers: {}", stats.connected_peers));
-                ui::print_info(&format!("  🗂️  Routing table size: {}", stats.routing_table_size));
-                ui::print_info(&format!("  🔄 Pending queries: {}", stats.pending_queries));
-            }
-            Err(e) => {
-                ui::print_error(&format!("❌ Failed to get network stats: {}", e));
+        let connected_peers: Vec<_> = swarm.connected_peers().collect();
+        let listening_addrs: Vec<String> = swarm.listeners().map(|addr| addr.to_string()).collect();
+        
+        ui::print_info(&format!("  📡 Connected peers: {}", connected_peers.len()));
+        ui::print_info(&format!("  🗂️  Listening addresses: {}", listening_addrs.len()));
+        ui::print_info(&format!("  🆔 Local peer ID: {}", swarm.local_peer_id()));
+        
+        if !listening_addrs.is_empty() {
+            ui::print_info("  📍 Listening on:");
+            for addr in listening_addrs.iter().take(3) {
+                ui::print_info(&format!("    • {}", addr));
             }
         }
         
@@ -326,23 +372,22 @@ impl InteractiveCommand {
     
     async fn handle_peers_command(
         &self,
-        context: &crate::thread_safe_command_context::ThreadSafeCommandContext,
+        swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
     ) -> Result<(), Box<dyn Error>> {
         use crate::ui;
         
-        match context.network.get_connected_peers().await {
-            Ok(peers) => {
-                ui::print_success(&format!("✅ Connected to {} peers:", peers.len()));
-                for (i, peer) in peers.iter().enumerate().take(10) {
-                    ui::print_info(&format!("  {}. 📡 {}", i + 1, peer));
-                }
-                if peers.len() > 10 {
-                    ui::print_info(&format!("  ... and {} more peers", peers.len() - 10));
-                }
-            }
-            Err(e) => {
-                ui::print_error(&format!("❌ Failed to get peer list: {}", e));
-            }
+        let connected_peers: Vec<_> = swarm.connected_peers().collect();
+        
+        ui::print_success(&format!("✅ Connected to {} peers:", connected_peers.len()));
+        for (i, peer) in connected_peers.iter().enumerate().take(10) {
+            ui::print_info(&format!("  {}. 📡 {}", i + 1, peer));
+        }
+        if connected_peers.len() > 10 {
+            ui::print_info(&format!("  ... and {} more peers", connected_peers.len() - 10));
+        }
+        
+        if connected_peers.is_empty() {
+            ui::print_info("  💡 No peers connected. Try connecting to a bootstrap node.");
         }
         
         Ok(())
@@ -350,41 +395,33 @@ impl InteractiveCommand {
     
     async fn handle_health_command(
         &self,
-        context: &crate::thread_safe_command_context::ThreadSafeCommandContext,
+        swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
     ) -> Result<(), Box<dyn Error>> {
         use crate::ui;
         
         ui::print_info("🏥 Checking network health...");
         
-        match context.network.get_connected_peers().await {
-            Ok(peers) => {
-                let peer_count = peers.len();
-                if peer_count == 0 {
-                    ui::print_warning("⚠️  No peers connected - isolated node");
-                } else if peer_count < 3 {
-                    ui::print_warning(&format!("⚠️  Low peer count: {} (recommended: 3+)", peer_count));
-                } else {
-                    ui::print_success(&format!("✅ Healthy - {} peers connected", peer_count));
-                }
-                
-                // Additional health checks
-                match context.network.get_network_stats().await {
-                    Ok(stats) => {
-                        if stats.routing_table_size > 0 {
-                            ui::print_success(&format!("✅ DHT routing table: {} entries", stats.routing_table_size));
-                        } else {
-                            ui::print_warning("⚠️  Empty DHT routing table");
-                        }
-                    }
-                    Err(_) => {
-                        ui::print_warning("⚠️  Unable to check DHT health");
-                    }
-                }
-            }
-            Err(e) => {
-                ui::print_error(&format!("❌ Network health check failed: {}", e));
-            }
+        let connected_peers: Vec<_> = swarm.connected_peers().collect();
+        let peer_count = connected_peers.len();
+        
+        if peer_count == 0 {
+            ui::print_warning("⚠️  No peers connected - isolated node");
+        } else if peer_count < 3 {
+            ui::print_warning(&format!("⚠️  Low peer count: {} (recommended: 3+)", peer_count));
+        } else {
+            ui::print_success(&format!("✅ Healthy - {} peers connected", peer_count));
         }
+        
+        // Check listening addresses
+        let listening_addrs: Vec<_> = swarm.listeners().collect();
+        if listening_addrs.is_empty() {
+            ui::print_warning("⚠️  Not listening on any addresses");
+        } else {
+            ui::print_success(&format!("✅ Listening on {} addresses", listening_addrs.len()));
+        }
+        
+        // Basic DHT health check
+        ui::print_info(&format!("🆔 Local peer ID: {}", swarm.local_peer_id()));
         
         Ok(())
     }
@@ -392,7 +429,7 @@ impl InteractiveCommand {
     async fn handle_put_command(
         &self,
         args: &[&str],
-        context: &crate::thread_safe_command_context::ThreadSafeCommandContext,
+        swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
     ) -> Result<(), Box<dyn Error>> {
         use crate::ui;
         use std::path::Path;
@@ -411,6 +448,7 @@ impl InteractiveCommand {
         ui::print_info(&format!("📤 Storing file: {}", args[0]));
         ui::print_warning("File storage via interactive mode not yet fully integrated");
         ui::print_info("Use the direct CLI commands for file operations");
+        ui::print_info("Example: ./datamesh put /path/to/file");
         
         Ok(())
     }
@@ -418,7 +456,7 @@ impl InteractiveCommand {
     async fn handle_get_command(
         &self,
         args: &[&str],
-        context: &crate::thread_safe_command_context::ThreadSafeCommandContext,
+        swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
     ) -> Result<(), Box<dyn Error>> {
         use crate::ui;
         use std::path::Path;
@@ -434,19 +472,21 @@ impl InteractiveCommand {
         ui::print_info(&format!("📥 Retrieving file: {}", identifier));
         ui::print_warning("File retrieval via interactive mode not yet fully integrated");
         ui::print_info("Use the direct CLI commands for file operations");
+        ui::print_info("Example: ./datamesh get <file_key> /path/to/save");
         
         Ok(())
     }
     
     async fn handle_list_command(
         &self,
-        context: &crate::thread_safe_command_context::ThreadSafeCommandContext,
+        swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
     ) -> Result<(), Box<dyn Error>> {
         use crate::ui;
         
         ui::print_info("📋 Listing stored files...");
         ui::print_warning("File listing via interactive mode not yet fully integrated");
         ui::print_info("Use the direct CLI commands for file operations");
+        ui::print_info("Example: ./datamesh list");
         
         Ok(())
     }
@@ -454,7 +494,7 @@ impl InteractiveCommand {
     async fn handle_info_command(
         &self,
         args: &[&str],
-        context: &crate::thread_safe_command_context::ThreadSafeCommandContext,
+        swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
     ) -> Result<(), Box<dyn Error>> {
         use crate::ui;
         
@@ -467,37 +507,40 @@ impl InteractiveCommand {
         ui::print_info(&format!("📋 Getting file info: {}", identifier));
         ui::print_warning("File info via interactive mode not yet fully integrated");
         ui::print_info("Use the direct CLI commands for file operations");
+        ui::print_info("Example: ./datamesh info <file_key>");
         
         Ok(())
     }
     
     async fn handle_network_command(
         &self,
-        context: &crate::thread_safe_command_context::ThreadSafeCommandContext,
+        swarm: &libp2p::swarm::Swarm<crate::network::MyBehaviour>,
     ) -> Result<(), Box<dyn Error>> {
         use crate::ui;
         
         ui::print_info("🌐 Network Topology Information:");
         
-        match context.network.get_network_stats().await {
-            Ok(stats) => {
-                ui::print_info(&format!("  📡 Node ID: {}", stats.local_peer_id));
-                ui::print_info(&format!("  🔗 Connected peers: {}", stats.connected_peers));
-                ui::print_info(&format!("  🗺️  Routing table: {} entries", stats.routing_table_size));
-                ui::print_info(&format!("  🔄 Pending queries: {}", stats.pending_queries));
-                
-                if let Ok(peers) = context.network.get_connected_peers().await {
-                    ui::print_info("  🌍 Network Map:");
-                    for (i, peer) in peers.iter().enumerate().take(5) {
-                        ui::print_info(&format!("    ├─ {}", peer));
-                    }
-                    if peers.len() > 5 {
-                        ui::print_info(&format!("    └─ ... {} more peers", peers.len() - 5));
-                    }
-                }
+        let connected_peers: Vec<_> = swarm.connected_peers().collect();
+        let listening_addrs: Vec<_> = swarm.listeners().collect();
+        
+        ui::print_info(&format!("  📡 Node ID: {}", swarm.local_peer_id()));
+        ui::print_info(&format!("  🔗 Connected peers: {}", connected_peers.len()));
+        ui::print_info(&format!("  📍 Listening addresses: {}", listening_addrs.len()));
+        
+        if !connected_peers.is_empty() {
+            ui::print_info("  🌍 Network Map:");
+            for (i, peer) in connected_peers.iter().enumerate().take(5) {
+                ui::print_info(&format!("    ├─ {}", peer));
             }
-            Err(e) => {
-                ui::print_error(&format!("❌ Failed to get network topology: {}", e));
+            if connected_peers.len() > 5 {
+                ui::print_info(&format!("    └─ ... {} more peers", connected_peers.len() - 5));
+            }
+        }
+        
+        if !listening_addrs.is_empty() {
+            ui::print_info("  📡 Listening on:");
+            for addr in listening_addrs.iter().take(3) {
+                ui::print_info(&format!("    • {}", addr));
             }
         }
         

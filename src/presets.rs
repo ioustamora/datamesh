@@ -43,17 +43,15 @@ impl NetworkPresets {
     pub fn new() -> Self {
         let mut presets = HashMap::new();
 
-        // Local network preset
-        presets.insert(
-            "local".to_string(),
-            NetworkPreset {
-                name: "local".to_string(),
-                description: "Auto-discover peers on local network".to_string(),
-                bootstrap_peers: vec![],  // Empty for local auto-discovery
-                default_port_range: Some((40870, 40890)),
-                discovery_enabled: true,
-            },
-        );
+        // Local network preset - load from config file or use defaults
+        let local_preset = Self::load_local_network_preset().unwrap_or_else(|_| NetworkPreset {
+            name: "local".to_string(),
+            description: "Auto-discover peers on local network".to_string(),
+            bootstrap_peers: vec![],  // Empty for local auto-discovery
+            default_port_range: Some((40870, 40890)),
+            discovery_enabled: true,
+        });
+        presets.insert("local".to_string(), local_preset);
 
         // Public network preset (example - would need real public nodes)
         presets.insert(
@@ -89,6 +87,54 @@ impl NetworkPresets {
         );
 
         Self { presets }
+    }
+
+    /// Load local network preset from config file
+    fn load_local_network_preset() -> Result<NetworkPreset> {
+        let config_path = std::path::Path::new("config/local_network.toml");
+        if !config_path.exists() {
+            return Err(anyhow::anyhow!("Local network config not found"));
+        }
+        
+        let content = std::fs::read_to_string(config_path)?;
+        let config: toml::Value = toml::from_str(&content)?;
+        
+        let mut bootstrap_peers = Vec::new();
+        
+        // Parse bootstrap peers from TOML
+        if let Some(bootstrap) = config.get("bootstrap") {
+            if let Some(peers) = bootstrap.get("peers") {
+                if let Some(peers_array) = peers.as_array() {
+                    for peer_config in peers_array {
+                        if let (Some(peer_id), Some(addresses)) = (
+                            peer_config.get("peer_id").and_then(|v| v.as_str()),
+                            peer_config.get("addresses").and_then(|v| v.as_array())
+                        ) {
+                            let addr_strings: Vec<String> = addresses
+                                .iter()
+                                .filter_map(|v| v.as_str())
+                                .map(|s| s.to_string())
+                                .collect();
+                            
+                            if !addr_strings.is_empty() {
+                                bootstrap_peers.push(BootstrapPeer {
+                                    peer_id: peer_id.to_string(),
+                                    addresses: addr_strings,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        Ok(NetworkPreset {
+            name: "local".to_string(),
+            description: "Local development network with configured bootstrap peers".to_string(),
+            bootstrap_peers,
+            default_port_range: Some((40870, 40890)),
+            discovery_enabled: true,
+        })
     }
 
     /// Load custom presets from configuration file

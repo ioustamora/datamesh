@@ -144,8 +144,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     logging::init_logging_safe();
 
     // Check if we should launch the setup wizard
-    // This happens when DataMesh is started without any arguments
-    if setup_wizard::should_start_wizard() {
+    // Only launch wizard if no network connection arguments are provided
+    if setup_wizard::should_start_wizard() && !has_network_connection_args(&cli) {
         match setup_wizard::launch_setup_wizard().await {
             Ok(_) => return Ok(()),
             Err(e) => {
@@ -252,6 +252,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
 /// # Returns
 /// * `Ok(())` - Configuration successfully applied
 /// * `Err(Box<dyn Error>)` - Invalid network specification or configuration error
+/// Check if CLI arguments contain network connection information
+/// This prevents the setup wizard from launching when user wants to connect directly
+fn has_network_connection_args(cli: &cli::Cli) -> bool {
+    // Check for explicit network connection arguments
+    cli.bootstrap_peer.is_some() 
+        || cli.bootstrap_addr.is_some()
+        || cli.bootstrap_peers.is_some()
+        || cli.network.is_some()
+        || matches!(cli.command, cli::Commands::Interactive { .. })
+        || matches!(cli.command, cli::Commands::Service { .. })
+        || matches!(cli.command, cli::Commands::Bootstrap { .. })
+}
+
 fn apply_network_preset(cli: &mut cli::Cli) -> Result<(), Box<dyn Error>> {
     // Only process if a network preset was specified via --network flag
     if let Some(network_spec) = &cli.network {
